@@ -47,6 +47,7 @@ Empirically tested 2026-05-26 in this session (two subagent tests). Sources: sep
 - **Subagent tokens are NOT in the main session JSONL.** Each subagent writes to a separate file: `<session-id>/subagents/agent-<id>.jsonl`. The parent JSONL has no entry for the subagent's turns; the gap in timestamps confirms it.
 - **`current_usage.cache_*` reflects the orchestrator's own last API call.** Subagent turns are invisible to the status bar. During subagent execution the status bar shows stale orchestrator values; it updates only when the orchestrator makes its next call.
 - **Forks are different.** A `/fork` inherits the parent's full system prompt, tools, and conversation history, so its first request reads the parent's cache fully. Regular subagents do not.
+- **Subagents inherit the parent session's model.** Both test runs (fresh Opus 4.7 sessions) confirmed subagents used `claude-opus-4-7` — not Haiku or Sonnet. The built-in Explore subagent is an exception (pinned to Haiku). Custom Agent spawns use whatever model the parent is running. Cost implication: a user on Opus pays Opus prices for all their subagent work.
 - **`cost.total_cost_usd` including subagent spend: still unconfirmed.** The session-metrics tool computes cost by reading both parent and subagent JSONLs separately. The native stdin `cost.total_cost_usd` field would need the status line installed to measure before/after a subagent run.
 
 **Implications for cc-cream:**
