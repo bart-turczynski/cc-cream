@@ -61,7 +61,7 @@ Each segment lives in a different **time-base**; conflating them is a category e
 | Segment | Shown as | Source field(s) | Time-base | Color logic (default) |
 |---|---|---|---|---|
 | Model | `Opus 4.7 (1M context)` | `model.display_name` | static | none |
-| Context | `ctx:19% (38k)` | `context_window.used_percentage`; compact magnitude = `total_input_tokens` (input-only, to match `used_percentage`) | current-context snapshot | `<25 green · 25–40 amber · ≥40 red` (the "50% ceiling" model — §4.4; interim, research earmark §11) |
+| Context | `ctx:19% (38k)` | `context_window.used_percentage`; compact magnitude = `total_input_tokens` (input-only, to match `used_percentage`) | current-context snapshot | `<25 green · 25–40 amber · ≥40 red` of the **fullness reference** chosen by `ctx.basis` — `window` (default) or `ceiling` (§4.4; supersedes the fixed "50% window" model — research earmark §11) |
 | Cache | `cache:95%` | `context_window.current_usage.cache_read_input_tokens / (cache_read_input_tokens + cache_creation_input_tokens + input_tokens)` | **last turn** (most recent API response) | **neutral in v1** (no color; drop-detection red is v2) |
 | Idle / cache-warmth | `idle:00:00` | `now − mtime(transcript_path)`, vs TTL from §9 | derived (time since last activity) | `<50% TTL green · 50–80% amber · ≥80% red`; stays red past expiry |
 | Cost | `~$4.50` | `cost.total_cost_usd` | cumulative session (incl. subagent spend — verified live) | neutral; `~` = estimate; **auto-hidden if zero/absent** |
@@ -97,7 +97,12 @@ Opus 4.7 (1M context) | ctx:19% (38k) cache:95% idle:00:52 | ~$4.50
 
 ### 4.4 Color & threshold philosophy
 Opinionated defaults, all overridable per-field via config:
-- **Context** — we treat **50% window occupancy as the practical ceiling** (quality degrades well before the window is literally full), then apply the idle timer's band shape *within* that ceiling: green <50% of ceiling, amber 50–80%, red ≥80%. In raw `used_percentage` that is **`<25 green · 25–40 amber · ≥40 red`** — red begins at 40% of the real window. Deliberately aggressive; interim pending the research earmark (§11), which would move the ceiling, not the mechanism.
+- **Context** — colors against a configurable **fullness reference** (`ctx.basis`), so the same `<25 / 25–40 / ≥40` band shape can mean two things:
+  - **`basis: "window"` (default).** Bands are percent of the *real* context window (`used_percentage`); red begins at 40% of the window. This treats 50% window occupancy as the practical ceiling and applies the idle timer's band shape within it. Honest about the window, but on a large window the warning is weak: on a 1M model the ~100–120k degradation zone is only ~12% → solid green. No-regression default (the v1 shipped behavior).
+  - **`basis: "ceiling"`.** Bands are percent of a fixed **token `ceiling`** (`total_input_tokens / ceiling`), so the warning fires at the same *absolute* size regardless of window — restoring the early-warning the percent-of-window model loses on big windows. Default `ceiling: 200000` (≈ a practical working max, with degradation framing ~100–120k): 120k tokens → 60% → red on any model. The `ceiling` makes the previously-implicit "we assumed 200,000" an explicit, overridable number.
+  - **Shown % (`ctx.display`).** Under the ceiling basis the displayed `ctx:NN%` can diverge from CC's window figure. `display: "basis"` (default) shows the % toward the chosen reference (e.g. `ctx:60%`), so the number and color always agree; `display: "window"` pins the shown number to CC's window % (e.g. `ctx:12%`) while still coloring by the ceiling. Either way the `(120k)` magnitude grounds the absolute count. No effect under `basis: "window"`.
+
+  Deliberately aggressive; the band *shape* is interim pending the research earmark (§11) — which would retune the thresholds/ceiling, not the mechanism. The ceiling basis itself partially closes that earmark by making the practical ceiling a first-class, model-independent knob.
 - **Cache** — neutral in v1. The bimodal last-turn value can't distinguish a cold-start write from a mid-session prefix-burn without session state; the *preventive* cache signal lives in the idle timer instead. Drop-detection red is a v2 item.
 - **Idle / cache-warmth** — early-warning bias: amber at 50% of TTL, red at 80% (≈48m on a 60m TTL) so red means "act now," not "already lost." Stays red past expiry.
 - **Rate limits** — `≥75 amber / ≥90 red`, reset countdown always shown. Countdown is `resets_at − now` on a format ladder: `≥1d → Nd` (`4d`), `≥1h → HhMMm` (`2h14m`), `<1h → MMm` (`43m`).
@@ -111,7 +116,7 @@ Count-up stopwatch, zero-padded **`hh:mm`** of elapsed time since last activity 
 
 - **Two logical rows, grouped by time-base.** Row 1 = this-session (model · context · cache · idle · cost). Row 2 = account windows (5h · 7d). Each row is one emitted line.
 - **Adaptive line count by *content*, not width.** Row 2 renders only if it has content, so API users (no `rate_limits`) get a single row automatically. The main status line receives **no terminal-width signal**, so we never reflow to the terminal; the default enabled set is tuned to fit the width budget.
-- **Width budget: 80 columns** (the common narrow default). The default Row 1 is ≈67 cols for a `model.display_name` like `Opus 4.7 (1M context)` — the name is variable-length and outside our control, so an unusually long one can overflow. If a user toggles optional segments past 80, the row soft-wraps (a documented consequence of their choice) or they raise the `width` config value. We do not hard-split Row 1 in v1; finer regrouping is a v2 flexibility item.
+- **Width budget: 80 columns** (the common narrow default). The default Row 1 is ≈67 cols for a `model.display_name` like `Opus 4.7 (1M context)` — the name is variable-length and outside our control, so an unusually long one can overflow. If a user toggles optional segments past 80, the row soft-wraps (a documented consequence of their choice) — there is no `width` knob to raise (dropped, §14.2). We do not hard-split Row 1 in v1; finer regrouping is a v2 flexibility item.
 - **Compact numbers by default** (`38k`), exact-numbers a config option.
 - Output uses ANSI color codes; the bar shares its row's right edge with Claude Code system notifications, which can truncate it on narrow terminals (platform behavior we design around, not against).
 
@@ -121,17 +126,16 @@ Count-up stopwatch, zero-padded **`hh:mm`** of elapsed time since last activity 
 
 **One file, `~/.claude/cc-cream.json`, fully data-driven.** It is the single source of truth and the only interface — edited by hand in a text editor, or by asking Claude to edit it. No UI, no TUI, no migration framework.
 
-The engine reads every display decision from this file: per-segment `on`/`row`/`order`, number format, color thresholds, and width. **Every field falls back to a built-in default if missing or malformed**, so a typo degrades one value rather than crashing the bar. This makes "power users can retune anything" literally true at near-zero extra code (the cost of configurability is in UIs, not in reading a number from JSON).
+The engine reads every display decision from this file: per-segment `on`/`row`/`order`, number format, and color thresholds (incl. the `ctx` fullness reference, §4.4). **Every field falls back to a built-in default if missing or malformed**, so a typo degrades one value rather than crashing the bar. This makes "power users can retune anything" literally true at near-zero extra code (the cost of configurability is in UIs, not in reading a number from JSON).
 
 Schema (strict JSON — no comments; threshold keys are final):
 ```json
 {
-  "width": 80,
   "numbers": "compact",
   "ttl": "auto",
   "segments": {
     "model":    { "on": true,  "row": 1, "order": 1 },
-    "ctx":      { "on": true,  "row": 1, "order": 2, "amber": 25, "red": 40 },
+    "ctx":      { "on": true,  "row": 1, "order": 2, "amber": 25, "red": 40, "basis": "window", "ceiling": 200000, "display": "basis" },
     "cache":    { "on": true,  "row": 1, "order": 3 },
     "idle":     { "on": true,  "row": 1, "order": 4, "amber": 50, "red": 80 },
     "cost":     { "on": true,  "row": 1, "order": 5 },
@@ -143,7 +147,7 @@ Schema (strict JSON — no comments; threshold keys are final):
 }
 ```
 
-**One threshold convention for every colored segment:** each color names the **lower bound where it begins**; the color function evaluates `red` first, then `amber`, else neutral/green. Bounds are absolute `used_percentage` for `ctx`/`5h`/`7d`, and **percent of the resolved TTL** for `idle` (§9). **Parsing rule:** strict JSON via the runtime's native parser (no comments); a missing/malformed *single* field falls back to its own default, and a whole-file parse failure (e.g. a hand-edit trailing comma) falls back to **all** defaults. Global-key fallbacks: `width`→80, `numbers`→`compact`, `ttl`→`auto`. Duplicate `(row, order)` ties break by a fixed canonical segment order; `row` accepts only `{1,2}`.
+**One threshold convention for every colored segment:** each color names the **lower bound where it begins**; the color function evaluates `red` first, then `amber`, else neutral/green. Bounds are absolute `used_percentage` for `5h`/`7d`, **percent of the resolved TTL** for `idle` (§9), and **percent of the `ctx.basis` fullness reference** for `ctx` — the real window (`basis: "window"`) or a fixed token `ceiling` (`basis: "ceiling"`); see §4.4. **Parsing rule:** strict JSON via the runtime's native parser (no comments); a missing/malformed *single* field falls back to its own default, and a whole-file parse failure (e.g. a hand-edit trailing comma) falls back to **all** defaults. The `ctx` extras validate independently: `basis` accepts only `{window, ceiling}`, `display` only `{basis, window}`, and `ceiling` only a positive number (else each falls back to its default; a bad `basis` therefore degrades to `window`). Global-key fallbacks (§14.2): `numbers`→`compact`, `ttl`→`auto`. Duplicate `(row, order)` ties break by a fixed canonical segment order; `row` accepts only `{1,2}`.
 
 ---
 
@@ -200,7 +204,7 @@ Confirmed against current Claude Code / Anthropic docs (2026-05-27):
 - **Occupancy vs session/daily burn.** v1's context segment is *current-window occupancy* (the right signal for context-rot; it correctly drops on `/compact`). Whether/how to also surface cumulative daily burn toward quotas is a separate design conversation — there is no raw cumulative-token field, so this would lean on cost + rate-limit windows.
 
 **Research earmark**
-- **Context-fullness vs model-degradation literature** ("lost in the middle," context-rot studies) to replace the interim `<25/25–40/≥40` zones (and the underlying "50% occupancy = ceiling" assumption) with evidence-based thresholds. (Ready to run on request.)
+- **Context-fullness vs model-degradation literature** ("lost in the middle," context-rot studies) to replace the interim `<25/25–40/≥40` zones with evidence-based thresholds. **Partially addressed** (§14.5): the `ctx.basis: "ceiling"` option already turns the practical ceiling into an explicit, model-independent token knob (default 200k, degradation framing ~100–120k), so the remaining research is *where to set the threshold/ceiling*, not *whether the reference should track the window*. (Ready to run on request.)
 
 **v2+ backlog**
 - **Cache:% drop-detection red** (flag a sharp last-turn drop = prefix burn); needs the per-session "seen-read" flag we deliberately omitted to stay stateless.
@@ -235,6 +239,7 @@ Also observed live: `ephemeral_1h_input_tokens` populated with `ephemeral_5m` at
 Confirmed while slicing this PRD into a backlog. Where they conflict with earlier prose, **these supersede it.**
 
 1. **Distribution scope — raw `.js` on GitHub is the only v1 channel.** npm `bin` packaging and the marketplace plugin wrapper move to the v2+ backlog (§11). The single-file/built-ins engine constraint (§7) is unchanged — it's precisely what makes those deferred channels cheap to add later. The consent-based installer (§7) still ships in v1; it simply targets the raw-`.js` path.
-2. **`width` is dropped from the v1 config schema.** The main status line receives no width signal and the engine never reflows (§5), so the field had no runtime effect. The **80-column design target stays** (the default enabled set is tuned to fit it); only the config knob is removed. Global-key fallbacks (§6) reduce to `numbers→compact`, `ttl→auto`. Width-aware layout is revisited under the v2 layout-flexibility item (§11). Supersedes the `width` references in §5 and §6.
+2. **`width` is dropped from the v1 config schema.** The main status line receives no width signal and the engine never reflows (§5), so the field had no runtime effect. The **80-column design target stays** (the default enabled set is tuned to fit it); only the config knob is removed. Global-key fallbacks (§6) reduce to `numbers→compact`, `ttl→auto`. Width-aware layout is revisited under the v2 layout-flexibility item (§11). §5 and §6 are reconciled to match (the 80-col target is a design constraint, not a config knob).
 3. **BDD fixtures — golden capture (subscriber) + synthetic edges.** Scenarios run against stdin **captured live from a subscription Claude Code session** as golden fixtures, supplemented by **synthetic fixtures** for edge cases: null/absent fields, `current_usage:null` right after `/compact`, missing `rate_limits` (API-shaped), and malformed/empty stdin. **API-user stdin sampling is deferred to its own later ticket** — not a v1 priority. This also pins the "degrade, never crash" rule to stdin, not just config (closes the §6-only gap).
 4. **"Verify stdin fields" is the first backlog story, gating ctx-magnitude work.** It confirms real field names/shapes against a live session — notably `total_input_tokens` (the §4.1 magnitude source, absent from the §10/§12 verified list) and the open 200k-window denominator question (§12). Nothing that depends on an unverified field name is built until this story closes.
+5. **`ctx` coloring basis is configurable (`window` vs `ceiling`).** The §4.4 percent-of-window zones silently assume the practical ceiling scales with the window, so on a 1M model the bar stays green through the ~100–120k degradation zone. `ctx.basis` now selects the fullness reference: `window` (default — **no regression**, reproduces v1 coloring exactly) or `ceiling` (`total_input_tokens / ceiling`, default `200000`, firing at a fixed absolute size on any window). `ctx.display` pins the shown % — default `basis` (% toward the reference, so number and color agree), or `window` (CC's window figure, colored by the ceiling). Updates §4.1, §4.4, and the §6 schema; supersedes the fixed-"50% window" framing in §4.4 and partially closes the §11 research earmark. Refines slice S3 (the mechanism is unchanged; only the reference becomes configurable).

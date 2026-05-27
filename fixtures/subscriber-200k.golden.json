@@ -1,0 +1,24 @@
+{
+  "_synthetic": "200k-window edge fixture (PRD §12). The real 1M capture (subscriber.golden.json) exposes context_window_size + exceeds_200k_tokens, so the denominator is a real field; here it is pinned to 200000. used_percentage = input-only tokens / context_window_size.",
+  "model": { "id": "claude-sonnet-4-6", "display_name": "Sonnet 4.6" },
+  "context_window": {
+    "total_input_tokens": 40000,
+    "total_output_tokens": 1200,
+    "context_window_size": 200000,
+    "used_percentage": 20,
+    "remaining_percentage": 80,
+    "current_usage": {
+      "input_tokens": 5000,
+      "output_tokens": 1200,
+      "cache_creation_input_tokens": 5000,
+      "cache_read_input_tokens": 30000
+    }
+  },
+  "exceeds_200k_tokens": false,
+  "cost": { "total_cost_usd": 1.23 },
+  "transcript_path": "/tmp/transcript.jsonl",
+  "rate_limits": {
+    "five_hour": { "used_percentage": 18, "resets_at": 1779838800 },
+    "seven_day": { "used_percentage": 33, "resets_at": 1780167600 }
+  }
+}

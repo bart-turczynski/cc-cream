@@ -1,0 +1,66 @@
+{
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "transcript_path": "/home/user/.claude/projects/example/session.jsonl",
+  "cwd": "/home/user/project",
+  "agent_type": "claude",
+  "effort": {
+    "level": "xhigh"
+  },
+  "session_name": "example session",
+  "model": {
+    "id": "claude-opus-4-7[1m]",
+    "display_name": "Opus 4.7 (1M context)"
+  },
+  "workspace": {
+    "current_dir": "/home/user/project",
+    "project_dir": "/home/user/project",
+    "added_dirs": [],
+    "repo": {
+      "host": "github.com",
+      "owner": "owner",
+      "name": "cc-cream"
+    }
+  },
+  "version": "2.1.150",
+  "output_style": {
+    "name": "default"
+  },
+  "cost": {
+    "total_cost_usd": 0.09580975,
+    "total_duration_ms": 54233961,
+    "total_api_duration_ms": 7412,
+    "total_lines_added": 0,
+    "total_lines_removed": 0
+  },
+  "context_window": {
+    "total_input_tokens": 29578,
+    "total_output_tokens": 452,
+    "context_window_size": 1000000,
+    "current_usage": {
+      "input_tokens": 4787,
+      "output_tokens": 452,
+      "cache_creation_input_tokens": 8379,
+      "cache_read_input_tokens": 16412
+    },
+    "used_percentage": 3,
+    "remaining_percentage": 97
+  },
+  "exceeds_200k_tokens": false,
+  "fast_mode": false,
+  "thinking": {
+    "enabled": true
+  },
+  "rate_limits": {
+    "five_hour": {
+      "used_percentage": 22,
+      "resets_at": 1779838800
+    },
+    "seven_day": {
+      "used_percentage": 36,
+      "resets_at": 1780167600
+    }
+  },
+  "agent": {
+    "name": "claude"
+  }
+}
