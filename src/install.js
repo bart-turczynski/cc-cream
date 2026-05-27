@@ -69,6 +69,10 @@ function settingsPath() {
   return path.join(os.homedir(), '.claude', 'settings.json');
 }
 
+function destinationPath() {
+  return path.join(os.homedir(), '.claude', 'cc-cream', 'cc-cream.js');
+}
+
 function ask(question) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => rl.question(`${question} [y/N] `, (a) => {
@@ -86,8 +90,31 @@ async function main() {
     settings = {}; // missing or malformed -> start fresh, don't clobber blindly below
   }
 
-  // Default entrypoint: the cc-cream.js sitting next to this installer.
-  const entrypoint = path.resolve(path.dirname(new URL(import.meta.url).pathname), 'cc-cream.js');
+  // Determine source: use first CLI arg (local path) or default to cc-cream.js in same dir.
+  let sourceFile = process.argv[2]
+    ? path.resolve(process.argv[2])
+    : path.resolve(path.dirname(new URL(import.meta.url).pathname), 'cc-cream.js');
+
+  // Ensure source file exists.
+  if (!fs.existsSync(sourceFile)) {
+    console.error(`Error: cc-cream.js not found at ${sourceFile}`);
+    process.exit(1);
+  }
+
+  // Copy to destination if not already there or if source is newer.
+  const dest = destinationPath();
+  const destDir = path.dirname(dest);
+  const needsCopy = !fs.existsSync(dest) ||
+    fs.statSync(sourceFile).mtime > fs.statSync(dest).mtime;
+
+  if (needsCopy) {
+    fs.mkdirSync(destDir, { recursive: true });
+    fs.copyFileSync(sourceFile, dest);
+    console.log(`Copied cc-cream.js to ${dest}`);
+  }
+
+  // Use the installed location as the entrypoint.
+  const entrypoint = dest;
 
   let result = plan(settings, { entrypoint });
   // If a replace needs consent, ask now and re-plan with the answer.
