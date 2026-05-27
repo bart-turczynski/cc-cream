@@ -16,7 +16,7 @@ import { pathToFileURL } from 'node:url';
 // ---------------------------------------------------------------------------
 // Built-in defaults (PRD §6, minus the dropped `width` key — §14.2).
 // Each colored segment names the LOWER BOUND where a color begins; the color
-// function tests `red` first, then `amber`, else neutral/green.
+// function tests `red` first, then `orange` (ctx only), then `amber`, else green.
 // ---------------------------------------------------------------------------
 export const DEFAULTS = {
   numbers: 'compact', // 'compact' | 'exact'
@@ -29,7 +29,7 @@ export const DEFAULTS = {
     // the warning fires at a fixed absolute size on any window. `display`
     // governs the shown %: 'basis' tracks the coloring basis (number and color
     // agree), 'window' pins it to CC's window figure regardless (PRD §4.4).
-    ctx:      { on: true,  row: 1, order: 2, amber: 25, red: 40, basis: 'window', ceiling: 200000, display: 'basis' },
+    ctx:      { on: true,  row: 1, order: 2, amber: 30, orange: 40, red: 50, basis: 'window', ceiling: 200000, display: 'basis' },
     cache:    { on: true,  row: 1, order: 3 },
     idle:     { on: true,  row: 1, order: 4, amber: 50, red: 80 },
     cost:     { on: true,  row: 1, order: 5 },
@@ -45,7 +45,7 @@ export const DEFAULTS = {
 // bar is just the name with no separators.
 const ROW1_ZONES = [['model'], ['ctx', 'cache', 'idle', 'effort', 'thinking'], ['cost']];
 
-const ANSI = { red: 31, green: 32, amber: 33 };
+const ANSI = { red: '\x1b[31m', green: '\x1b[32m', amber: '\x1b[33m', orange: '\x1b[38;5;208m' };
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -83,6 +83,7 @@ function mergeConfig(parsed) {
         out.row = rowOr(s.row, def.row);
         out.order = numOr(s.order, def.order);
         if ('amber' in def) out.amber = numOr(s.amber, def.amber);
+        if ('orange' in def) out.orange = numOr(s.orange, def.orange);
         if ('red' in def) out.red = numOr(s.red, def.red);
         if ('basis' in def) out.basis = basisOr(s.basis, def.basis);
         if ('ceiling' in def) out.ceiling = posOr(s.ceiling, def.ceiling);
@@ -156,11 +157,17 @@ function fmtNum(n, mode) {
 const pad2 = (n) => String(n).padStart(2, '0');
 
 function paint(text, color) {
-  return color && ANSI[color] ? `\x1b[${ANSI[color]}m${text}\x1b[0m` : text;
+  return color && ANSI[color] ? `${ANSI[color]}${text}\x1b[0m` : text;
 }
 
-function band(value, amber, red) {
+// 3-arg form: band(value, amber, red) — used by idle / rate limits.
+// 4-arg form: band(value, amber, orange, red) — used by ctx.
+// Orange is skipped when it falls at or below amber (guards against a user config
+// that sets amber higher than the default orange without explicitly clearing it).
+function band(value, amber, orangeOrRed, red) {
+  if (red === undefined) { red = orangeOrRed; orangeOrRed = undefined; }
   if (value >= red) return 'red';
+  if (orangeOrRed !== undefined && orangeOrRed > amber && value >= orangeOrRed) return 'orange';
   if (value >= amber) return 'amber';
   return 'green';
 }
@@ -235,7 +242,7 @@ function segCtx(data, cfg) {
 
   let text = `ctx:${Math.round(shownPct)}%`;
   if (isNum(mag)) text += ` (${fmtNum(mag, cfg.numbers)})`;
-  return { text, color: band(colorPct, s.amber, s.red) };
+  return { text, color: band(colorPct, s.amber, s.orange, s.red) };
 }
 
 function segCache(data) {
