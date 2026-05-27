@@ -19,8 +19,9 @@ import { pathToFileURL } from 'node:url';
 // function tests `red` first, then `orange` (ctx only), then `amber`, else green.
 // ---------------------------------------------------------------------------
 export const DEFAULTS = {
-  numbers: 'compact', // 'compact' | 'exact'
-  ttl: 'auto',        // 'auto' | 60 | 5
+  numbers: 'compact',     // 'compact' | 'exact'
+  ttl: 'auto',            // 'auto' | 60 | 5
+  percentage: 'consumed', // 'consumed' | 'remaining' — display-only flip of ctx/5h/7d (PRDv2 §3)
   segments: {
     model:    { on: true,  row: 1, order: 1 },
     // `basis` picks the fullness reference the color (and, by default, the
@@ -35,6 +36,10 @@ export const DEFAULTS = {
     cost:     { on: true,  row: 1, order: 5 },
     '5h':     { on: true,  row: 2, order: 1, amber: 75, red: 90 },
     '7d':     { on: true,  row: 2, order: 2, amber: 75, red: 90 },
+    // peak: amber "peak" word during Anthropic's faster-drain window (PRDv2 §2).
+    // start/end are Pacific-time hours (0–23, exclusive end); weekday (Mon–Fri)
+    // and the America/Los_Angeles timezone are hardcoded policy facts, not config.
+    peak:     { on: true,  row: 2, order: 3, start: 5, end: 11 },
     effort:   { on: false, row: 1, order: 6 },
     thinking: { on: false, row: 1, order: 7 },
   },
@@ -59,6 +64,8 @@ const rowOr = (v, d) => (v === 1 || v === 2 ? v : d);
 const posOr = (v, d) => (isNum(v) && v > 0 ? v : d); // a ceiling of 0/neg would divide-by-zero
 const basisOr = (v, d) => (v === 'window' || v === 'ceiling' ? v : d);
 const ctxDisplayOr = (v, d) => (v === 'basis' || v === 'window' ? v : d);
+const hourOr = (v, d) => (isNum(v) && v >= 0 && v <= 23 ? v : d); // PT hour for the peak window
+const percentageOr = (v, d) => (v === 'consumed' || v === 'remaining' ? v : d);
 
 function ttlOr(v, d) {
   if (v === 'auto') return 'auto';
@@ -71,6 +78,7 @@ function mergeConfig(parsed) {
   const cfg = clone(DEFAULTS);
   cfg.numbers = parsed.numbers === 'compact' || parsed.numbers === 'exact' ? parsed.numbers : DEFAULTS.numbers;
   cfg.ttl = ttlOr(parsed.ttl, DEFAULTS.ttl);
+  cfg.percentage = percentageOr(parsed.percentage, DEFAULTS.percentage);
 
   const segs = parsed.segments;
   if (segs && typeof segs === 'object' && !Array.isArray(segs)) {
@@ -88,6 +96,8 @@ function mergeConfig(parsed) {
         if ('basis' in def) out.basis = basisOr(s.basis, def.basis);
         if ('ceiling' in def) out.ceiling = posOr(s.ceiling, def.ceiling);
         if ('display' in def) out.display = ctxDisplayOr(s.display, def.display);
+        if ('start' in def) out.start = hourOr(s.start, def.start);
+        if ('end' in def) out.end = hourOr(s.end, def.end);
       }
       cfg.segments[id] = out;
     }
@@ -184,6 +194,31 @@ function toEpochMs(v) {
   return NaN;
 }
 
+// Display-only percentage flip (PRDv2 §3). `remaining` shows 100 − consumed for
+// the budget/occupancy segments (ctx, 5h, 7d). Color always derives from the
+// consumed figure upstream, so only the shown number changes here.
+const flipPct = (consumedShown, cfg) => (cfg.percentage === 'remaining' ? 100 - consumedShown : consumedShown);
+
+// True during Anthropic's faster-drain "peak" window (PRDv2 §2): a weekday
+// (Mon–Fri) within [start, end) Pacific-time hours. `now` is epoch ms; `tz`
+// defaults to the hardcoded America/Los_Angeles policy reference (overridable
+// only as a test seam). Intl handles PST/PDT; if it throws, return false (hide).
+export function isPeak(now, cfg, tz = 'America/Los_Angeles') {
+  const s = cfg?.segments?.peak ?? {};
+  const start = isNum(s.start) ? s.start : 5;
+  const end = isNum(s.end) ? s.end : 11;
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour: 'numeric', hour12: false, weekday: 'short',
+    }).formatToParts(new Date(now));
+    const p = Object.fromEntries(parts.map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24; // some ICU builds emit "24" for midnight
+    return !['Sat', 'Sun'].includes(p.weekday) && hour >= start && hour < end;
+  } catch {
+    return false;
+  }
+}
+
 // resets_at - now, on the §4.4 format ladder: >=1d -> Nd, >=1h -> HhMMm, else MMm.
 function countdown(resetsAt, now) {
   const t = toEpochMs(resetsAt);
@@ -240,8 +275,8 @@ function segCtx(data, cfg) {
   // display override pins it to CC's window figure even under the ceiling basis.
   const shownPct = ceilingPct != null && s.display !== 'window' ? ceilingPct : winPct;
 
-  let text = `ctx:${Math.round(shownPct)}%`;
-  if (isNum(mag)) text += ` (${fmtNum(mag, cfg.numbers)})`;
+  let text = `ctx:${flipPct(Math.round(shownPct), cfg)}%`;
+  if (isNum(mag)) text += ` (${fmtNum(mag, cfg.numbers)})`; // magnitude is absolute, never flips
   return { text, color: band(colorPct, s.amber, s.orange, s.red) };
 }
 
@@ -282,7 +317,14 @@ function segRate(window, label, cfg, segId, now) {
   if (!isNum(pct)) return null;
   const s = cfg.segments[segId];
   const color = pct >= s.red ? 'red' : pct >= s.amber ? 'amber' : null; // neutral below amber
-  return { text: `${label}:${Math.round(pct)}%·${countdown(window.resets_at, now)}`, color };
+  // PRDv2 §1: prefix the reset countdown with ↺ so the figure reads unambiguously
+  // as "time until a fresh 100%", not elapsed time. Drop the countdown (and the
+  // glyph, and the "·" joiner) when resets_at is missing/unparseable — show just
+  // the percentage rather than a dangling separator. Degrade, never crash.
+  const cd = countdown(window.resets_at, now);
+  const head = `${label}:${flipPct(Math.round(pct), cfg)}%`;
+  const text = cd ? `${head}·↺${cd}` : head;
+  return { text, color };
 }
 
 function segEffort(data) {
@@ -297,11 +339,22 @@ function segThinking(data) {
   return { text: `think:${t ? 'on' : 'off'}`, color: null };
 }
 
+function segPeak(data, cfg, now, tz) {
+  // peak rides the account-budget row, so it shows only when that row has windows;
+  // an API user (no rate_limits) whose Row 2 collapses gets no peak either (PRDv2 §5).
+  if (!hasWindow(data?.rate_limits)) return null;
+  if (!isPeak(now, cfg, tz)) return null;
+  return { text: 'peak', color: 'amber' };
+}
+
 // ---------------------------------------------------------------------------
 // Render — assemble enabled+visible segments into up to two rows.
 // ---------------------------------------------------------------------------
 export function render(data, cfg, env, now) {
   const ttlMin = resolveTtl({ rateLimits: data?.rate_limits, config: cfg, env });
+  // The peak timezone is hardcoded policy (PRDv2 §2); CC_CREAM_TZ is an internal
+  // test/diagnostic seam, not a documented config key.
+  const tz = (env && env.CC_CREAM_TZ) || 'America/Los_Angeles';
   const segs = {
     model: segModel(data),
     ctx: segCtx(data, cfg),
@@ -310,6 +363,7 @@ export function render(data, cfg, env, now) {
     cost: segCost(data),
     '5h': segRate(data?.rate_limits?.five_hour, '5h', cfg, '5h', now),
     '7d': segRate(data?.rate_limits?.seven_day, '7d', cfg, '7d', now),
+    peak: segPeak(data, cfg, now, tz),
     effort: segEffort(data),
     thinking: segThinking(data),
   };
@@ -351,7 +405,11 @@ async function main() {
     // malformed/empty stdin -> render with no data -> empty bar
   }
   const cfg = loadConfig(readConfigFile());
-  const out = render(data, cfg, process.env, Date.now());
+  // CC_CREAM_NOW (epoch ms) pins the clock — an internal test/diagnostic seam for
+  // deterministic peak/countdown rendering; absent in normal use → real time.
+  const rawNow = process.env.CC_CREAM_NOW;
+  const now = rawNow && Number.isFinite(Number(rawNow)) ? Number(rawNow) : Date.now();
+  const out = render(data, cfg, process.env, now);
   if (out) process.stdout.write(`${out}\n`);
   process.exit(0);
 }

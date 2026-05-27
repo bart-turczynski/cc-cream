@@ -57,9 +57,11 @@ class CcCreamWorld extends World {
     const env = {
       ...process.env,
       HOME: this.home,
-      // Neutralize cache-TTL env unless a scenario sets it explicitly.
+      // Neutralize cache-TTL + clock/timezone seams unless a scenario sets them.
       FORCE_PROMPT_CACHING_5M: '',
       ENABLE_PROMPT_CACHING_1H: '',
+      CC_CREAM_NOW: '',
+      CC_CREAM_TZ: '',
       ...this.env,
     };
     const start = process.hrtime.bigint();
