@@ -218,11 +218,11 @@ Confirmed against current Claude Code / Anthropic docs (2026-05-27):
 - **Finer layout flexibility** (regroup/split rows, per-field reorder UX) atop the already-flexible config.
 - **Full-configuration UX** (toggle UI, themes).
 
-## 12. Resolved by live probe (2026-05-27) + remaining
+## 12. Resolved by live probe (2026-05-27)
 Verified against a live subscription session (`claude-opus-4-7[1m]`, `service_tier: standard`):
 1. **`cost.total_cost_usd` IS populated on subscription** — non-zero and rising (`$5.58 → $7.37` observed). A brand-new session reads `0` until its first API turn (handled by auto-hide). Subscribers do see the figure.
 2. **`cost.total_cost_usd` INCLUDES subagent spend** — the parent session's cost stepped up across a sub-agent's tool-use turns while the main thread was idle. (Sub-agent *turns* live in separate transcripts, so the total is complete but not breakdown-reconstructable from the parent transcript.)
-3. **`used_percentage` is a clean input-only ratio vs the real window** (live: 162k→16%, 48k→5%, 30k→3% on a 1M window). **Remaining:** confirm the denominator tracks a 200k window too (only 1M was live-tested).
+3. **`used_percentage` is a clean input-only ratio vs the real window — confirmed on both window sizes.** Live 1M (`claude-opus-4-7[1m]`): 162k→16%, 48k→5%, 30k→3%. **Live 200k (Sonnet 4.6 subscriber, CC 2.1.152):** `context_window_size` reports `200000`, and `used_percentage` 15 == `total_input_tokens` 30936 / 200000 (15.47%, rounded); the `current_usage` sum equals `total_input_tokens`, so the input-only basis holds at 200k too. The 200k-denominator open question is **closed**; `fixtures/subscriber-200k.golden.json` is now a real scrubbed capture (was a synthetic stand-in). [CREAM-clftpnqp]
 
 Also observed live: `ephemeral_1h_input_tokens` populated with `ephemeral_5m` at 0 → the 1-hour TTL is genuinely in force for this subscriber, validating §9's subscriber→60m branch.
 

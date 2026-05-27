@@ -1,24 +1,62 @@
 {
-  "_synthetic": "200k-window edge fixture (PRD §12). The real 1M capture (subscriber.golden.json) exposes context_window_size + exceeds_200k_tokens, so the denominator is a real field; here it is pinned to 200000. used_percentage = input-only tokens / context_window_size.",
-  "model": { "id": "claude-sonnet-4-6", "display_name": "Sonnet 4.6" },
-  "context_window": {
-    "total_input_tokens": 40000,
-    "total_output_tokens": 1200,
-    "context_window_size": 200000,
-    "used_percentage": 20,
-    "remaining_percentage": 80,
-    "current_usage": {
-      "input_tokens": 5000,
-      "output_tokens": 1200,
-      "cache_creation_input_tokens": 5000,
-      "cache_read_input_tokens": 30000
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "transcript_path": "/home/user/.claude/projects/example/session.jsonl",
+  "cwd": "/home/user/project",
+  "effort": {
+    "level": "high"
+  },
+  "session_name": "example session",
+  "model": {
+    "id": "claude-sonnet-4-6",
+    "display_name": "Sonnet 4.6"
+  },
+  "workspace": {
+    "current_dir": "/home/user/project",
+    "project_dir": "/home/user/project",
+    "added_dirs": [],
+    "repo": {
+      "host": "github.com",
+      "owner": "owner",
+      "name": "cc-cream"
     }
   },
+  "version": "2.1.152",
+  "output_style": {
+    "name": "default"
+  },
+  "cost": {
+    "total_cost_usd": 0.000513,
+    "total_duration_ms": 31228,
+    "total_api_duration_ms": 977,
+    "total_lines_added": 0,
+    "total_lines_removed": 0
+  },
+  "context_window": {
+    "total_input_tokens": 30936,
+    "total_output_tokens": 0,
+    "context_window_size": 200000,
+    "current_usage": {
+      "input_tokens": 3,
+      "output_tokens": 0,
+      "cache_creation_input_tokens": 19123,
+      "cache_read_input_tokens": 11810
+    },
+    "used_percentage": 15,
+    "remaining_percentage": 85
+  },
   "exceeds_200k_tokens": false,
-  "cost": { "total_cost_usd": 1.23 },
-  "transcript_path": "/tmp/transcript.jsonl",
+  "fast_mode": false,
+  "thinking": {
+    "enabled": true
+  },
   "rate_limits": {
-    "five_hour": { "used_percentage": 18, "resets_at": 1779838800 },
-    "seven_day": { "used_percentage": 33, "resets_at": 1780167600 }
+    "five_hour": {
+      "used_percentage": 21,
+      "resets_at": 1779907200
+    },
+    "seven_day": {
+      "used_percentage": 43,
+      "resets_at": 1780167600
+    }
   }
 }
