@@ -24,10 +24,12 @@ Row 2 is your account windows: `5h · 7d` (subscribers only — API users get on
   `context_window.current_usage`, which landed in that release. The optional
   `effort`/`thinking` segments additionally need 2.1.145 and stay hidden below it.
 
-## Install (raw `.js` from GitHub)
+## Install (raw `.js` from GitHub or local)
 
 v1 ships a single channel: the raw `.js` file. (npm and a marketplace plugin are
 planned for v2.)
+
+### Option 1: From GitHub (recommended for users)
 
 1. **Download** the engine to your Claude config directory:
    ```bash
@@ -48,7 +50,19 @@ planned for v2.)
 3. Claude Code must be **trusted** for the folder, and you may need to **restart**
    it for the bar to appear.
 
-The installer writes:
+### Option 2: From local directory (for development)
+
+If you have cloned the repo or have a local copy:
+
+```bash
+node /path/to/local/cc-cream/src/install.js /path/to/local/cc-cream/src/cc-cream.js
+```
+
+The installer will copy `cc-cream.js` to `~/.claude/cc-cream/cc-cream.js` and configure your settings.json to use it.
+
+### Installation result
+
+Either method writes this to your `~/.claude/settings.json`:
 
 ```json
 "statusLine": {
