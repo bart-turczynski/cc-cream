@@ -219,13 +219,18 @@ export function isPeak(now, cfg, tz = 'America/Los_Angeles') {
   }
 }
 
-// resets_at - now, on the §4.4 format ladder: >=1d -> Nd, >=1h -> HhMMm, else MMm.
+// resets_at - now, on the §4.4 format ladder: >=1d -> "Fri 23:45", >=1h -> HhMMm, else MMm.
 function countdown(resetsAt, now) {
   const t = toEpochMs(resetsAt);
   if (Number.isNaN(t)) return '';
   const totalMin = Math.max(0, Math.floor((t - now) / 60000));
   const days = Math.floor(totalMin / 1440);
-  if (days >= 1) return `${days}d`;
+  if (days >= 1) {
+    const d = new Date(t);
+    const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
+    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `${weekday} ${time}`;
+  }
   const hours = Math.floor(totalMin / 60);
   if (hours >= 1) return `${hours}h${pad2(totalMin % 60)}m`;
   return `${totalMin}m`;
