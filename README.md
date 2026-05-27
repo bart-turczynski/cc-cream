@@ -75,7 +75,7 @@ defaults.
   "ttl": "auto",
   "segments": {
     "model":    { "on": true,  "row": 1, "order": 1 },
-    "ctx":      { "on": true,  "row": 1, "order": 2, "amber": 25, "red": 40 },
+    "ctx":      { "on": true,  "row": 1, "order": 2, "amber": 25, "red": 40, "basis": "window", "ceiling": 200000, "display": "basis" },
     "cache":    { "on": true,  "row": 1, "order": 3 },
     "idle":     { "on": true,  "row": 1, "order": 4, "amber": 50, "red": 80 },
     "cost":     { "on": true,  "row": 1, "order": 5 },
@@ -90,15 +90,28 @@ defaults.
 - `numbers`: `compact` (`38k`) or `exact` (`38000`).
 - `ttl`: cache-TTL for idle coloring — `auto` (recommended), `60`, or `5` minutes.
 - Per segment: `on`, `row` (1 or 2), `order`, and for colored segments the
-  `amber`/`red` lower bounds. For `ctx`/`5h`/`7d` these are absolute
-  `used_percentage`; for `idle` they are **percent of the resolved TTL**.
+  `amber`/`red` lower bounds. For `5h`/`7d` these are absolute `used_percentage`;
+  for `idle` they are **percent of the resolved TTL**; for `ctx` they are percent
+  of whichever fullness reference `basis` selects (below).
+- `ctx` fullness reference:
+  - `basis`: `window` (default) colors off `used_percentage` of the real context
+    window; `ceiling` colors off `total_input_tokens / ceiling`, so the warning
+    fires at the same **absolute** token count on any window. On a 1M model the
+    window basis stays green well past where quality degrades, so set `ceiling`
+    if you want an early warning that doesn't scale with the window size.
+  - `ceiling`: token count the `ceiling` basis measures against (default
+    `200000`, ≈ a practical working max with degradation framing ~100–120k).
+  - `display`: with `basis: "ceiling"`, `basis` (default) shows the % toward the
+    ceiling so the number and color agree (e.g. `ctx:60% (120k)`); `window` shows
+    CC's window figure (e.g. `ctx:12%`) but still colors by the ceiling. No effect
+    under `basis: "window"`. The `(120k)` magnitude grounds both.
 
 ## Segments
 
 | Segment | Example | Meaning | Color (default) |
 |---|---|---|---|
 | model | `Opus 4.7 (1M context)` | current model | none |
-| ctx | `ctx:19% (38k)` | current-context occupancy + input-token magnitude | `<25` green · `25–40` amber · `≥40` red |
+| ctx | `ctx:19% (38k)` | current-context occupancy + input-token magnitude | `<25` green · `25–40` amber · `≥40` red (of the `basis` reference) |
 | cache | `cache:95%` | last-turn cache hit rate | neutral |
 | idle | `idle:00:00` | time since last activity vs cache TTL | `<50%` green · `50–80%` amber · `≥80%` red |
 | cost | `~$4.50` | session cost (incl. subagents); `~` = estimate | neutral; hidden when zero |

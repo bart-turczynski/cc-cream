@@ -23,7 +23,13 @@ export const DEFAULTS = {
   ttl: 'auto',        // 'auto' | 60 | 5
   segments: {
     model:    { on: true,  row: 1, order: 1 },
-    ctx:      { on: true,  row: 1, order: 2, amber: 25, red: 40 },
+    // `basis` picks the fullness reference the color (and, by default, the
+    // shown %) measures against: 'window' = used_percentage of the real window
+    // (no-regression default); 'ceiling' = total_input_tokens / `ceiling`, so
+    // the warning fires at a fixed absolute size on any window. `display`
+    // governs the shown %: 'basis' tracks the coloring basis (number and color
+    // agree), 'window' pins it to CC's window figure regardless (PRD §4.4).
+    ctx:      { on: true,  row: 1, order: 2, amber: 25, red: 40, basis: 'window', ceiling: 200000, display: 'basis' },
     cache:    { on: true,  row: 1, order: 3 },
     idle:     { on: true,  row: 1, order: 4, amber: 50, red: 80 },
     cost:     { on: true,  row: 1, order: 5 },
@@ -50,6 +56,9 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const numOr = (v, d) => (isNum(v) ? v : d);
 const boolOr = (v, d) => (typeof v === 'boolean' ? v : d);
 const rowOr = (v, d) => (v === 1 || v === 2 ? v : d);
+const posOr = (v, d) => (isNum(v) && v > 0 ? v : d); // a ceiling of 0/neg would divide-by-zero
+const basisOr = (v, d) => (v === 'window' || v === 'ceiling' ? v : d);
+const ctxDisplayOr = (v, d) => (v === 'basis' || v === 'window' ? v : d);
 
 function ttlOr(v, d) {
   if (v === 'auto') return 'auto';
@@ -75,6 +84,9 @@ function mergeConfig(parsed) {
         out.order = numOr(s.order, def.order);
         if ('amber' in def) out.amber = numOr(s.amber, def.amber);
         if ('red' in def) out.red = numOr(s.red, def.red);
+        if ('basis' in def) out.basis = basisOr(s.basis, def.basis);
+        if ('ceiling' in def) out.ceiling = posOr(s.ceiling, def.ceiling);
+        if ('display' in def) out.display = ctxDisplayOr(s.display, def.display);
       }
       cfg.segments[id] = out;
     }
@@ -201,13 +213,29 @@ function segModel(data) {
 function segCtx(data, cfg) {
   const cw = data?.context_window;
   if (!cw || typeof cw !== 'object') return null;
-  const pct = cw.used_percentage;
-  if (!isNum(pct)) return null;
-  let text = `ctx:${Math.round(pct)}%`;
-  const mag = magnitudeTokens(cw);
-  if (isNum(mag)) text += ` (${fmtNum(mag, cfg.numbers)})`;
+  const winPct = cw.used_percentage;
+  if (!isNum(winPct)) return null;
   const s = cfg.segments.ctx;
-  return { text, color: band(pct, s.amber, s.red) };
+  const mag = magnitudeTokens(cw);
+
+  // Fullness reference for coloring (PRD §4.4). basis 'ceiling' measures the
+  // input-token magnitude against a fixed token ceiling, so the warning fires
+  // at the same absolute size regardless of window. It degrades to the window
+  // basis when the magnitude is unavailable (per-field fallback to default).
+  let colorPct = winPct;
+  let ceilingPct;
+  if (s.basis === 'ceiling' && isNum(mag) && s.ceiling > 0) {
+    ceilingPct = (mag / s.ceiling) * 100;
+    colorPct = ceilingPct;
+  }
+
+  // Shown %: tracks the basis so the number and color agree; the 'window'
+  // display override pins it to CC's window figure even under the ceiling basis.
+  const shownPct = ceilingPct != null && s.display !== 'window' ? ceilingPct : winPct;
+
+  let text = `ctx:${Math.round(shownPct)}%`;
+  if (isNum(mag)) text += ` (${fmtNum(mag, cfg.numbers)})`;
+  return { text, color: band(colorPct, s.amber, s.red) };
 }
 
 function segCache(data) {
