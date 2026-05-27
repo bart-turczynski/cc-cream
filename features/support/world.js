@@ -15,15 +15,17 @@ export const ENGINE = path.join(REPO, 'src', 'cc-cream.js');
 
 export const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
 
-// Color of the segment matched by `re`, by inspecting the ANSI escape (if any)
+// Color of the segment matched by `re`, by inspecting the last ANSI escape (if any)
 // immediately preceding the matched text. Unwrapped text reads as "neutral".
 export function colorOf(output, re) {
   const m = output.match(re);
   if (!m) return null;
-  const before = output.slice(Math.max(0, m.index - 6), m.index);
-  if (before.endsWith('\x1b[31m')) return 'red';
-  if (before.endsWith('\x1b[32m')) return 'green';
-  if (before.endsWith('\x1b[33m')) return 'amber';
+  const before = output.slice(0, m.index);
+  const esc = before.match(/\x1b\[[0-9;]*m$/)?.[0];
+  if (esc === '\x1b[31m') return 'red';
+  if (esc === '\x1b[32m') return 'green';
+  if (esc === '\x1b[33m') return 'amber';
+  if (esc === '\x1b[38;5;208m') return 'orange';
   return 'neutral';
 }
 

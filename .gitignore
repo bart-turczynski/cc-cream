@@ -25,5 +25,8 @@ coverage/
 *.bak
 archive/
 
+# Research / working notes (local reference only, not part of the shipped product)
+docs/context-rot.md
+
 # Fiberplane local issue tracking
 .fp/
