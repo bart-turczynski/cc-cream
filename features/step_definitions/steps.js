@@ -325,6 +325,39 @@ Then('the segment is colored {word}', function (color) {
 });
 
 // ===========================================================================
+// 11 — rate-limit reset indicator (↺)
+// ===========================================================================
+// The 5h segment is the first whitespace-delimited token on row 2 starting with
+// "5h:" (row-2 segments are joined by two spaces; the segment itself has none).
+const seg5h = (plain) => plain.match(/5h:\S+/)?.[0] ?? null;
+
+Given('stdin five_hour with used_percentage {int} and no resets_at', function (pct) {
+  this.data.rate_limits = this.data.rate_limits || {};
+  this.data.rate_limits.five_hour = { used_percentage: pct };
+});
+
+Then('the 5h segment reads {string}', function (text) {
+  assert.equal(seg5h(this.plain), text, `5h segment in: ${this.plain}`);
+});
+
+Then('the percentage reads {string} with no ↺ prefix', function (pct) {
+  const seg = seg5h(this.plain);
+  assert.ok(seg, `no 5h segment in: ${this.plain}`);
+  const percentage = seg.slice('5h:'.length).split('·')[0]; // text before the countdown joiner
+  assert.equal(percentage, pct);
+  assert.ok(!percentage.includes('↺'), `↺ leaked into the percentage: ${percentage}`);
+});
+
+Then('the ↺ glyph appears exactly once in the 5h segment', function () {
+  const seg = seg5h(this.plain) ?? '';
+  assert.equal((seg.match(/↺/g) || []).length, 1, `glyph count wrong in: ${seg}`);
+});
+
+Then('the ↺ glyph is not rendered', function () {
+  assert.ok(!this.plain.includes('↺'), `↺ unexpectedly present in: ${this.plain}`);
+});
+
+// ===========================================================================
 // 08 — optional segments
 // ===========================================================================
 Given('default config', function () {
@@ -587,4 +620,104 @@ Then('used_percentage is confirmed to track input-tokens divided by 200000', fun
 
 Then('the §12 open question about the denominator is closed', function () {
   assert.ok(true);
+});
+
+// ===========================================================================
+// 12 — peak-hours segment
+// ===========================================================================
+// Map a Pacific wall-clock time to an epoch ms, deterministically and DST-free,
+// by anchoring on the first full week of Jan 2026 (always PST = UTC-8). The
+// engine reformats this epoch in America/Los_Angeles, so it exercises the real
+// Intl path. Hours stay within one UTC day (PT hour + 8 ≤ 22 for the cases used).
+function ptEpochMs(weekday, hh, mm) {
+  const day = { Sat: 3, Sun: 4, Mon: 5, Tue: 6, Wed: 7, Thu: 8, Fri: 9 }[weekday.slice(0, 3)];
+  return Date.UTC(2026, 0, day, hh + 8, mm, 0);
+}
+
+const hasPeak = (plain) => plain.includes('peak');
+
+// Pin the engine's clock to a Pacific wall-clock time. Shift any reset countdown
+// already set against real `now` (the Background runs before this) so it stays
+// relative to the injected clock, then make later resetsAt() calls use it too.
+Given(/^the Pacific time is (\w+) (\d{1,2}):(\d{2})$/, function (wd, hh, mm) {
+  const epoch = ptEpochMs(wd, Number(hh), Number(mm));
+  const deltaSec = Math.round((epoch - this.now) / 1000);
+  for (const w of Object.values(this.data.rate_limits ?? {})) {
+    if (w && isNum(w.resets_at)) w.resets_at += deltaSec;
+  }
+  this.now = epoch;
+  this.env.CC_CREAM_NOW = String(epoch);
+});
+
+Given(/^the America\/Los_Angeles timezone is unavailable$/, function () {
+  this.env.CC_CREAM_TZ = 'Definitely/NotAZone'; // forces Intl.DateTimeFormat to throw
+});
+
+Then('row 2 ends with {string}', function (text) {
+  const line = this.plain.split('\n').find((l) => /5h:|7d:|peak/.test(l));
+  assert.ok(line, `no row 2 in: ${this.plain}`);
+  assert.ok(line.endsWith(text), `"${line}" does not end with "${text}"`);
+});
+
+Then('the peak segment is colored {word}', function (color) {
+  assert.equal(colorOf(this.stdout, /peak/), color);
+});
+
+Then('the peak segment is rendered', function () {
+  assert.ok(hasPeak(this.plain), `expected peak in: ${this.plain}`);
+});
+
+Then('the peak segment is not rendered', function () {
+  assert.ok(!hasPeak(this.plain), `unexpected peak in: ${this.plain}`);
+});
+
+Then('row 2 carries no empty placeholder for peak', function () {
+  const line = this.plain.split('\n').find((l) => /5h:|7d:/.test(l)) ?? '';
+  assert.ok(!hasPeak(line), `peak present in: ${line}`);
+  assert.ok(!/\s$/.test(line), `row 2 has trailing whitespace: "${line}"`);
+  assert.ok(!/ {3,}/.test(line), `row 2 has a gap where peak would sit: "${line}"`);
+});
+
+// One-line "But at Pacific time X the peak segment is …" — re-pin the clock, rerun, assert.
+Then(/^at Pacific time (\w+) (\d{1,2}):(\d{2}) the peak segment is (rendered|not rendered)$/, function (wd, hh, mm, shown) {
+  this.env.CC_CREAM_NOW = String(ptEpochMs(wd, Number(hh), Number(mm)));
+  this.run();
+  if (shown === 'rendered') assert.ok(hasPeak(this.plain), `expected peak in: ${this.plain}`);
+  else assert.ok(!hasPeak(this.plain), `unexpected peak in: ${this.plain}`);
+});
+
+// ===========================================================================
+// 13 — percentage direction (consumed vs. remaining)
+// ===========================================================================
+Given('stdin with used_percentage {int} for ctx and {int} for the 5h window', function (ctxPct, fhPct) {
+  ensureCtx(this).used_percentage = ctxPct;
+  this.data.rate_limits = this.data.rate_limits || {};
+  this.data.rate_limits.five_hour = { used_percentage: fhPct, resets_at: resetsAt(this, '2 hours') };
+});
+
+Given('stdin with a last-turn cache hit rate of {int}%', function (pct) {
+  // read / (read + creation + input) = pct/100
+  ensureCtx(this).current_usage = {
+    cache_read_input_tokens: pct,
+    cache_creation_input_tokens: 0,
+    input_tokens: 100 - pct,
+  };
+});
+
+Given(/^stdin with an idle duration of (\d{1,2}):(\d{2})$/, function (hh, mm) {
+  this.data.transcript_path = this.makeTranscript(Number(hh) * 60 + Number(mm));
+});
+
+Then('the 5h segment percentage reads {string}', function (pct) {
+  const seg = seg5h(this.plain);
+  assert.ok(seg, `no 5h segment in: ${this.plain}`);
+  assert.equal(seg.slice('5h:'.length).split('·')[0], pct);
+});
+
+Then('the 5h segment is colored {word}', function (color) {
+  assert.equal(colorOf(this.stdout, /5h:\d+%/), color);
+});
+
+Then('the magnitude reads {string}', function (text) {
+  assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
 });
