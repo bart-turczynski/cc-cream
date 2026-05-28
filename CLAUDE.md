@@ -19,7 +19,7 @@ npx cucumber-js --name "some scenario title"        # run matching scenarios by 
 
 ## Source of truth (read before working)
 - `docs/PRD.md` and `docs/PRDv2.md` — full spec (v2 + **§14 decisions, which supersede any conflicting earlier prose**).
-- `features/NN-*.feature` — Gherkin user stories, one per slice (00–18). The feature file IS the acceptance spec.
+- `features/NN-*.feature` — Gherkin user stories, one per slice (00–18, 20 files — two are numbered 15). The feature file IS the acceptance spec.
 - FP epic `CREAM-lwiwezhg` — the backlog. `fp tree` for deps / build order.
 
 ## Architecture
@@ -42,7 +42,7 @@ Test infrastructure:
 - `features/support/world.js` — custom world: sandbox HOME setup, `run()` helper to spawn the engine, `makeTranscript()`, ANSI color helpers.
 - `fixtures/*.golden.json` — live-captured stdin samples (subscriber 1M + 200k); used as BDD test inputs.
 
-Thirteen segments (all configurable via `~/.claude/cc-cream.json`):
+Fourteen segments (all configurable via `~/.claude/cc-cream.json`):
 - Row 1 — `ctx`, `cache`, `write`, `ttl`, `effort`, `thinking`, `api_ratio`, `cost`
 - Row 2 — `5h`, `7d`, `burn`, `peak` (hidden entirely for API users — no `rate_limits` in stdin)
 - Row 3 — `model`, `session_name`
