@@ -40,16 +40,19 @@ export const DEFAULTS = {
     // start/end are Pacific-time hours (0–23, exclusive end); weekday (Mon–Fri)
     // and the America/Los_Angeles timezone are hardcoded policy facts, not config.
     peak:     { on: true,  row: 2, order: 3, start: 5, end: 11 },
-    burn:     { on: true,  row: 2, order: 1.5 },
-    effort:   { on: false, row: 1, order: 6 },
-    thinking: { on: false, row: 1, order: 7 },
+    burn:         { on: true,  row: 2, order: 1.5 },
+    effort:       { on: false, row: 1, order: 6 },
+    thinking:     { on: false, row: 1, order: 7 },
+    api_ratio:    { on: false, row: 1, order: 8 },
+    session_name: { on: false, row: 1, order: 0.5 },
+    write:        { on: false, row: 1, order: 3.5 },
   },
 };
 
 // Row 1 renders as up-to-three visual zones separated by " | " (PRD §4.3):
 // [model] | [session metrics] | [cost]. Empty zones drop out, so a model-only
 // bar is just the name with no separators.
-const ROW1_ZONES = [['model'], ['ctx', 'cache', 'idle', 'effort', 'thinking'], ['cost']];
+const ROW1_ZONES = [['model', 'session_name'], ['ctx', 'cache', 'write', 'idle', 'effort', 'thinking', 'api_ratio'], ['cost']];
 
 const ANSI = { red: '\x1b[31m', green: '\x1b[32m', amber: '\x1b[33m', orange: '\x1b[38;5;208m' };
 
@@ -345,6 +348,29 @@ function segThinking(data) {
   return { text: `think:${t ? 'on' : 'off'}`, color: null };
 }
 
+function segApiRatio(data) {
+  const api = data?.cost?.total_api_duration_ms;
+  const total = data?.cost?.total_duration_ms;
+  if (!isNum(api) || !isNum(total) || total <= 0) return null;
+  const pct = Math.round(Math.min(100, (api / total) * 100));
+  return { text: `api:${pct}%`, color: null };
+}
+
+function segSessionName(data) {
+  const name = data?.session_name;
+  if (typeof name !== 'string' || name === '') return null;
+  return { text: `session:${name}`, color: null };
+}
+
+function segCacheWrite(data) {
+  const u = data?.context_window?.current_usage;
+  if (!u || typeof u !== 'object') return null;
+  const creation = numOr(u.cache_creation_input_tokens, 0);
+  const denom = creation + numOr(u.cache_read_input_tokens, 0) + numOr(u.input_tokens, 0);
+  if (denom <= 0) return null;
+  return { text: `write:${Math.round((creation / denom) * 100)}%`, color: null };
+}
+
 function segPeak(data, cfg, now, tz) {
   // peak rides the account-budget row, so it shows only when that row has windows;
   // an API user (no rate_limits) whose Row 2 collapses gets no peak either (PRDv2 §5).
@@ -391,8 +417,11 @@ export function render(data, cfg, env, now, prevSessionState = null) {
     '7d': segRate(data?.rate_limits?.seven_day, '7d', cfg, '7d', now),
     peak: segPeak(data, cfg, now, tz),
     burn: segBurn(data?.rate_limits?.five_hour, prevSessionState, now),
-    effort: segEffort(data),
-    thinking: segThinking(data),
+    effort:       segEffort(data),
+    thinking:     segThinking(data),
+    api_ratio:    segApiRatio(data),
+    session_name: segSessionName(data),
+    write:        segCacheWrite(data),
   };
 
   const visible = (id, row) => cfg.segments[id]?.on && segs[id] && cfg.segments[id].row === row;

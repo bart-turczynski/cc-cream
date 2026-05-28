@@ -814,3 +814,90 @@ Then('the state for session {string} has five_hour_pct {int}', function (id, exp
   const actual = state?.sessions?.[id]?.five_hour_pct;
   assert.strictEqual(actual, expected, `expected five_hour_pct ${expected}, got ${actual}`);
 });
+
+// ===========================================================================
+// 16 — API efficiency ratio
+// ===========================================================================
+Given('stdin with total_api_duration_ms {int} and total_duration_ms {int}', function (api, total) {
+  this.data.cost = { ...(this.data.cost ?? {}), total_api_duration_ms: api, total_duration_ms: total };
+});
+
+Given('stdin with only total_duration_ms {int}', function (total) {
+  this.data.cost = { ...(this.data.cost ?? {}), total_duration_ms: total };
+});
+
+Then('the api_ratio segment reads {string}', function (text) {
+  assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
+});
+
+Then('the api_ratio segment is not rendered', function () {
+  assert.ok(!/api:\d+%/.test(this.plain), `api_ratio unexpectedly present in: ${this.plain}`);
+});
+
+Then('row 1 includes {string} before {string}', function (a, b) {
+  const row1 = this.plain.split('\n')[0];
+  const ia = row1.indexOf(a);
+  const ib = row1.indexOf(b);
+  assert.ok(ia !== -1, `"${a}" not found in row 1: ${row1}`);
+  assert.ok(ib !== -1, `"${b}" not found in row 1: ${row1}`);
+  assert.ok(ia < ib, `"${a}" (pos ${ia}) should appear before "${b}" (pos ${ib}) in row 1: ${row1}`);
+});
+
+// ===========================================================================
+// 17 — additional stdin fields (session_name, write)
+// ===========================================================================
+Given('stdin with session_name {string}', function (name) {
+  this.data.session_name = name;
+});
+
+Given('stdin with no session_name field', function () {
+  delete this.data.session_name;
+});
+
+Then('the session_name segment reads {string}', function (text) {
+  assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
+});
+
+Then('the session_name segment is not rendered', function () {
+  assert.ok(!/session:/.test(this.plain), `session_name unexpectedly present in: ${this.plain}`);
+});
+
+Then('row 1 zone 1 reads {string}', function (expected) {
+  const row1 = this.plain.split('\n')[0];
+  const zone1 = row1.split(' | ')[0];
+  assert.equal(zone1, expected, `zone 1 was "${zone1}", expected "${expected}"`);
+});
+
+Then('row 1 includes {string} between zone 1 and zone 2', function (_sep) {
+  const row1 = this.plain.split('\n')[0];
+  assert.ok(row1.includes(' | '), `no zone separator in row 1: ${row1}`);
+});
+
+Then('the write segment reads {string}', function (text) {
+  assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
+});
+
+Then('the write segment is not rendered', function () {
+  assert.ok(!/write:\d+%/.test(this.plain), `write unexpectedly present in: ${this.plain}`);
+});
+
+Then('row 1 includes {string}', function (text) {
+  const row1 = this.plain.split('\n')[0];
+  assert.ok(row1.includes(text), `expected "${text}" in row 1: ${row1}`);
+});
+
+// ===========================================================================
+// 18 — distribution as npm package
+// ===========================================================================
+Then('package.json has a bin entry for {string} pointing to the engine', function (name) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.ok(pkg.bin && typeof pkg.bin === 'object', 'package.json is missing a "bin" field');
+  const entry = pkg.bin[name];
+  assert.ok(typeof entry === 'string' && entry.includes('cc-cream.js'),
+    `bin["${name}"] should point to cc-cream.js, got: ${entry}`);
+});
+
+Then(/^src\/cc-cream\.js starts with "([^"]+)"$/, function (shebang) {
+  const src = fs.readFileSync(ENGINE, 'utf8');
+  assert.ok(src.startsWith(shebang), `Engine does not start with "${shebang}"`);
+});
