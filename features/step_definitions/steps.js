@@ -786,3 +786,31 @@ Then('the state for session {string} has cost {float}', function (id, expected) 
   assert.ok(typeof actual === 'number', `cost missing for session ${id}`);
   assert.ok(Math.abs(actual - expected) < 0.001, `expected cost ${expected}, got ${actual}`);
 });
+
+// ===========================================================================
+// 15 — burn-rate projection
+// ===========================================================================
+Given(/^a state file with session "([^"]+)" having five_hour_pct (\d+) sampled (\d+)m ago$/, function (id, pct, mins) {
+  // Use CC_CREAM_NOW if already pinned (e.g. via "the Pacific time is…"), so that
+  // deltaMs in segBurn is computed against the same clock the engine will use.
+  const nowMs = this.env.CC_CREAM_NOW ? Number(this.env.CC_CREAM_NOW) : this.now;
+  const state = { sessions: { [id]: { five_hour_pct: Number(pct), ts: nowMs - Number(mins) * 60000 } } };
+  fs.writeFileSync(stateFilePath(this), JSON.stringify(state));
+});
+
+Then('row 2 includes {string}', function (text) {
+  const line = this.plain.split('\n').find((l) => /5h:|7d:|~/.test(l));
+  assert.ok(line && line.includes(text), `expected row 2 to include "${text}" in: ${this.plain}`);
+});
+
+Then('row 2 does not include a burn projection', function () {
+  const line = this.plain.split('\n').find((l) => /5h:|7d:|~/.test(l));
+  assert.ok(!line || !/~\d/.test(line), `expected no burn projection in row 2, got: ${line}`);
+});
+
+Then('the state for session {string} has five_hour_pct {int}', function (id, expected) {
+  const raw = fs.readFileSync(stateFilePath(this), 'utf8');
+  const state = JSON.parse(raw);
+  const actual = state?.sessions?.[id]?.five_hour_pct;
+  assert.strictEqual(actual, expected, `expected five_hour_pct ${expected}, got ${actual}`);
+});
