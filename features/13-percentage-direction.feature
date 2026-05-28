@@ -7,7 +7,7 @@ Feature: Percentage direction — consumed vs. remaining
   # The flip is display-only: 100 − used_percentage. It applies to the consumed-budget
   # / occupancy segments only — ctx, 5h, 7d. By decision (2026-05-27 session) cache%
   # is EXEMPT: it is a last-turn hit-rate quality ratio, not a consumed budget — like
-  # idle (a duration), it never flips. Thresholds (amber/red, and the ctx zones) are
+  # ttl (a countdown), it never flips. Thresholds (amber/red, and the ctx zones) are
   # ALWAYS expressed in consumed terms internally: the color behavior is identical in
   # both modes; only the shown number changes. Token magnitudes are absolute and never
   # flip. Global per-key fallback (S2): a bad value falls back to "consumed".
@@ -23,20 +23,21 @@ Feature: Percentage direction — consumed vs. remaining
     Given config { "percentage": "remaining" }
     And stdin with used_percentage 19 and an input-token total of 38000
     When cc-cream runs
-    Then the context segment reads "ctx:81% (38k)"
+    Then the context segment reads "ctx:81% [38k]"
 
   Scenario: Remaining flips both rate-limit windows; countdown and magnitude unchanged
     Given config { "percentage": "remaining" }
+    And the Pacific time is Monday 12:00
     And stdin five_hour with used_percentage 67 resetting in 43m
     And seven_day with used_percentage 41 resetting in 4 days
     When cc-cream runs
-    Then row 2 reads "5h:33%·↺43m  7d:59%·↺4d"
+    Then row 2 reads "5h:33% ↺ 43m | 7d:59% ↺ 4d"
 
   Scenario: The token magnitude is absolute and does not flip
     Given config { "percentage": "remaining" }
     And stdin with used_percentage 19 and an input-token total of 38000
     When cc-cream runs
-    Then the magnitude reads "(38k)"
+    Then the magnitude reads "[38k]"
 
   Scenario: cache% is exempt and never flips
     Given config { "percentage": "remaining" }
@@ -44,11 +45,11 @@ Feature: Percentage direction — consumed vs. remaining
     When cc-cream runs
     Then the cache segment reads "cache:95%"
 
-  Scenario: idle is exempt — a duration, not a percentage
-    Given config { "percentage": "remaining" }
-    And stdin with an idle duration of 00:12
+  Scenario: ttl countdown is exempt from percentage direction
+    Given config {"percentage":"remaining","ttl":60}
+    And the transcript mtime was 12 minutes ago
     When cc-cream runs
-    Then the idle segment reads "idle:00:12"
+    Then the ttl segment reads "ttl:00:48"
 
   Scenario: Thresholds stay consumed-basis — color from consumed, number from remaining
     Given config { "percentage": "remaining", "segments": { "5h": { "red": 90 } } }
@@ -61,7 +62,7 @@ Feature: Percentage direction — consumed vs. remaining
     Given config { "percentage": "remaining" }
     And stdin with used_percentage 80 and an input-token total of 160000
     When cc-cream runs
-    Then the context segment reads "ctx:20% (160k)"
+    Then the context segment reads "ctx:20% [160k]"
     And the context segment is colored red
 
   Scenario: Remaining flips the displayed figure under the ceiling basis too
@@ -70,7 +71,7 @@ Feature: Percentage direction — consumed vs. remaining
     Given config { "percentage": "remaining", "segments": { "ctx": { "basis": "ceiling", "ceiling": 200000 } } }
     And stdin with used_percentage 12 and an input-token total of 120000
     When cc-cream runs
-    Then the context segment reads "ctx:40% (120k)"
+    Then the context segment reads "ctx:40% [120k]"
     And the context segment is colored red
 
   Scenario Outline: A bad percentage value falls back to consumed

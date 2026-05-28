@@ -23,7 +23,7 @@ export const DEFAULTS = {
   ttl: 'auto',            // 'auto' | 60 | 5
   percentage: 'consumed', // 'consumed' | 'remaining' — display-only flip of ctx/5h/7d (PRDv2 §3)
   segments: {
-    model:    { on: true,  row: 1, order: 1 },
+    model:    { on: true,  row: 3, order: 0.5 },
     // `basis` picks the fullness reference the color (and, by default, the
     // shown %) measures against: 'window' = used_percentage of the real window
     // (no-regression default); 'ceiling' = total_input_tokens / `ceiling`, so
@@ -32,7 +32,7 @@ export const DEFAULTS = {
     // agree), 'window' pins it to CC's window figure regardless (PRD §4.4).
     ctx:      { on: true,  row: 1, order: 2, amber: 30, orange: 40, red: 50, basis: 'window', ceiling: 200000, display: 'basis' },
     cache:    { on: true,  row: 1, order: 3, drop: 20, drop_recover: 80 },
-    idle:     { on: true,  row: 1, order: 4, amber: 50, red: 80 },
+    ttl:      { on: true,  row: 1, order: 4, amber: 50, red: 80 },
     cost:     { on: true,  row: 1, order: 5 },
     '5h':     { on: true,  row: 2, order: 1, amber: 75, red: 90 },
     '7d':     { on: true,  row: 2, order: 2, amber: 75, red: 90 },
@@ -40,15 +40,19 @@ export const DEFAULTS = {
     // start/end are Pacific-time hours (0–23, exclusive end); weekday (Mon–Fri)
     // and the America/Los_Angeles timezone are hardcoded policy facts, not config.
     peak:     { on: true,  row: 2, order: 3, start: 5, end: 11 },
-    effort:   { on: false, row: 1, order: 6 },
-    thinking: { on: false, row: 1, order: 7 },
+    burn:         { on: true,  row: 2, order: 1.5 },
+    effort:       { on: false, row: 1, order: 6 },
+    thinking:     { on: false, row: 1, order: 7 },
+    api_ratio:    { on: false, row: 1, order: 8 },
+    session_name: { on: false, row: 3, order: 1 },
+    write:        { on: false, row: 1, order: 3.5 },
   },
 };
 
 // Row 1 renders as up-to-three visual zones separated by " | " (PRD §4.3):
 // [model] | [session metrics] | [cost]. Empty zones drop out, so a model-only
 // bar is just the name with no separators.
-const ROW1_ZONES = [['model'], ['ctx', 'cache', 'idle', 'effort', 'thinking'], ['cost']];
+const ROW1_ZONES = [['ctx', 'cache', 'write', 'ttl', 'effort', 'thinking', 'api_ratio'], ['cost']];
 
 const ANSI = { red: '\x1b[31m', green: '\x1b[32m', amber: '\x1b[33m', orange: '\x1b[38;5;208m' };
 
@@ -60,7 +64,7 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const numOr = (v, d) => (isNum(v) ? v : d);
 const boolOr = (v, d) => (typeof v === 'boolean' ? v : d);
-const rowOr = (v, d) => (v === 1 || v === 2 ? v : d);
+const rowOr = (v, d) => (v === 1 || v === 2 || v === 3 ? v : d);
 const posOr = (v, d) => (isNum(v) && v > 0 ? v : d); // a ceiling of 0/neg would divide-by-zero
 const basisOr = (v, d) => (v === 'window' || v === 'ceiling' ? v : d);
 const ctxDisplayOr = (v, d) => (v === 'basis' || v === 'window' ? v : d);
@@ -129,7 +133,7 @@ function readConfigFile() {
 }
 
 // ---------------------------------------------------------------------------
-// TTL inference for the idle segment's coloring (PRD §9).
+// TTL inference for the ttl segment's coloring (PRD §9).
 // ---------------------------------------------------------------------------
 const envOn = (v) => typeof v === 'string' && v !== '' && v !== '0' && v.toLowerCase() !== 'false';
 
@@ -172,7 +176,7 @@ function paint(text, color) {
   return color && ANSI[color] ? `${ANSI[color]}${text}\x1b[0m` : text;
 }
 
-// 3-arg form: band(value, amber, red) — used by idle / rate limits.
+// 3-arg form: band(value, amber, red) — used by ttl / rate limits.
 // 4-arg form: band(value, amber, orange, red) — used by ctx.
 // Orange is skipped when it falls at or below amber (guards against a user config
 // that sets amber higher than the default orange without explicitly clearing it).
@@ -283,7 +287,7 @@ function segCtx(data, cfg) {
   const shownPct = ceilingPct != null && s.display !== 'window' ? ceilingPct : winPct;
 
   let text = `ctx:${flipPct(Math.round(shownPct), cfg)}%`;
-  if (isNum(mag)) text += ` (${fmtNum(mag, cfg.numbers)})`; // magnitude is absolute, never flips
+  if (isNum(mag)) text += ` [${fmtNum(mag, cfg.numbers)}]`; // magnitude is absolute, never flips
   return { text, color: band(colorPct, s.amber, s.orange, s.red) };
 }
 
@@ -301,19 +305,20 @@ function segCache(data, cfg, prevCachePct, recovering) {
   return { text: `cache:${pct}%`, color };
 }
 
-function segIdle(data, cfg, ttlMin, now) {
+function segTtl(data, cfg, ttlMin, now) {
   const tp = data?.transcript_path;
   if (typeof tp !== 'string' || tp === '') return null;
   let mtimeMs;
   try {
     mtimeMs = fs.statSync(tp).mtimeMs;
   } catch {
-    return null; // hide rather than show a false "cache warm" idle:00:00
+    return null;
   }
-  const min = Math.floor(Math.max(0, now - mtimeMs) / 60000);
-  const text = `idle:${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`;
-  const s = cfg.segments.idle;
-  const pctTtl = ttlMin > 0 ? (min / ttlMin) * 100 : 0;
+  const elapsedMin = Math.floor(Math.max(0, now - mtimeMs) / 60000);
+  const remainingMin = Math.max(0, ttlMin - elapsedMin);
+  const text = `ttl:${pad2(Math.floor(remainingMin / 60))}:${pad2(remainingMin % 60)}`;
+  const s = cfg.segments.ttl;
+  const pctTtl = ttlMin > 0 ? (elapsedMin / ttlMin) * 100 : 0;
   return { text, color: band(pctTtl, s.amber, s.red) };
 }
 
@@ -335,7 +340,7 @@ function segRate(window, label, cfg, segId, now) {
   // the percentage rather than a dangling separator. Degrade, never crash.
   const cd = countdown(window.resets_at, now);
   const head = `${label}:${flipPct(Math.round(pct), cfg)}%`;
-  const text = cd ? `${head}·↺${cd}` : head;
+  const text = cd ? `${head} ↺ ${cd}` : head;
   return { text, color };
 }
 
@@ -351,6 +356,29 @@ function segThinking(data) {
   return { text: `think:${t ? 'on' : 'off'}`, color: null };
 }
 
+function segApiRatio(data) {
+  const api = data?.cost?.total_api_duration_ms;
+  const total = data?.cost?.total_duration_ms;
+  if (!isNum(api) || !isNum(total) || total <= 0) return null;
+  const pct = Math.round(Math.min(100, (api / total) * 100));
+  return { text: `∿ api:${pct}%`, color: null };
+}
+
+function segSessionName(data) {
+  const name = data?.session_name;
+  if (typeof name !== 'string' || name === '') return null;
+  return { text: name, color: null };
+}
+
+function segCacheWrite(data) {
+  const u = data?.context_window?.current_usage;
+  if (!u || typeof u !== 'object') return null;
+  const creation = numOr(u.cache_creation_input_tokens, 0);
+  const denom = creation + numOr(u.cache_read_input_tokens, 0) + numOr(u.input_tokens, 0);
+  if (denom <= 0) return null;
+  return { text: `write:${Math.round((creation / denom) * 100)}%`, color: null };
+}
+
 function segPeak(data, cfg, now, tz) {
   // peak rides the account-budget row, so it shows only when that row has windows;
   // an API user (no rate_limits) whose Row 2 collapses gets no peak either (PRDv2 §5).
@@ -359,10 +387,30 @@ function segPeak(data, cfg, now, tz) {
   return { text: 'peak', color: 'amber' };
 }
 
+// Burn-rate projection (PRDv2 §11): estimate minutes until the 5h budget hits 100%
+// at the current consumption velocity. `prev` is the previous invocation's session
+// state { five_hour_pct, ts }. Returns null when there is no measurable positive rate.
+function segBurn(fiveHour, prev, now) {
+  if (!fiveHour || !isNum(fiveHour.used_percentage)) return null;
+  if (!prev || !isNum(prev.five_hour_pct) || !isNum(prev.ts)) return null;
+  const deltaPct = fiveHour.used_percentage - prev.five_hour_pct;
+  const deltaMs = now - prev.ts;
+  if (deltaPct <= 0 || deltaMs <= 0) return null;
+  const remaining = 100 - fiveHour.used_percentage;
+  if (remaining <= 0) return null;
+  const minEta = Math.ceil((remaining / deltaPct) * deltaMs / 60000);
+  // Hide when ETA is not a real number or longer than the 5h window duration —
+  // the window will reset before the cap is reached, making the projection moot.
+  if (!Number.isFinite(minEta) || minEta >= 300) return null;
+  const h = Math.floor(minEta / 60);
+  const m = minEta % 60;
+  return { text: h >= 1 ? `~${h}h${pad2(m)}m` : `~${minEta}m`, color: null };
+}
+
 // ---------------------------------------------------------------------------
 // Render — assemble enabled+visible segments into up to two rows.
 // ---------------------------------------------------------------------------
-export function render(data, cfg, env, now, prevCachePct, recovering) {
+export function render(data, cfg, env, now, prevSessionState = null) {
   const ttlMin = resolveTtl({ rateLimits: data?.rate_limits, config: cfg, env });
   // The peak timezone is hardcoded policy (PRDv2 §2); CC_CREAM_TZ is an internal
   // test/diagnostic seam, not a documented config key.
@@ -370,22 +418,26 @@ export function render(data, cfg, env, now, prevCachePct, recovering) {
   const segs = {
     model: segModel(data),
     ctx: segCtx(data, cfg),
-    cache: segCache(data, cfg, prevCachePct, recovering),
-    idle: segIdle(data, cfg, ttlMin, now),
+    cache: segCache(data, cfg, prevSessionState && isNum(prevSessionState.cache_pct) ? prevSessionState.cache_pct : undefined, prevSessionState?.recovering === true),
+    ttl: segTtl(data, cfg, ttlMin, now),
     cost: segCost(data),
     '5h': segRate(data?.rate_limits?.five_hour, '5h', cfg, '5h', now),
     '7d': segRate(data?.rate_limits?.seven_day, '7d', cfg, '7d', now),
     peak: segPeak(data, cfg, now, tz),
-    effort: segEffort(data),
-    thinking: segThinking(data),
+    burn: segBurn(data?.rate_limits?.five_hour, prevSessionState, now),
+    effort:       segEffort(data),
+    thinking:     segThinking(data),
+    api_ratio:    segApiRatio(data),
+    session_name: segSessionName(data),
+    write:        segCacheWrite(data),
   };
 
   const visible = (id, row) => cfg.segments[id]?.on && segs[id] && cfg.segments[id].row === row;
   const byOrder = (a, b) => cfg.segments[a].order - cfg.segments[b].order;
   const draw = (id) => paint(segs[id].text, segs[id].color);
 
-  // Row 1: zoned, " | " between zones, " " within a zone.
-  const row1 = ROW1_ZONES.map((zone) => zone.filter((id) => visible(id, 1)).sort(byOrder).map(draw).join(' '))
+  // Row 1: zoned, " | " between all segments (both zones and within-zone).
+  const row1 = ROW1_ZONES.map((zone) => zone.filter((id) => visible(id, 1)).sort(byOrder).map(draw).join(' | '))
     .filter((z) => z.length > 0)
     .join(' | ');
 
@@ -394,9 +446,16 @@ export function render(data, cfg, env, now, prevCachePct, recovering) {
     .filter((id) => visible(id, 2))
     .sort(byOrder)
     .map(draw)
-    .join('  ');
+    .join(' | ');
 
-  return [row1, row2].filter((r) => r.length > 0).join('\n');
+  // Row 3: identity row (model | session_name), " | " between segments.
+  const row3 = Object.keys(cfg.segments)
+    .filter((id) => visible(id, 3))
+    .sort(byOrder)
+    .map(draw)
+    .join(' | ');
+
+  return [row1, row2, row3].filter((r) => r.length > 0).join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -460,16 +519,14 @@ async function main() {
   const rawNow = process.env.CC_CREAM_NOW;
   const now = rawNow && Number.isFinite(Number(rawNow)) ? Number(rawNow) : Date.now();
 
-  // Read per-session state before render so drop-detection can compare to the
-  // previous cache_pct. Degrade silently — missing/corrupt state → stateless render.
+  // Read prior session state before rendering — burn-rate projection needs the
+  // previous invocation's (ts, five_hour_pct) to compute velocity.
   const sessionId = typeof data.session_id === 'string' && data.session_id ? data.session_id : null;
   const stateFile = path.join(os.homedir(), '.claude', 'cc-cream-state.json');
   const state = sessionId ? readState(stateFile) : {};
-  const prevSession = sessionId ? getSessionState(state, sessionId) : null;
-  const prevCachePct = prevSession && isNum(prevSession.cache_pct) ? prevSession.cache_pct : undefined;
-  const recovering = prevSession?.recovering === true;
+  const prevSessionState = getSessionState(state, sessionId);
 
-  const out = render(data, cfg, process.env, now, prevCachePct, recovering);
+  const out = render(data, cfg, process.env, now, prevSessionState);
   if (out) process.stdout.write(`${out}\n`);
 
   // Persist per-session state for consumer features (drop-detection, cost-delta,
@@ -485,10 +542,14 @@ async function main() {
       if (denom > 0) {
         const currentCachePct = Math.round((read / denom) * 100);
         patch.cache_pct = currentCachePct;
+        const prevCachePct = prevSessionState && isNum(prevSessionState.cache_pct) ? prevSessionState.cache_pct : undefined;
+        const wasRecovering = prevSessionState?.recovering === true;
         const freshDrop = isNum(prevCachePct) && (prevCachePct - currentCachePct) >= cfg.segments.cache.drop;
-        patch.recovering = freshDrop || (recovering && currentCachePct < cfg.segments.cache.drop_recover);
+        patch.recovering = freshDrop || (wasRecovering && currentCachePct < cfg.segments.cache.drop_recover);
       }
     }
+    const fh = data?.rate_limits?.five_hour;
+    if (fh && isNum(fh.used_percentage)) patch.five_hour_pct = fh.used_percentage;
     writeState(stateFile, patchSessionState(state, sessionId, patch));
   }
 

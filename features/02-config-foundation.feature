@@ -11,7 +11,7 @@ Feature: Data-driven configuration with per-field fallback
     Given no file at "~/.claude/cc-cream.json"
     And stdin whose model display_name is "Opus 4.7 (1M context)"
     When cc-cream runs
-    Then the model segment renders with its built-in defaults (on, row 1, order 1)
+    Then the model segment renders with its built-in defaults (on, row 3, order 0.5)
 
   Scenario: A segment can be turned off
     Given config:
