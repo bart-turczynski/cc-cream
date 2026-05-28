@@ -40,6 +40,7 @@ export const DEFAULTS = {
     // start/end are Pacific-time hours (0–23, exclusive end); weekday (Mon–Fri)
     // and the America/Los_Angeles timezone are hardcoded policy facts, not config.
     peak:     { on: true,  row: 2, order: 3, start: 5, end: 11 },
+    burn:     { on: true,  row: 2, order: 1.5 },
     effort:   { on: false, row: 1, order: 6 },
     thinking: { on: false, row: 1, order: 7 },
   },
@@ -352,10 +353,27 @@ function segPeak(data, cfg, now, tz) {
   return { text: 'peak', color: 'amber' };
 }
 
+// Burn-rate projection (PRDv2 §11): estimate minutes until the 5h budget hits 100%
+// at the current consumption velocity. `prev` is the previous invocation's session
+// state { five_hour_pct, ts }. Returns null when there is no measurable positive rate.
+function segBurn(fiveHour, prev, now) {
+  if (!fiveHour || !isNum(fiveHour.used_percentage)) return null;
+  if (!prev || !isNum(prev.five_hour_pct) || !isNum(prev.ts)) return null;
+  const deltaPct = fiveHour.used_percentage - prev.five_hour_pct;
+  const deltaMs = now - prev.ts;
+  if (deltaPct <= 0 || deltaMs <= 0) return null;
+  const remaining = 100 - fiveHour.used_percentage;
+  if (remaining <= 0) return null;
+  const minEta = Math.ceil((remaining / deltaPct) * deltaMs / 60000);
+  const h = Math.floor(minEta / 60);
+  const m = minEta % 60;
+  return { text: h >= 1 ? `~${h}h${pad2(m)}m` : `~${minEta}m`, color: null };
+}
+
 // ---------------------------------------------------------------------------
 // Render — assemble enabled+visible segments into up to two rows.
 // ---------------------------------------------------------------------------
-export function render(data, cfg, env, now) {
+export function render(data, cfg, env, now, prevSessionState = null) {
   const ttlMin = resolveTtl({ rateLimits: data?.rate_limits, config: cfg, env });
   // The peak timezone is hardcoded policy (PRDv2 §2); CC_CREAM_TZ is an internal
   // test/diagnostic seam, not a documented config key.
@@ -369,6 +387,7 @@ export function render(data, cfg, env, now) {
     '5h': segRate(data?.rate_limits?.five_hour, '5h', cfg, '5h', now),
     '7d': segRate(data?.rate_limits?.seven_day, '7d', cfg, '7d', now),
     peak: segPeak(data, cfg, now, tz),
+    burn: segBurn(data?.rate_limits?.five_hour, prevSessionState, now),
     effort: segEffort(data),
     thinking: segThinking(data),
   };
@@ -452,15 +471,20 @@ async function main() {
   // deterministic peak/countdown rendering; absent in normal use → real time.
   const rawNow = process.env.CC_CREAM_NOW;
   const now = rawNow && Number.isFinite(Number(rawNow)) ? Number(rawNow) : Date.now();
-  const out = render(data, cfg, process.env, now);
+
+  // Read prior session state before rendering — burn-rate projection needs the
+  // previous invocation's (ts, five_hour_pct) to compute velocity.
+  const sessionId = typeof data.session_id === 'string' && data.session_id ? data.session_id : null;
+  const stateFile = path.join(os.homedir(), '.claude', 'cc-cream-state.json');
+  const state = sessionId ? readState(stateFile) : {};
+  const prevSessionState = getSessionState(state, sessionId);
+
+  const out = render(data, cfg, process.env, now, prevSessionState);
   if (out) process.stdout.write(`${out}\n`);
 
   // Persist per-session state for consumer features (drop-detection, cost-delta,
   // burn-rate). Skip when session_id is absent; degrade silently on I/O errors.
-  const sessionId = typeof data.session_id === 'string' && data.session_id ? data.session_id : null;
   if (sessionId) {
-    const stateFile = path.join(os.homedir(), '.claude', 'cc-cream-state.json');
-    const state = readState(stateFile);
     const patch = { ts: now };
     const cost = data?.cost?.total_cost_usd;
     if (isNum(cost)) patch.cost = cost;
@@ -470,6 +494,8 @@ async function main() {
       const denom = read + numOr(cu.cache_creation_input_tokens, 0) + numOr(cu.input_tokens, 0);
       if (denom > 0) patch.cache_pct = Math.round((read / denom) * 100);
     }
+    const fh = data?.rate_limits?.five_hour;
+    if (fh && isNum(fh.used_percentage)) patch.five_hour_pct = fh.used_percentage;
     writeState(stateFile, patchSessionState(state, sessionId, patch));
   }
 
