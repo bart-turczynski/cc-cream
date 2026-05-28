@@ -113,7 +113,7 @@ async function main() {
   }
 
   // Determine source: use first CLI arg (local path) or default to cc-cream.js in same dir.
-  let sourceFile = process.argv[2]
+  const sourceFile = process.argv[2]
     ? path.resolve(process.argv[2])
     : path.resolve(path.dirname(new URL(import.meta.url).pathname), 'cc-cream.js');
 

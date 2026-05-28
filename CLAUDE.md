@@ -11,15 +11,19 @@ Node status-line tool for Claude Code: reads CC's stdin JSON, prints a colored �
 ## Commands
 
 ```bash
-npm install                                          # install cucumber-js (dev-only)
-npm test                                             # run all Cucumber specs
+npm install                                          # install devDeps + register git hooks
+npm test                                             # lint + knip + all Cucumber specs
+npm run coverage                                     # same but wrapped in c8 (coverage table)
+npm run watch                                        # re-run specs on file change (TDD)
+npm run lint                                         # Biome lint on src/ only
+npm run knip                                         # dead-code / unused-export audit
 npx cucumber-js features/03-context-segment.feature # run a single feature file
 npx cucumber-js --name "some scenario title"        # run matching scenarios by name
 ```
 
 ## Source of truth (read before working)
 - `docs/PRD.md` and `docs/PRDv2.md` — full spec (v2 + **§14 decisions, which supersede any conflicting earlier prose**).
-- `features/NN-*.feature` — Gherkin user stories, one per slice (00–18, 20 files — two are numbered 15). The feature file IS the acceptance spec.
+- `features/NN-*.feature` — Gherkin user stories, one per slice (00–19, 20 files). The feature file IS the acceptance spec.
 - FP epic `CREAM-lwiwezhg` — the backlog. `fp tree` for deps / build order.
 
 ## Architecture
@@ -50,6 +54,12 @@ Fourteen segments (all configurable via `~/.claude/cc-cream.json`):
 ## Per-slice workflow (extends @FP_CLAUDE.md)
 - features ↔ FP issues are **1:1**; pick a slice, implement against its `.feature`.
 - Engine code in `src/`, step defs in `features/step_definitions/`. Gate "done" on `npm test` (cucumber-js) green.
+
+## Dev tooling
+- **Biome** — lints `src/` on every `npm test` (pretest hook). Rules: `noCommonJs` + `noUndeclaredDependencies` as errors, recommended rules as warnings.
+- **knip** — dead-code / unused-export audit, also runs in pretest. Config: `knip.json`.
+- **c8** — V8 coverage via `npm run coverage`. Current baseline: ~94% statements across `src/`.
+- **simple-git-hooks** — pre-push hook runs `npm run coverage`; installed automatically by `prepare` on `npm install`. Skip with `SKIP_SIMPLE_GIT_HOOKS=1 git push`.
 
 ## Hard constraints
 - **No runtime deps, ESM** — Cucumber is dev-only. Node built-ins only across all `src/` modules.

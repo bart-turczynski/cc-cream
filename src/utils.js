@@ -29,7 +29,7 @@ export function band(value, amber, orangeOrRed, red) {
 
 // Normalize a resets_at value to epoch ms. Claude Code sends a Unix timestamp
 // in seconds; also tolerate ms and ISO.
-export function toEpochMs(v) {
+function toEpochMs(v) {
   if (typeof v === 'number' && Number.isFinite(v)) return v < 1e11 ? v * 1000 : v;
   if (typeof v === 'string') {
     if (/^\d+$/.test(v)) return toEpochMs(Number(v));
