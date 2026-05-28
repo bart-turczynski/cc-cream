@@ -31,7 +31,7 @@ export const DEFAULTS = {
     // governs the shown %: 'basis' tracks the coloring basis (number and color
     // agree), 'window' pins it to CC's window figure regardless (PRD §4.4).
     ctx:      { on: true,  row: 1, order: 2, amber: 30, orange: 40, red: 50, basis: 'window', ceiling: 200000, display: 'basis' },
-    cache:    { on: true,  row: 1, order: 3 },
+    cache:    { on: true,  row: 1, order: 3, drop: 20, drop_recover: 80 },
     idle:     { on: true,  row: 1, order: 4, amber: 50, red: 80 },
     cost:     { on: true,  row: 1, order: 5 },
     '5h':     { on: true,  row: 2, order: 1, amber: 75, red: 90 },
@@ -93,6 +93,8 @@ function mergeConfig(parsed) {
         if ('amber' in def) out.amber = numOr(s.amber, def.amber);
         if ('orange' in def) out.orange = numOr(s.orange, def.orange);
         if ('red' in def) out.red = numOr(s.red, def.red);
+        if ('drop' in def) out.drop = posOr(s.drop, def.drop);
+        if ('drop_recover' in def) out.drop_recover = posOr(s.drop_recover, def.drop_recover);
         if ('basis' in def) out.basis = basisOr(s.basis, def.basis);
         if ('ceiling' in def) out.ceiling = posOr(s.ceiling, def.ceiling);
         if ('display' in def) out.display = ctxDisplayOr(s.display, def.display);
@@ -219,13 +221,18 @@ export function isPeak(now, cfg, tz = 'America/Los_Angeles') {
   }
 }
 
-// resets_at - now, on the §4.4 format ladder: >=1d -> Nd, >=1h -> HhMMm, else MMm.
-function countdown(resetsAt, now) {
+// resets_at - now, on the §4.4 format ladder: >=1d -> "Fri 23:45", >=1h -> HhMMm, else MMm.
+export function countdown(resetsAt, now) {
   const t = toEpochMs(resetsAt);
   if (Number.isNaN(t)) return '';
   const totalMin = Math.max(0, Math.floor((t - now) / 60000));
   const days = Math.floor(totalMin / 1440);
-  if (days >= 1) return `${days}d`;
+  if (days >= 1) {
+    const d = new Date(t);
+    const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
+    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `${weekday} ${time}`;
+  }
   const hours = Math.floor(totalMin / 60);
   if (hours >= 1) return `${hours}h${pad2(totalMin % 60)}m`;
   return `${totalMin}m`;
@@ -280,13 +287,18 @@ function segCtx(data, cfg) {
   return { text, color: band(colorPct, s.amber, s.orange, s.red) };
 }
 
-function segCache(data) {
+function segCache(data, cfg, prevCachePct, recovering) {
   const u = data?.context_window?.current_usage;
   if (!u || typeof u !== 'object') return null; // null right after /compact
   const read = numOr(u.cache_read_input_tokens, 0);
   const denom = read + numOr(u.cache_creation_input_tokens, 0) + numOr(u.input_tokens, 0);
   if (denom <= 0) return null;
-  return { text: `cache:${Math.round((read / denom) * 100)}%`, color: null };
+  const pct = Math.round((read / denom) * 100);
+  const s = cfg.segments.cache;
+  const freshDrop = isNum(prevCachePct) && (prevCachePct - pct) >= s.drop;
+  const stillRecovering = recovering === true && pct < s.drop_recover;
+  const color = (freshDrop || stillRecovering) ? 'red' : null;
+  return { text: `cache:${pct}%`, color };
 }
 
 function segIdle(data, cfg, ttlMin, now) {
@@ -350,7 +362,7 @@ function segPeak(data, cfg, now, tz) {
 // ---------------------------------------------------------------------------
 // Render — assemble enabled+visible segments into up to two rows.
 // ---------------------------------------------------------------------------
-export function render(data, cfg, env, now) {
+export function render(data, cfg, env, now, prevCachePct, recovering) {
   const ttlMin = resolveTtl({ rateLimits: data?.rate_limits, config: cfg, env });
   // The peak timezone is hardcoded policy (PRDv2 §2); CC_CREAM_TZ is an internal
   // test/diagnostic seam, not a documented config key.
@@ -358,7 +370,7 @@ export function render(data, cfg, env, now) {
   const segs = {
     model: segModel(data),
     ctx: segCtx(data, cfg),
-    cache: segCache(data),
+    cache: segCache(data, cfg, prevCachePct, recovering),
     idle: segIdle(data, cfg, ttlMin, now),
     cost: segCost(data),
     '5h': segRate(data?.rate_limits?.five_hour, '5h', cfg, '5h', now),
@@ -388,6 +400,44 @@ export function render(data, cfg, env, now) {
 }
 
 // ---------------------------------------------------------------------------
+// Per-session state — ~/.claude/cc-cream-state.json (keyed by session_id).
+// Both read and write degrade silently on any error (PRD §8).
+// Shape: { sessions: { [id]: { cost?, cache_pct?, ts } } }
+// ---------------------------------------------------------------------------
+export function readState(stateFilePath) {
+  try {
+    const raw = fs.readFileSync(stateFilePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeState(stateFilePath, state) {
+  try {
+    fs.writeFileSync(stateFilePath, JSON.stringify(state));
+  } catch {
+    // degrade silently — stateless render is fine
+  }
+}
+
+export function getSessionState(state, sessionId) {
+  if (!sessionId || typeof sessionId !== 'string') return null;
+  const sessions = state?.sessions;
+  if (!sessions || typeof sessions !== 'object') return null;
+  return sessions[sessionId] ?? null;
+}
+
+export function patchSessionState(state, sessionId, patch) {
+  if (!sessionId || typeof sessionId !== 'string') return state;
+  const sessions = { ...(state?.sessions ?? {}) };
+  sessions[sessionId] = { ...(sessions[sessionId] ?? {}), ...patch };
+  return { ...state, sessions };
+}
+
+// ---------------------------------------------------------------------------
 // Entry point.
 // ---------------------------------------------------------------------------
 async function readStdin() {
@@ -409,8 +459,39 @@ async function main() {
   // deterministic peak/countdown rendering; absent in normal use → real time.
   const rawNow = process.env.CC_CREAM_NOW;
   const now = rawNow && Number.isFinite(Number(rawNow)) ? Number(rawNow) : Date.now();
-  const out = render(data, cfg, process.env, now);
+
+  // Read per-session state before render so drop-detection can compare to the
+  // previous cache_pct. Degrade silently — missing/corrupt state → stateless render.
+  const sessionId = typeof data.session_id === 'string' && data.session_id ? data.session_id : null;
+  const stateFile = path.join(os.homedir(), '.claude', 'cc-cream-state.json');
+  const state = sessionId ? readState(stateFile) : {};
+  const prevSession = sessionId ? getSessionState(state, sessionId) : null;
+  const prevCachePct = prevSession && isNum(prevSession.cache_pct) ? prevSession.cache_pct : undefined;
+  const recovering = prevSession?.recovering === true;
+
+  const out = render(data, cfg, process.env, now, prevCachePct, recovering);
   if (out) process.stdout.write(`${out}\n`);
+
+  // Persist per-session state for consumer features (drop-detection, cost-delta,
+  // burn-rate). Skip when session_id is absent; degrade silently on I/O errors.
+  if (sessionId) {
+    const patch = { ts: now };
+    const cost = data?.cost?.total_cost_usd;
+    if (isNum(cost)) patch.cost = cost;
+    const cu = data?.context_window?.current_usage;
+    if (cu && typeof cu === 'object') {
+      const read = numOr(cu.cache_read_input_tokens, 0);
+      const denom = read + numOr(cu.cache_creation_input_tokens, 0) + numOr(cu.input_tokens, 0);
+      if (denom > 0) {
+        const currentCachePct = Math.round((read / denom) * 100);
+        patch.cache_pct = currentCachePct;
+        const freshDrop = isNum(prevCachePct) && (prevCachePct - currentCachePct) >= cfg.segments.cache.drop;
+        patch.recovering = freshDrop || (recovering && currentCachePct < cfg.segments.cache.drop_recover);
+      }
+    }
+    writeState(stateFile, patchSessionState(state, sessionId, patch));
+  }
+
   process.exit(0);
 }
 
