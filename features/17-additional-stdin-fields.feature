@@ -22,7 +22,7 @@ Feature: Additional stdin fields — session_name and cache write (CREAM-nchmlpm
     Given config {"segments":{"session_name":{"on":true}}}
     And stdin with session_name "my-project-session"
     When cc-cream runs
-    Then the session_name segment reads "session:my-project-session"
+    Then the session_name segment reads "my-project-session"
 
   Scenario: session_name is hidden when absent in stdin
     Given config {"segments":{"session_name":{"on":true}}}
@@ -36,21 +36,21 @@ Feature: Additional stdin fields — session_name and cache write (CREAM-nchmlpm
     When cc-cream runs
     Then the session_name segment is not rendered
 
-  Scenario: session_name appears before model in row 1 zone 1
+  Scenario: session_name and model share row 3 separated by a pipe
     Given config {"segments":{"session_name":{"on":true}}}
     And stdin with session_name "work"
     And stdin whose model display_name is "Sonnet 4.6"
     When cc-cream runs
-    Then row 1 zone 1 reads "session:work Sonnet 4.6"
+    Then the last row reads "Sonnet 4.6 | work"
 
-  Scenario: session_name is in zone 1 (separated from ctx by the zone pipe)
+  Scenario: session_name and model are on row 3, not in row 1 stats
     Given config {"segments":{"session_name":{"on":true}}}
     And stdin with session_name "alpha"
     And stdin whose model display_name is "Sonnet 4.6"
     And stdin with used_percentage 10
     When cc-cream runs
-    Then row 1 zone 1 reads "session:alpha Sonnet 4.6"
-    And row 1 includes " | " between zone 1 and zone 2
+    Then row 1 includes "ctx:"
+    And the last row reads "Sonnet 4.6 | alpha"
 
   # ---------------------------------------------------------------------------
   # write (cache creation %) segment

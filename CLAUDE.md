@@ -18,7 +18,7 @@ npx cucumber-js --name "some scenario title"        # run matching scenarios by 
 ```
 
 ## Source of truth (read before working)
-- `docs/PRD.md` — full spec (v2 + **§14 decisions, which supersede any conflicting earlier prose**).
+- `docs/PRD.md` and `docs/PRDv2.md` — full spec (v2 + **§14 decisions, which supersede any conflicting earlier prose**).
 - `features/NN-*.feature` — Gherkin user stories, one per vertical slice S0–S13. The feature file IS the acceptance spec.
 - FP epic `CREAM-lwiwezhg` (children S0–S13) — the backlog. `fp tree` for deps / build order.
 

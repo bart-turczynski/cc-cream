@@ -18,19 +18,19 @@ Feature: API efficiency ratio segment (CREAM-ubhwyadt)
     Given config {"segments":{"api_ratio":{"on":true}}}
     And stdin with total_api_duration_ms 3000 and total_duration_ms 5000
     When cc-cream runs
-    Then the api_ratio segment reads "api:60%"
+    Then the api_ratio segment reads "∿ api:60%"
 
   Scenario: api_ratio rounds the ratio to the nearest percent
     Given config {"segments":{"api_ratio":{"on":true}}}
     And stdin with total_api_duration_ms 1 and total_duration_ms 3
     When cc-cream runs
-    Then the api_ratio segment reads "api:33%"
+    Then the api_ratio segment reads "∿ api:33%"
 
   Scenario: api_ratio is 100% when api equals total
     Given config {"segments":{"api_ratio":{"on":true}}}
     And stdin with total_api_duration_ms 5000 and total_duration_ms 5000
     When cc-cream runs
-    Then the api_ratio segment reads "api:100%"
+    Then the api_ratio segment reads "∿ api:100%"
 
   Scenario: api_ratio is hidden when cost fields are absent
     Given config {"segments":{"api_ratio":{"on":true}}}
@@ -54,11 +54,11 @@ Feature: API efficiency ratio segment (CREAM-ubhwyadt)
     Given config {"segments":{"api_ratio":{"on":true}}}
     And stdin with total_api_duration_ms 6000 and total_duration_ms 5000
     When cc-cream runs
-    Then the api_ratio segment reads "api:100%"
+    Then the api_ratio segment reads "∿ api:100%"
 
   Scenario: api_ratio appears in row 1 zone 2 after thinking when both are on
     Given config {"segments":{"api_ratio":{"on":true},"thinking":{"on":true}}}
     And stdin with total_api_duration_ms 2000 and total_duration_ms 4000
     And stdin with thinking.enabled true
     When cc-cream runs
-    Then row 1 includes "think:on" before "api:50%"
+    Then row 1 includes "think:on" before "∿ api:50%"

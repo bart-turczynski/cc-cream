@@ -23,7 +23,7 @@ Feature: Percentage direction — consumed vs. remaining
     Given config { "percentage": "remaining" }
     And stdin with used_percentage 19 and an input-token total of 38000
     When cc-cream runs
-    Then the context segment reads "ctx:81% (38k)"
+    Then the context segment reads "ctx:81% [38k]"
 
   Scenario: Remaining flips both rate-limit windows; countdown and magnitude unchanged
     Given config { "percentage": "remaining" }
@@ -31,13 +31,13 @@ Feature: Percentage direction — consumed vs. remaining
     And stdin five_hour with used_percentage 67 resetting in 43m
     And seven_day with used_percentage 41 resetting in 4 days
     When cc-cream runs
-    Then row 2 reads "5h:33%·↺43m  7d:59%·↺4d"
+    Then row 2 reads "5h:33% ↺ 43m | 7d:59% ↺ 4d"
 
   Scenario: The token magnitude is absolute and does not flip
     Given config { "percentage": "remaining" }
     And stdin with used_percentage 19 and an input-token total of 38000
     When cc-cream runs
-    Then the magnitude reads "(38k)"
+    Then the magnitude reads "[38k]"
 
   Scenario: cache% is exempt and never flips
     Given config { "percentage": "remaining" }
@@ -62,7 +62,7 @@ Feature: Percentage direction — consumed vs. remaining
     Given config { "percentage": "remaining" }
     And stdin with used_percentage 80 and an input-token total of 160000
     When cc-cream runs
-    Then the context segment reads "ctx:20% (160k)"
+    Then the context segment reads "ctx:20% [160k]"
     And the context segment is colored red
 
   Scenario: Remaining flips the displayed figure under the ceiling basis too
@@ -71,7 +71,7 @@ Feature: Percentage direction — consumed vs. remaining
     Given config { "percentage": "remaining", "segments": { "ctx": { "basis": "ceiling", "ceiling": 200000 } } }
     And stdin with used_percentage 12 and an input-token total of 120000
     When cc-cream runs
-    Then the context segment reads "ctx:40% (120k)"
+    Then the context segment reads "ctx:40% [120k]"
     And the context segment is colored red
 
   Scenario Outline: A bad percentage value falls back to consumed
