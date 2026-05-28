@@ -6,6 +6,9 @@ import { REPO, ENGINE, colorOf } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown } from '../../src/cc-cream.js';
 import { plan } from '../../src/install.js';
 
+// Path to the state file inside a scenario's sandbox HOME.
+const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
+
 // ---- helpers --------------------------------------------------------------
 const get = (obj, dotted) => dotted.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -738,4 +741,48 @@ Then('the 5h segment is colored {word}', function (color) {
 
 Then('the magnitude reads {string}', function (text) {
   assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
+});
+
+// ===========================================================================
+// 14 — per-session state foundation
+// ===========================================================================
+Given('a session_id of {string}', function (id) {
+  this.data.session_id = id;
+});
+
+Given('no session_id in stdin', function () {
+  delete this.data.session_id;
+});
+
+Given('no state file exists', function () {
+  // Sandbox HOME starts clean — this step is documentary.
+});
+
+Given('a corrupted state file', function () {
+  fs.writeFileSync(stateFilePath(this), 'not valid json {{{{');
+});
+
+Given('a state file with session {string} having cost {float}', function (id, cost) {
+  const state = { sessions: { [id]: { cost, ts: this.now } } };
+  fs.writeFileSync(stateFilePath(this), JSON.stringify(state));
+});
+
+Then('the output is not empty', function () {
+  assert.ok(this.plain.trim().length > 0, 'expected non-empty output');
+});
+
+Then('a state file is written', function () {
+  assert.ok(fs.existsSync(stateFilePath(this)), 'state file was not written');
+});
+
+Then('no state file is written', function () {
+  assert.ok(!fs.existsSync(stateFilePath(this)), 'state file was unexpectedly written');
+});
+
+Then('the state for session {string} has cost {float}', function (id, expected) {
+  const raw = fs.readFileSync(stateFilePath(this), 'utf8');
+  const state = JSON.parse(raw);
+  const actual = state?.sessions?.[id]?.cost;
+  assert.ok(typeof actual === 'number', `cost missing for session ${id}`);
+  assert.ok(Math.abs(actual - expected) < 0.001, `expected cost ${expected}, got ${actual}`);
 });

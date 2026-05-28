@@ -393,6 +393,44 @@ export function render(data, cfg, env, now) {
 }
 
 // ---------------------------------------------------------------------------
+// Per-session state — ~/.claude/cc-cream-state.json (keyed by session_id).
+// Both read and write degrade silently on any error (PRD §8).
+// Shape: { sessions: { [id]: { cost?, cache_pct?, ts } } }
+// ---------------------------------------------------------------------------
+export function readState(stateFilePath) {
+  try {
+    const raw = fs.readFileSync(stateFilePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeState(stateFilePath, state) {
+  try {
+    fs.writeFileSync(stateFilePath, JSON.stringify(state));
+  } catch {
+    // degrade silently — stateless render is fine
+  }
+}
+
+export function getSessionState(state, sessionId) {
+  if (!sessionId || typeof sessionId !== 'string') return null;
+  const sessions = state?.sessions;
+  if (!sessions || typeof sessions !== 'object') return null;
+  return sessions[sessionId] ?? null;
+}
+
+export function patchSessionState(state, sessionId, patch) {
+  if (!sessionId || typeof sessionId !== 'string') return state;
+  const sessions = { ...(state?.sessions ?? {}) };
+  sessions[sessionId] = { ...(sessions[sessionId] ?? {}), ...patch };
+  return { ...state, sessions };
+}
+
+// ---------------------------------------------------------------------------
 // Entry point.
 // ---------------------------------------------------------------------------
 async function readStdin() {
@@ -416,6 +454,25 @@ async function main() {
   const now = rawNow && Number.isFinite(Number(rawNow)) ? Number(rawNow) : Date.now();
   const out = render(data, cfg, process.env, now);
   if (out) process.stdout.write(`${out}\n`);
+
+  // Persist per-session state for consumer features (drop-detection, cost-delta,
+  // burn-rate). Skip when session_id is absent; degrade silently on I/O errors.
+  const sessionId = typeof data.session_id === 'string' && data.session_id ? data.session_id : null;
+  if (sessionId) {
+    const stateFile = path.join(os.homedir(), '.claude', 'cc-cream-state.json');
+    const state = readState(stateFile);
+    const patch = { ts: now };
+    const cost = data?.cost?.total_cost_usd;
+    if (isNum(cost)) patch.cost = cost;
+    const cu = data?.context_window?.current_usage;
+    if (cu && typeof cu === 'object') {
+      const read = numOr(cu.cache_read_input_tokens, 0);
+      const denom = read + numOr(cu.cache_creation_input_tokens, 0) + numOr(cu.input_tokens, 0);
+      if (denom > 0) patch.cache_pct = Math.round((read / denom) * 100);
+    }
+    writeState(stateFile, patchSessionState(state, sessionId, patch));
+  }
+
   process.exit(0);
 }
 
