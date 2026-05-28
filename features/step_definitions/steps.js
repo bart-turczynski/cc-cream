@@ -786,3 +786,20 @@ Then('the state for session {string} has cost {float}', function (id, expected) 
   assert.ok(typeof actual === 'number', `cost missing for session ${id}`);
   assert.ok(Math.abs(actual - expected) < 0.001, `expected cost ${expected}, got ${actual}`);
 });
+
+// ===========================================================================
+// 15 — cache drop-detection
+// ===========================================================================
+Given('a state file with session {string} having cache_pct {int}', function (id, pct) {
+  const state = { sessions: { [id]: { cache_pct: pct, ts: this.now } } };
+  fs.writeFileSync(stateFilePath(this), JSON.stringify(state));
+});
+
+Given('a state file with session {string} having cache_pct {int} and recovering', function (id, pct) {
+  const state = { sessions: { [id]: { cache_pct: pct, recovering: true, ts: this.now } } };
+  fs.writeFileSync(stateFilePath(this), JSON.stringify(state));
+});
+
+Then('the cache segment is colored {word}', function (color) {
+  assert.equal(colorOf(this.stdout, /cache:\d+%/), color);
+});
