@@ -365,6 +365,9 @@ function segBurn(fiveHour, prev, now) {
   const remaining = 100 - fiveHour.used_percentage;
   if (remaining <= 0) return null;
   const minEta = Math.ceil((remaining / deltaPct) * deltaMs / 60000);
+  // Hide when ETA is not a real number or longer than the 5h window duration —
+  // the window will reset before the cap is reached, making the projection moot.
+  if (!Number.isFinite(minEta) || minEta >= 300) return null;
   const h = Math.floor(minEta / 60);
   const m = minEta % 60;
   return { text: h >= 1 ? `~${h}h${pad2(m)}m` : `~${minEta}m`, color: null };

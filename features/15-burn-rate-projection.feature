@@ -50,6 +50,15 @@ Feature: Burn-rate projection — time-to-cap estimate on Row 2
     When cc-cream runs
     Then row 2 does not include a burn projection
 
+  Scenario: Projection hidden when ETA exceeds the 5h window duration
+    # Slow burn (1pp/30min) → ETA ~35h — window resets first; not actionable.
+    Given the Pacific time is Monday 12:00
+    And a session_id of "aabbccdd-0000-0000-0000-000000000001"
+    And a state file with session "aabbccdd-0000-0000-0000-000000000001" having five_hour_pct 28 sampled 30m ago
+    And stdin five_hour with used_percentage 29 resetting in 34m
+    When cc-cream runs
+    Then row 2 does not include a burn projection
+
   Scenario: five_hour_pct persisted to state for next run
     Given a session_id of "aabbccdd-0000-0000-0000-000000000001"
     And no state file exists
