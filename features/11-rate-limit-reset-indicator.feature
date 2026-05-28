@@ -17,7 +17,8 @@ Feature: Reset indicator on rate-limit countdowns
     Then the 5h segment reads "5h:67%·↺43m"
 
   Scenario: Both windows carry the glyph
-    Given stdin five_hour with used_percentage 67 resetting in 43m
+    Given the Pacific time is Monday 12:00
+    And stdin five_hour with used_percentage 67 resetting in 43m
     And seven_day with used_percentage 41 resetting in 4 days
     When cc-cream runs
     Then row 2 reads "5h:67%·↺43m  7d:41%·↺4d"

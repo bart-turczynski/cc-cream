@@ -27,6 +27,7 @@ Feature: Percentage direction — consumed vs. remaining
 
   Scenario: Remaining flips both rate-limit windows; countdown and magnitude unchanged
     Given config { "percentage": "remaining" }
+    And the Pacific time is Monday 12:00
     And stdin five_hour with used_percentage 67 resetting in 43m
     And seven_day with used_percentage 41 resetting in 4 days
     When cc-cream runs

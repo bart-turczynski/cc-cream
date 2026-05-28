@@ -11,7 +11,8 @@ Feature: Rate-limit windows and the adaptive second row
   # documentation hints — step definitions resolve them to the actual Weekday HH:MM.
 
   Scenario: Subscriber gets two rows
-    Given stdin five_hour with used_percentage 23 resetting in 2h14m
+    Given the Pacific time is Monday 12:00
+    And stdin five_hour with used_percentage 23 resetting in 2h14m
     And seven_day with used_percentage 41 resetting in 4 days
     When cc-cream runs
     Then row 2 reads "5h:23%·↺2h14m  7d:41%·↺4d"
