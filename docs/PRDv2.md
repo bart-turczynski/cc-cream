@@ -181,7 +181,7 @@ These items were not discussed in the 2026-05-27 session and carry forward as-is
 - **Additional stdin fields** — `session_name`, `pr`, `worktree`, `cache_creation_input_tokens` as a displayed metric.
 - **True API tokenomics** — accurate per-token cost, not the client-side `~` estimate.
 - **Multi-model per-session breakdown.**
-- **npm bin + marketplace plugin** — distribution channels deferred from v1 §14.1. Engine single-file/built-ins constraint makes these cheap to add; the consent installer already ships.
+- **npm bin + marketplace plugin** — distribution channels deferred from v1 §14.1. Engine no-runtime-dependency constraint makes these cheap to add; the consent installer already ships.
 - **Finer layout flexibility** — row regrouping, per-field reorder UX.
 - **Full configuration UX** — toggle UI, themes.
 - **Occupancy vs. session/daily burn** — v1 `ctx%` is current-window occupancy; whether to surface cumulative daily burn toward quotas is a separate design conversation (no raw cumulative-token field in stdin; would lean on cost + rate-limit windows).

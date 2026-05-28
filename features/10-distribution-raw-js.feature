@@ -1,17 +1,18 @@
-Feature: Distribution as a raw .js file on GitHub
+Feature: Distribution as raw JavaScript on GitHub
   As a prospective user
-  I want to install cc-cream from a single .js file on GitHub
+  I want to install cc-cream from JavaScript files on GitHub
   So that I can adopt it with minimal friction and no package manager
 
-  # PRD §7, §14.1. Raw .js on GitHub is the original v1 install channel. npm bin
-  # packaging ships in v3 (CREAM-cvmhzchg); see features/18-distribution-npm.feature.
-  # The engine stays a single file using only Node built-ins.
+  # PRD §7, §14.1. Raw JavaScript on GitHub is the original v1 install channel.
+  # npm bin packaging ships in v3 (CREAM-cvmhzchg); see
+  # features/18-distribution-npm.feature. Runtime code may use local modules but
+  # must not require external runtime dependencies.
 
-  Scenario: The engine is a single self-contained .js file
-    Then the published artifact is one .js file using only Node built-ins
+  Scenario: The runtime has no external dependencies
+    Then the published runtime uses only Node built-ins and local modules
     And it declares no runtime dependencies
 
-  Scenario: The README documents the raw-.js install path
+  Scenario: The README documents the raw JavaScript install path
     Then the README explains downloading the .js and running the consent installer
     And it states the minimum Claude Code version of 2.1.132
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// cc-cream consent-based installer (PRD §7, §14.1). v1 targets the raw-.js
-// channel: it writes one `statusLine` block into the user's settings.json after
-// showing the change. It detects and confirms before replacing an existing line,
-// preserves any user `padding`, and surfaces the trust/restart requirement.
+// cc-cream consent-based installer (PRD §7, §14.1). It copies the runtime
+// modules into ~/.claude/cc-cream and writes one `statusLine` block into the
+// user's settings.json after showing the change. It detects and confirms before
+// replacing an existing line, preserves any user `padding`, and surfaces the
+// trust/restart requirement.
 //
 // The pure `plan()` function does all the decision-making (no I/O) so it is
 // testable; the CLI wrapper at the bottom handles reading/prompting/writing.
@@ -73,6 +74,27 @@ function destinationPath() {
   return path.join(os.homedir(), '.claude', 'cc-cream', 'cc-cream.js');
 }
 
+function runtimeFiles(sourceFile) {
+  const sourceDir = path.dirname(sourceFile);
+  return fs.readdirSync(sourceDir)
+    .filter((name) => name.endsWith('.js') && name !== 'install.js')
+    .map((name) => path.join(sourceDir, name));
+}
+
+function copyRuntimeFiles(sourceFile, destDir) {
+  let copied = false;
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const file of runtimeFiles(sourceFile)) {
+    const dest = path.join(destDir, path.basename(file));
+    const needsCopy = !fs.existsSync(dest) || fs.statSync(file).mtime > fs.statSync(dest).mtime;
+    if (needsCopy) {
+      fs.copyFileSync(file, dest);
+      copied = true;
+    }
+  }
+  return copied;
+}
+
 function ask(question) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => rl.question(`${question} [y/N] `, (a) => {
@@ -101,16 +123,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Copy to destination if not already there or if source is newer.
   const dest = destinationPath();
   const destDir = path.dirname(dest);
-  const needsCopy = !fs.existsSync(dest) ||
-    fs.statSync(sourceFile).mtime > fs.statSync(dest).mtime;
-
-  if (needsCopy) {
-    fs.mkdirSync(destDir, { recursive: true });
-    fs.copyFileSync(sourceFile, dest);
-    console.log(`Copied cc-cream.js to ${dest}`);
+  if (copyRuntimeFiles(sourceFile, destDir)) {
+    console.log(`Copied cc-cream runtime files to ${destDir}`);
   }
 
   // Use the installed location as the entrypoint.

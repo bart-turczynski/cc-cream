@@ -1,6 +1,6 @@
 # cc-cream
 
-**C.R.E.A.M. — Cache Rules Everything Around Me.** A single-file status-line tool
+**C.R.E.A.M. — Cache Rules Everything Around Me.** A small status-line tool
 for [Claude Code](https://claude.com/claude-code) that turns the JSON Claude Code
 pipes to its status line into a glanceable, colored 3-row bar:
 
@@ -38,18 +38,19 @@ Then run the consent installer to wire it into Claude Code:
 node $(npm root -g)/cc-cream/src/install.js
 ```
 
-**Via raw `.js` from GitHub:**
-1. **Download** the engine to your Claude config directory:
+**Via raw JavaScript from GitHub:**
+1. **Download** the runtime files to your Claude config directory:
    ```bash
-   mkdir -p ~/.claude/cc-cream
-   curl -fsSL https://raw.githubusercontent.com/<owner>/cc-cream/main/src/cc-cream.js \
-     -o ~/.claude/cc-cream/cc-cream.js
+   mkdir -p ~/.claude/cc-cream-src
+   curl -fsSL https://github.com/<owner>/cc-cream/archive/refs/heads/main.tar.gz |
+     tar -xz --strip-components=2 -C ~/.claude/cc-cream-src cc-cream-main/src
    ```
 2. **Run the consent installer:**
    ```bash
+   mkdir -p ~/.claude/cc-cream
    curl -fsSL https://raw.githubusercontent.com/<owner>/cc-cream/main/src/install.js \
      -o ~/.claude/cc-cream/install.js
-   node ~/.claude/cc-cream/install.js
+   node ~/.claude/cc-cream/install.js ~/.claude/cc-cream-src/cc-cream.js
    ```
 
 The installer detects an existing `statusLine` and **asks before replacing it**,
@@ -178,8 +179,9 @@ Row 3 suppresses itself when all its segments are hidden.
 
 ## Development
 
-The engine is one file using only Node built-ins. Tests are Cucumber scenarios,
-one feature per vertical slice, run with cucumber-js (a dev-only dependency):
+The runtime uses only Node built-ins and local modules, with no runtime
+dependencies. Tests are Cucumber scenarios, one feature per vertical slice, run
+with cucumber-js (a dev-only dependency):
 
 ```bash
 npm install

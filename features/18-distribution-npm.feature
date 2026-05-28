@@ -3,7 +3,7 @@ Feature: Distribution as an npm package (CREAM-cvmhzchg)
   I want to install cc-cream via npm or npx
   So that I can adopt it without manually downloading files
 
-  # npm bin packaging — the single-file/built-ins constraint means this is
+  # npm bin packaging — the no-runtime-dependency constraint means this is
   # cheap to add: the engine just needs a shebang and a bin entry in package.json.
   # Consent installer (S9) already handles settings.json wiring.
 
