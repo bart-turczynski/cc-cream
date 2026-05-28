@@ -7,11 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { DEFAULTS } from './defaults.js';
 import { loadConfig, readConfigFile } from './config.js';
 import { render } from './render.js';
-import { resolveTtl } from './ttl.js';
-import { countdown, isPeak } from './utils.js';
 import {
   getSessionState,
   nextSessionPatch,

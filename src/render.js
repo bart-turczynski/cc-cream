@@ -7,7 +7,7 @@ import { paint } from './utils.js';
 export function render(data, cfg, env, now, prevSessionState = null) {
   const ttlMin = resolveTtl({ rateLimits: data?.rate_limits, config: cfg, env });
   // CC_CREAM_TZ is an internal test/diagnostic seam, not a documented config key.
-  const tz = (env && env.CC_CREAM_TZ) || 'America/Los_Angeles';
+  const tz = env?.CC_CREAM_TZ || 'America/Los_Angeles';
   const segs = renderSegments(data, cfg, ttlMin, now, prevSessionState, tz);
 
   const visible = (id, row) => cfg.segments[id]?.on && segs[id] && cfg.segments[id].row === row;
