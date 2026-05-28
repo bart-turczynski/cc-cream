@@ -5,7 +5,7 @@ for [Claude Code](https://claude.com/claude-code) that turns the JSON Claude Cod
 pipes to its status line into a glanceable, colored ≤2-row bar:
 
 ```
-Opus 4.7 (1M context) | ctx:19% (38k) cache:95% idle:00:00 | ~$4.50
+Opus 4.7 (1M context) | ctx:19% (38k) cache:95% ttl:00:52 | ~$4.50
 5h:23%·↺2h14m  7d:41%·↺4d  ~38m
 ```
 
@@ -13,7 +13,7 @@ It helps you **avoid rate limits, keep the cache warm, and keep context from
 filling to where the model degrades** — with cache economics as the organizing
 story. The model never sees the output, so it **costs zero tokens**.
 
-Row 1 is this session: `model · ctx · cache · idle · cost`.
+Row 1 is this session: `model · ctx · cache · ttl · cost`.
 Row 2 is your account windows: `5h · 7d · burn projection` (subscribers only — API users get one row).
 
 ## Requirements
@@ -84,7 +84,7 @@ defaults.
     "ctx":          { "on": true,  "row": 1, "order": 2, "amber": 30, "orange": 40, "red": 50, "basis": "window", "ceiling": 200000, "display": "basis" },
     "cache":        { "on": true,  "row": 1, "order": 3 },
     "write":        { "on": false, "row": 1, "order": 3.5 },
-    "idle":         { "on": true,  "row": 1, "order": 4, "amber": 50, "red": 80 },
+    "ttl":         { "on": true,  "row": 1, "order": 4, "amber": 50, "red": 80 },
     "cost":         { "on": true,  "row": 1, "order": 5 },
     "effort":       { "on": false, "row": 1, "order": 6 },
     "thinking":     { "on": false, "row": 1, "order": 7 },
@@ -100,12 +100,12 @@ defaults.
 ### Global keys
 
 - `numbers`: `compact` (`38k`) or `exact` (`38000`) for token magnitudes.
-- `ttl`: cache-TTL for idle coloring — `auto` (recommended), `60`, or `5` minutes.
+- `ttl` *(global key)*: cache time-to-live used to color the `ttl` segment — `auto` (recommended), `60`, or `5` minutes.
 - `percentage`: `consumed` (default) counts up — `ctx:19%` is 19% used, `5h:67%`
   is 67% of the budget gone. `remaining` flips the **budget/occupancy** segments
   to count down — `ctx:81%`, `5h:33%` — so "how much is left?" reads consistently.
-  Only `ctx`, `5h` and `7d` flip; `cache%` (a hit-rate, not a budget) and `idle`
-  (a duration) are unaffected, and the `(38k)` magnitude is always absolute.
+  Only `ctx`, `5h` and `7d` flip; `cache%` (a hit-rate, not a budget) and `ttl`
+  (a countdown) are unaffected, and the `(38k)` magnitude is always absolute.
   **`amber`/`red` thresholds are always expressed in consumed terms regardless of
   this setting.**
 
@@ -117,7 +117,7 @@ lower = further left). Colored segments additionally accept threshold keys.
 **Row 1 has three visual zones** separated by ` | `:
 
 ```
-[zone 1: model, session_name] | [zone 2: ctx, cache, write, idle, effort, thinking, api_ratio] | [zone 3: cost]
+[zone 1: model, session_name] | [zone 2: ctx, cache, write, ttl, effort, thinking, api_ratio] | [zone 3: cost]
 ```
 
 `row` and `order` control placement within this structure. A segment moved to
@@ -128,7 +128,7 @@ ordered by `order`.
 **Threshold keys** (`amber`, `red`, `orange` where applicable):
 
 - `ctx`: percent of the `basis` fullness reference. Default `amber: 30`, `orange: 40`, `red: 50`.
-- `idle`: percent of the resolved cache TTL. Default `amber: 50`, `red: 80`.
+- `ttl` *(segment)*: percent of the resolved cache TTL *consumed*. Default `amber: 50`, `red: 80`.
 - `5h` / `7d`: absolute `used_percentage`. Default `amber: 75`, `red: 90`.
 
 **`ctx`-specific keys:**
@@ -156,7 +156,7 @@ ordered by `order`.
 | `ctx` | on, row 1 | `ctx:19% (38k)` | context-window occupancy + input-token magnitude | `<30` green · `30–40` amber · `40–50` orange · `≥50` red |
 | `cache` | on, row 1 | `cache:95%` | last-turn cache hit rate (reads / total tokens) | neutral |
 | `write` | **off**, row 1 | `write:4%` | last-turn cache creation rate (new writes / total tokens) | neutral |
-| `idle` | on, row 1 | `idle:00:00` | time since last activity vs cache TTL | `<50%` green · `50–80%` amber · `≥80%` red |
+| `ttl` | on, row 1 | `ttl:00:52` | time remaining before cache expires (counts down to 00:00) | `<50%` green · `50–80%` amber · `≥80%` red |
 | `cost` | on, row 1 | `~$4.50` | session cost incl. subagents; `~` = CC's estimate | neutral; hidden when zero |
 | `effort` | **off**, row 1 | `effort:high` | reasoning effort level | neutral |
 | `thinking` | **off**, row 1 | `think:on` | thinking mode indicator | neutral |

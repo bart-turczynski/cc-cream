@@ -193,7 +193,7 @@ Then('the cache segment is not rendered', function () {
 });
 
 // ===========================================================================
-// 05 — idle / cache-warmth
+// 05 — ttl / cache-warmth countdown
 // ===========================================================================
 Given('the transcript was just appended, so its mtime is now', function () {
   this.data.transcript_path = this.makeTranscript(0);
@@ -211,21 +211,21 @@ Given('stdin with no transcript_path', function () {
   delete this.data.transcript_path;
 });
 
-Then('the idle segment reads {string} and is green', function (text) {
+Then('the ttl segment reads {string} and is green', function (text) {
   assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
-  assert.equal(colorOf(this.stdout, /idle:\d+:\d+/), 'green');
+  assert.equal(colorOf(this.stdout, /ttl:\d+:\d+/), 'green');
 });
 
-Then('the idle segment reads {string}', function (text) {
+Then('the ttl segment reads {string}', function (text) {
   assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
 });
 
-Then('the idle segment is colored {word}', function (color) {
-  assert.equal(colorOf(this.stdout, /idle:\d+:\d+/), color);
+Then('the ttl segment is colored {word}', function (color) {
+  assert.equal(colorOf(this.stdout, /ttl:\d+:\d+/), color);
 });
 
-Then('the idle segment is not rendered', function () {
-  assert.ok(!/idle:/.test(this.plain));
+Then('the ttl segment is not rendered', function () {
+  assert.ok(!/ttl:/.test(this.plain));
 });
 
 // TTL inference (pure function, no spawn)
@@ -725,9 +725,7 @@ Given('stdin with a last-turn cache hit rate of {int}%', function (pct) {
   };
 });
 
-Given(/^stdin with an idle duration of (\d{1,2}):(\d{2})$/, function (hh, mm) {
-  this.data.transcript_path = this.makeTranscript(Number(hh) * 60 + Number(mm));
-});
+// (stdin with an idle duration of HH:MM — removed; use "the transcript mtime was N minutes ago" instead)
 
 Then('the 5h segment percentage reads {string}', function (pct) {
   const seg = seg5h(this.plain);

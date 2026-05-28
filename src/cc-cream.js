@@ -32,7 +32,7 @@ export const DEFAULTS = {
     // agree), 'window' pins it to CC's window figure regardless (PRD §4.4).
     ctx:      { on: true,  row: 1, order: 2, amber: 30, orange: 40, red: 50, basis: 'window', ceiling: 200000, display: 'basis' },
     cache:    { on: true,  row: 1, order: 3 },
-    idle:     { on: true,  row: 1, order: 4, amber: 50, red: 80 },
+    ttl:      { on: true,  row: 1, order: 4, amber: 50, red: 80 },
     cost:     { on: true,  row: 1, order: 5 },
     '5h':     { on: true,  row: 2, order: 1, amber: 75, red: 90 },
     '7d':     { on: true,  row: 2, order: 2, amber: 75, red: 90 },
@@ -52,7 +52,7 @@ export const DEFAULTS = {
 // Row 1 renders as up-to-three visual zones separated by " | " (PRD §4.3):
 // [model] | [session metrics] | [cost]. Empty zones drop out, so a model-only
 // bar is just the name with no separators.
-const ROW1_ZONES = [['model', 'session_name'], ['ctx', 'cache', 'write', 'idle', 'effort', 'thinking', 'api_ratio'], ['cost']];
+const ROW1_ZONES = [['model', 'session_name'], ['ctx', 'cache', 'write', 'ttl', 'effort', 'thinking', 'api_ratio'], ['cost']];
 
 const ANSI = { red: '\x1b[31m', green: '\x1b[32m', amber: '\x1b[33m', orange: '\x1b[38;5;208m' };
 
@@ -131,7 +131,7 @@ function readConfigFile() {
 }
 
 // ---------------------------------------------------------------------------
-// TTL inference for the idle segment's coloring (PRD §9).
+// TTL inference for the ttl segment's coloring (PRD §9).
 // ---------------------------------------------------------------------------
 const envOn = (v) => typeof v === 'string' && v !== '' && v !== '0' && v.toLowerCase() !== 'false';
 
@@ -174,7 +174,7 @@ function paint(text, color) {
   return color && ANSI[color] ? `${ANSI[color]}${text}\x1b[0m` : text;
 }
 
-// 3-arg form: band(value, amber, red) — used by idle / rate limits.
+// 3-arg form: band(value, amber, red) — used by ttl / rate limits.
 // 4-arg form: band(value, amber, orange, red) — used by ctx.
 // Orange is skipped when it falls at or below amber (guards against a user config
 // that sets amber higher than the default orange without explicitly clearing it).
@@ -298,19 +298,20 @@ function segCache(data) {
   return { text: `cache:${Math.round((read / denom) * 100)}%`, color: null };
 }
 
-function segIdle(data, cfg, ttlMin, now) {
+function segTtl(data, cfg, ttlMin, now) {
   const tp = data?.transcript_path;
   if (typeof tp !== 'string' || tp === '') return null;
   let mtimeMs;
   try {
     mtimeMs = fs.statSync(tp).mtimeMs;
   } catch {
-    return null; // hide rather than show a false "cache warm" idle:00:00
+    return null;
   }
-  const min = Math.floor(Math.max(0, now - mtimeMs) / 60000);
-  const text = `idle:${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`;
-  const s = cfg.segments.idle;
-  const pctTtl = ttlMin > 0 ? (min / ttlMin) * 100 : 0;
+  const elapsedMin = Math.floor(Math.max(0, now - mtimeMs) / 60000);
+  const remainingMin = Math.max(0, ttlMin - elapsedMin);
+  const text = `ttl:${pad2(Math.floor(remainingMin / 60))}:${pad2(remainingMin % 60)}`;
+  const s = cfg.segments.ttl;
+  const pctTtl = ttlMin > 0 ? (elapsedMin / ttlMin) * 100 : 0;
   return { text, color: band(pctTtl, s.amber, s.red) };
 }
 
@@ -411,7 +412,7 @@ export function render(data, cfg, env, now, prevSessionState = null) {
     model: segModel(data),
     ctx: segCtx(data, cfg),
     cache: segCache(data),
-    idle: segIdle(data, cfg, ttlMin, now),
+    ttl: segTtl(data, cfg, ttlMin, now),
     cost: segCost(data),
     '5h': segRate(data?.rate_limits?.five_hour, '5h', cfg, '5h', now),
     '7d': segRate(data?.rate_limits?.seven_day, '7d', cfg, '7d', now),

@@ -98,4 +98,4 @@ Feature: Additional stdin fields — session_name and cache write (CREAM-nchmlpm
     And the transcript was just appended, so its mtime is now
     When cc-cream runs
     Then row 1 includes "cache:90%" before "write:10%"
-    And row 1 includes "write:10%" before "idle:"
+    And row 1 includes "write:10%" before "ttl:"
