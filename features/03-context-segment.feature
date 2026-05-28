@@ -13,7 +13,7 @@ Feature: Context segment — occupancy percentage with magnitude and color zones
   Scenario: Renders percentage and compact magnitude
     Given stdin with used_percentage 19 and an input-token total of 38000
     When cc-cream runs
-    Then the context segment reads "ctx:19% (38k)"
+    Then the context segment reads "ctx:19% [38k]"
 
   Scenario Outline: Default color zones
     Given stdin with used_percentage <pct>
@@ -41,7 +41,7 @@ Feature: Context segment — occupancy percentage with magnitude and color zones
     Given config { "numbers": "exact" }
     And stdin with an input-token total of 38000
     When cc-cream runs
-    Then the magnitude reads "(38000)" rather than "(38k)"
+    Then the magnitude reads "[38000]" rather than "[38k]"
 
   Scenario: Hidden when the source field is absent
     Given stdin with no context_window
@@ -61,14 +61,14 @@ Feature: Context segment — occupancy percentage with magnitude and color zones
     Given config { "segments": { "ctx": { "basis": "ceiling" } } }
     And stdin with used_percentage 12 and an input-token total of 120000
     When cc-cream runs
-    Then the context segment reads "ctx:60% (120k)"
+    Then the context segment reads "ctx:60% [120k]"
     And the context segment is colored red
 
   Scenario: Window basis is the default and ignores the ceiling (no regression)
     Given config { "segments": { "ctx": { "basis": "window" } } }
     And stdin with used_percentage 12 and an input-token total of 120000
     When cc-cream runs
-    Then the context segment reads "ctx:12% (120k)"
+    Then the context segment reads "ctx:12% [120k]"
     And the context segment is colored green
 
   Scenario Outline: Ceiling thresholds are percent of the ceiling
@@ -88,7 +88,7 @@ Feature: Context segment — occupancy percentage with magnitude and color zones
     Given config { "segments": { "ctx": { "basis": "ceiling", "display": "window" } } }
     And stdin with used_percentage 12 and an input-token total of 120000
     When cc-cream runs
-    Then the context segment reads "ctx:12% (120k)"
+    Then the context segment reads "ctx:12% [120k]"
     And the context segment is colored red
 
   Scenario: Ceiling basis degrades to the window when the magnitude is absent

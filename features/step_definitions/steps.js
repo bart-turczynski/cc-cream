@@ -40,10 +40,10 @@ function parseDurationMs(s) {
 // Segments are matched by prefix (5h/7d) to pick the right window.
 function resolveNdTokens(text, world) {
   const rl = world.data?.rate_limits;
-  return text.replace(/(5h|7d):[^·]*·↺(\d+d)\b/g, (match, seg) => {
+  return text.replace(/(5h|7d):\S+ ↺ (\d+d)\b/g, (match, seg) => {
     const w = seg === '5h' ? rl?.five_hour : rl?.seven_day;
     if (!w?.resets_at) return match;
-    return match.replace(/↺\d+d\b/, `↺${countdown(w.resets_at * 1000, world.now)}`);
+    return match.replace(/↺ \d+d\b/, `↺ ${countdown(w.resets_at * 1000, world.now)}`);
   });
 }
 
@@ -104,7 +104,7 @@ Given(/^config (\{.*\})$/, function (json) {
   this.configRaw = json;
 });
 
-Then(/^the model segment renders with its built-in defaults \(on, row 1, order 1\)$/, function () {
+Then(/^the model segment renders with its built-in defaults \(on, row 3, order 0\.5\)$/, function () {
   assert.ok(this.plain.includes(this.modelName));
 });
 
@@ -193,7 +193,7 @@ Then('the cache segment is not rendered', function () {
 });
 
 // ===========================================================================
-// 05 — idle / cache-warmth
+// 05 — ttl / cache-warmth countdown
 // ===========================================================================
 Given('the transcript was just appended, so its mtime is now', function () {
   this.data.transcript_path = this.makeTranscript(0);
@@ -211,21 +211,21 @@ Given('stdin with no transcript_path', function () {
   delete this.data.transcript_path;
 });
 
-Then('the idle segment reads {string} and is green', function (text) {
+Then('the ttl segment reads {string} and is green', function (text) {
   assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
-  assert.equal(colorOf(this.stdout, /idle:\d+:\d+/), 'green');
+  assert.equal(colorOf(this.stdout, /ttl:\d+:\d+/), 'green');
 });
 
-Then('the idle segment reads {string}', function (text) {
+Then('the ttl segment reads {string}', function (text) {
   assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
 });
 
-Then('the idle segment is colored {word}', function (color) {
-  assert.equal(colorOf(this.stdout, /idle:\d+:\d+/), color);
+Then('the ttl segment is colored {word}', function (color) {
+  assert.equal(colorOf(this.stdout, /ttl:\d+:\d+/), color);
 });
 
-Then('the idle segment is not rendered', function () {
-  assert.ok(!/idle:/.test(this.plain));
+Then('the ttl segment is not rendered', function () {
+  assert.ok(!/ttl:/.test(this.plain));
 });
 
 // TTL inference (pure function, no spawn)
@@ -331,12 +331,12 @@ Then('row 2 shows the 5h segment and omits the 7d segment', function () {
 
 Then('the countdown reads {string}', function (text) {
   // >=1d format is now "Weekday HH:MM" (local time); capture includes the space before HH:MM.
-  const m = this.plain.match(/5h:\d+%·(↺\S+(?:\s\d{2}:\d{2})?)/);
+  const m = this.plain.match(/5h:\d+% (↺ \S+(?:\s\d{2}:\d{2})?)/);
   assert.ok(m, `no countdown found in: ${this.plain}`);
   let expected = text;
-  if (/↺\d+d\b/.test(text)) {
+  if (/↺ \d+d\b/.test(text)) {
     const ra = this.data?.rate_limits?.five_hour?.resets_at;
-    if (ra != null) expected = `↺${countdown(ra * 1000, this.now)}`;
+    if (ra != null) expected = `↺ ${countdown(ra * 1000, this.now)}`;
   }
   assert.equal(m[1], expected);
 });
@@ -350,7 +350,7 @@ Then('the segment is colored {word}', function (color) {
 // ===========================================================================
 // The 5h segment is the first whitespace-delimited token on row 2 starting with
 // "5h:" (row-2 segments are joined by two spaces; the segment itself has none).
-const seg5h = (plain) => plain.match(/5h:\S+/)?.[0] ?? null;
+const seg5h = (plain) => plain.match(/5h:\S+(?:\s↺\s\S+(?:\s\d{2}:\d{2})?)?/)?.[0] ?? null;
 
 Given('stdin five_hour with used_percentage {int} and no resets_at', function (pct) {
   this.data.rate_limits = this.data.rate_limits || {};
@@ -364,7 +364,7 @@ Then('the 5h segment reads {string}', function (text) {
 Then('the percentage reads {string} with no ↺ prefix', function (pct) {
   const seg = seg5h(this.plain);
   assert.ok(seg, `no 5h segment in: ${this.plain}`);
-  const percentage = seg.slice('5h:'.length).split('·')[0]; // text before the countdown joiner
+  const percentage = seg.slice('5h:'.length).split(' ')[0]; // text before the countdown joiner
   assert.equal(percentage, pct);
   assert.ok(!percentage.includes('↺'), `↺ leaked into the percentage: ${percentage}`);
 });
@@ -725,14 +725,12 @@ Given('stdin with a last-turn cache hit rate of {int}%', function (pct) {
   };
 });
 
-Given(/^stdin with an idle duration of (\d{1,2}):(\d{2})$/, function (hh, mm) {
-  this.data.transcript_path = this.makeTranscript(Number(hh) * 60 + Number(mm));
-});
+// (stdin with an idle duration of HH:MM — removed; use "the transcript mtime was N minutes ago" instead)
 
 Then('the 5h segment percentage reads {string}', function (pct) {
   const seg = seg5h(this.plain);
   assert.ok(seg, `no 5h segment in: ${this.plain}`);
-  assert.equal(seg.slice('5h:'.length).split('·')[0], pct);
+  assert.equal(seg.slice('5h:'.length).split(' ')[0], pct);
 });
 
 Then('the 5h segment is colored {word}', function (color) {
@@ -788,6 +786,62 @@ Then('the state for session {string} has cost {float}', function (id, expected) 
 });
 
 // ===========================================================================
+// 15 — burn-rate projection
+// ===========================================================================
+Given(/^a state file with session "([^"]+)" having five_hour_pct (\d+) sampled (\d+)m ago$/, function (id, pct, mins) {
+  // Use CC_CREAM_NOW if already pinned (e.g. via "the Pacific time is…"), so that
+  // deltaMs in segBurn is computed against the same clock the engine will use.
+  const nowMs = this.env.CC_CREAM_NOW ? Number(this.env.CC_CREAM_NOW) : this.now;
+  const state = { sessions: { [id]: { five_hour_pct: Number(pct), ts: nowMs - Number(mins) * 60000 } } };
+  fs.writeFileSync(stateFilePath(this), JSON.stringify(state));
+});
+
+Then('row 2 includes {string}', function (text) {
+  const line = this.plain.split('\n').find((l) => /5h:|7d:|~/.test(l));
+  assert.ok(line && line.includes(text), `expected row 2 to include "${text}" in: ${this.plain}`);
+});
+
+Then('row 2 does not include a burn projection', function () {
+  const line = this.plain.split('\n').find((l) => /5h:|7d:|~/.test(l));
+  assert.ok(!line || !/~\d/.test(line), `expected no burn projection in row 2, got: ${line}`);
+});
+
+Then('the state for session {string} has five_hour_pct {int}', function (id, expected) {
+  const raw = fs.readFileSync(stateFilePath(this), 'utf8');
+  const state = JSON.parse(raw);
+  const actual = state?.sessions?.[id]?.five_hour_pct;
+  assert.strictEqual(actual, expected, `expected five_hour_pct ${expected}, got ${actual}`);
+});
+
+// ===========================================================================
+// 16 — API efficiency ratio
+// ===========================================================================
+Given('stdin with total_api_duration_ms {int} and total_duration_ms {int}', function (api, total) {
+  this.data.cost = { ...(this.data.cost ?? {}), total_api_duration_ms: api, total_duration_ms: total };
+});
+
+Given('stdin with only total_duration_ms {int}', function (total) {
+  this.data.cost = { ...(this.data.cost ?? {}), total_duration_ms: total };
+});
+
+Then('the api_ratio segment reads {string}', function (text) {
+  assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
+});
+
+Then('the api_ratio segment is not rendered', function () {
+  assert.ok(!/api:\d+%/.test(this.plain), `api_ratio unexpectedly present in: ${this.plain}`);
+});
+
+Then('row 1 includes {string} before {string}', function (a, b) {
+  const row1 = this.plain.split('\n')[0];
+  const ia = row1.indexOf(a);
+  const ib = row1.indexOf(b);
+  assert.ok(ia !== -1, `"${a}" not found in row 1: ${row1}`);
+  assert.ok(ib !== -1, `"${b}" not found in row 1: ${row1}`);
+  assert.ok(ia < ib, `"${a}" (pos ${ia}) should appear before "${b}" (pos ${ib}) in row 1: ${row1}`);
+});
+
+// ===========================================================================
 // 15 — cache drop-detection
 // ===========================================================================
 Given('a state file with session {string} having cache_pct {int}', function (id, pct) {
@@ -802,4 +856,69 @@ Given('a state file with session {string} having cache_pct {int} and recovering'
 
 Then('the cache segment is colored {word}', function (color) {
   assert.equal(colorOf(this.stdout, /cache:\d+%/), color);
+});
+
+// ===========================================================================
+// 17 — additional stdin fields (session_name, write)
+// ===========================================================================
+Given('stdin with session_name {string}', function (name) {
+  this.data.session_name = name;
+});
+
+Given('stdin with no session_name field', function () {
+  delete this.data.session_name;
+});
+
+Then('the session_name segment reads {string}', function (text) {
+  assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
+});
+
+Then('the session_name segment is not rendered', function () {
+  assert.ok(!/session:/.test(this.plain), `session_name unexpectedly present in: ${this.plain}`);
+});
+
+Then('row 1 zone 1 reads {string}', function (expected) {
+  const row1 = this.plain.split('\n')[0];
+  const zone1 = row1.split(' | ')[0];
+  assert.equal(zone1, expected, `zone 1 was "${zone1}", expected "${expected}"`);
+});
+
+Then('row 1 includes {string} between zone 1 and zone 2', function (_sep) {
+  const row1 = this.plain.split('\n')[0];
+  assert.ok(row1.includes(' | '), `no zone separator in row 1: ${row1}`);
+});
+
+Then('the write segment reads {string}', function (text) {
+  assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
+});
+
+Then('the write segment is not rendered', function () {
+  assert.ok(!/write:\d+%/.test(this.plain), `write unexpectedly present in: ${this.plain}`);
+});
+
+Then('row 1 includes {string}', function (text) {
+  const row1 = this.plain.split('\n')[0];
+  assert.ok(row1.includes(text), `expected "${text}" in row 1: ${row1}`);
+});
+
+Then('the last row reads {string}', function (expected) {
+  const rows = this.plain.split('\n').filter((l) => l.length > 0);
+  const last = rows[rows.length - 1];
+  assert.equal(last, expected, `last row: "${last}"`);
+});
+
+// ===========================================================================
+// 18 — distribution as npm package
+// ===========================================================================
+Then('package.json has a bin entry for {string} pointing to the engine', function (name) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.ok(pkg.bin && typeof pkg.bin === 'object', 'package.json is missing a "bin" field');
+  const entry = pkg.bin[name];
+  assert.ok(typeof entry === 'string' && entry.includes('cc-cream.js'),
+    `bin["${name}"] should point to cc-cream.js, got: ${entry}`);
+});
+
+Then(/^src\/cc-cream\.js starts with "([^"]+)"$/, function (shebang) {
+  const src = fs.readFileSync(ENGINE, 'utf8');
+  assert.ok(src.startsWith(shebang), `Engine does not start with "${shebang}"`);
 });

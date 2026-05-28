@@ -8,6 +8,9 @@
   "scripts": {
     "test": "cucumber-js"
   },
+  "bin": {
+    "cc-cream": "src/cc-cream.js"
+  },
   "keywords": [],
   "author": "",
   "license": "MIT",
