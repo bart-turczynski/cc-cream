@@ -494,13 +494,18 @@ Then('it states that Claude Code must be trusted and possibly restarted for the 
 // ===========================================================================
 // 10 — distribution (raw .js)
 // ===========================================================================
-Then('the published artifact is one .js file using only Node built-ins', function () {
+Then('the published runtime uses only Node built-ins and local modules', function () {
   assert.ok(fs.existsSync(ENGINE), 'src/cc-cream.js must exist');
-  const src = fs.readFileSync(ENGINE, 'utf8');
-  const specifiers = [...src.matchAll(/import\s+[^'"]*from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
-  assert.ok(specifiers.length > 0, 'engine should import its built-ins');
-  for (const spec of specifiers) {
-    assert.ok(spec.startsWith('node:'), `non-builtin import: ${spec}`);
+  const runtimeFiles = fs.readdirSync(path.join(REPO, 'src')).filter((name) => name.endsWith('.js'));
+  for (const file of runtimeFiles) {
+    const filePath = path.join(REPO, 'src', file);
+    const src = fs.readFileSync(filePath, 'utf8');
+    const specifiers = [...src.matchAll(/import\s+[^'"]*from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
+    for (const spec of specifiers) {
+      if (spec.startsWith('node:')) continue;
+      assert.ok(spec.startsWith('./'), `external runtime import in ${file}: ${spec}`);
+      assert.ok(fs.existsSync(path.join(path.dirname(filePath), spec)), `missing local runtime import in ${file}: ${spec}`);
+    }
   }
 });
 
