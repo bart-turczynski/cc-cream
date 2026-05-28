@@ -60,7 +60,7 @@ class CcCreamWorld extends World {
       // Neutralize cache-TTL + clock/timezone seams unless a scenario sets them.
       FORCE_PROMPT_CACHING_5M: '',
       ENABLE_PROMPT_CACHING_1H: '',
-      CC_CREAM_NOW: '',
+      CC_CREAM_NOW: String(this.now),
       CC_CREAM_TZ: '',
       ...this.env,
     };

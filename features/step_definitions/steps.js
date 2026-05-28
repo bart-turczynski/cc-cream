@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
-import { loadConfig, resolveTtl } from '../../src/cc-cream.js';
+import { loadConfig, resolveTtl, countdown } from '../../src/cc-cream.js';
 import { plan } from '../../src/install.js';
 
 // ---- helpers --------------------------------------------------------------
@@ -30,6 +30,18 @@ function parseDurationMs(s) {
     else ms += n * 60_000; // minutes / mins / m
   }
   return ms;
+}
+
+// Replaces ↺Nd placeholders in an expected row-2 string with actual computed day+time values.
+// The engine now renders >=1d as "Weekday HH:MM" (local time), so tests must resolve dynamically.
+// Segments are matched by prefix (5h/7d) to pick the right window.
+function resolveNdTokens(text, world) {
+  const rl = world.data?.rate_limits;
+  return text.replace(/(5h|7d):[^·]*·↺(\d+d)\b/g, (match, seg) => {
+    const w = seg === '5h' ? rl?.five_hour : rl?.seven_day;
+    if (!w?.resets_at) return match;
+    return match.replace(/↺\d+d\b/, `↺${countdown(w.resets_at * 1000, world.now)}`);
+  });
 }
 
 // A resets_at value `phrase` from now, nudged +2s so the engine's floor to
@@ -302,7 +314,7 @@ Given('a window at used_percentage {int}', function (pct) {
 
 Then('row 2 reads {string}', function (text) {
   const line = this.plain.split('\n').find((l) => /5h:|7d:/.test(l));
-  assert.equal(line, text);
+  assert.equal(line, resolveNdTokens(text, this));
 });
 
 Then('only one row is emitted', function () {
@@ -315,9 +327,15 @@ Then('row 2 shows the 5h segment and omits the 7d segment', function () {
 });
 
 Then('the countdown reads {string}', function (text) {
-  const m = this.plain.match(/5h:\d+%·(\S+)/);
+  // >=1d format is now "Weekday HH:MM" (local time); capture includes the space before HH:MM.
+  const m = this.plain.match(/5h:\d+%·(↺\S+(?:\s\d{2}:\d{2})?)/);
   assert.ok(m, `no countdown found in: ${this.plain}`);
-  assert.equal(m[1], text);
+  let expected = text;
+  if (/↺\d+d\b/.test(text)) {
+    const ra = this.data?.rate_limits?.five_hour?.resets_at;
+    if (ra != null) expected = `↺${countdown(ra * 1000, this.now)}`;
+  }
+  assert.equal(m[1], expected);
 });
 
 Then('the segment is colored {word}', function (color) {

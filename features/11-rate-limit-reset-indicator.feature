@@ -3,10 +3,11 @@ Feature: Reset indicator on rate-limit countdowns
   I want the reset countdown prefixed with ↺
   So that the number reads unambiguously as "time until a fresh 100%", not elapsed time
 
-  # PRDv2 §1. Extends S7 (features/07). Only the countdown rendering changes: the
-  # ladder (≥1d → Nd · ≥1h → HhMMm · <1h → MMm) is unchanged; a ↺ glyph is prepended
-  # so the meaning is "resets_at − now". The glyph attaches to the countdown only,
-  # never to the percentage. Applies to every rate-limit window (5h and 7d).
+  # PRDv2 §1. Extends S7 (features/07). Only the countdown rendering changes: a ↺ glyph
+  # is prepended so the meaning is "resets_at − now". Format ladder: ≥1d → "Weekday
+  # HH:MM" (local time); ≥1h → HhMMm; <1h → MMm. The glyph attaches to the countdown
+  # only, never to the percentage. Applies to every rate-limit window (5h and 7d).
+  # ↺4d tokens below are documentation hints — step defs resolve them to Weekday HH:MM.
   # Degrade rule (CLAUDE.md): if resets_at is absent, drop the countdown — and with
   # it the glyph — but keep the percentage; never crash.
 

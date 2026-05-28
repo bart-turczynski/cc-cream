@@ -6,8 +6,9 @@ Feature: Rate-limit windows and the adaptive second row
   # PRD §4.1, §4.4, §5. Bands follow the §6 convention (lower bound where it begins,
   # red tested first) with defaults amber:75, red:90. Countdown always shown.
   # Row 2 renders only if it has content, so API users (no rate_limits) get one row.
-  # NOTE: S11 (PRDv2 §1) prefixes the countdown with ↺ — the format assertions below
-  # were updated from the v1 "·2h14m" form to the superseding "·↺2h14m" form.
+  # NOTE: S11 (PRDv2 §1) prefixes the countdown with ↺. Format ladder: >=1d -> "↺Weekday
+  # HH:MM" (local time); >=1h -> ↺HhMMm; <1h -> ↺MMm. The ↺4d tokens below are
+  # documentation hints — step definitions resolve them to the actual Weekday HH:MM.
 
   Scenario: Subscriber gets two rows
     Given stdin five_hour with used_percentage 23 resetting in 2h14m
