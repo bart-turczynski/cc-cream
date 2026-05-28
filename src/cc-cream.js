@@ -220,7 +220,7 @@ export function isPeak(now, cfg, tz = 'America/Los_Angeles') {
 }
 
 // resets_at - now, on the §4.4 format ladder: >=1d -> "Fri 23:45", >=1h -> HhMMm, else MMm.
-function countdown(resetsAt, now) {
+export function countdown(resetsAt, now) {
   const t = toEpochMs(resetsAt);
   if (Number.isNaN(t)) return '';
   const totalMin = Math.max(0, Math.floor((t - now) / 60000));
