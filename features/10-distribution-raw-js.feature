@@ -3,9 +3,9 @@ Feature: Distribution as a raw .js file on GitHub
   I want to install cc-cream from a single .js file on GitHub
   So that I can adopt it with minimal friction and no package manager
 
-  # PRD §7, §14.1. v1 ships ONE channel: raw .js on GitHub. The npm bin and the
-  # marketplace plugin wrapper are deferred to v2 (§14.1). The engine stays a
-  # single file using only Node built-ins, so the deferred channels are cheap later.
+  # PRD §7, §14.1. Raw .js on GitHub is the original v1 install channel. npm bin
+  # packaging ships in v3 (CREAM-cvmhzchg); see features/18-distribution-npm.feature.
+  # The engine stays a single file using only Node built-ins.
 
   Scenario: The engine is a single self-contained .js file
     Then the published artifact is one .js file using only Node built-ins
