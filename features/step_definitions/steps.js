@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
-import { loadConfig, resolveTtl } from '../../src/cc-cream.js';
+import { loadConfig, resolveTtl, countdown } from '../../src/cc-cream.js';
 import { plan } from '../../src/install.js';
+
+// Path to the state file inside a scenario's sandbox HOME.
+const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
 
 // ---- helpers --------------------------------------------------------------
 const get = (obj, dotted) => dotted.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
@@ -30,6 +33,18 @@ function parseDurationMs(s) {
     else ms += n * 60_000; // minutes / mins / m
   }
   return ms;
+}
+
+// Replaces ↺Nd placeholders in an expected row-2 string with actual computed day+time values.
+// The engine now renders >=1d as "Weekday HH:MM" (local time), so tests must resolve dynamically.
+// Segments are matched by prefix (5h/7d) to pick the right window.
+function resolveNdTokens(text, world) {
+  const rl = world.data?.rate_limits;
+  return text.replace(/(5h|7d):[^·]*·↺(\d+d)\b/g, (match, seg) => {
+    const w = seg === '5h' ? rl?.five_hour : rl?.seven_day;
+    if (!w?.resets_at) return match;
+    return match.replace(/↺\d+d\b/, `↺${countdown(w.resets_at * 1000, world.now)}`);
+  });
 }
 
 // A resets_at value `phrase` from now, nudged +2s so the engine's floor to
@@ -302,7 +317,7 @@ Given('a window at used_percentage {int}', function (pct) {
 
 Then('row 2 reads {string}', function (text) {
   const line = this.plain.split('\n').find((l) => /5h:|7d:/.test(l));
-  assert.equal(line, text);
+  assert.equal(line, resolveNdTokens(text, this));
 });
 
 Then('only one row is emitted', function () {
@@ -315,9 +330,15 @@ Then('row 2 shows the 5h segment and omits the 7d segment', function () {
 });
 
 Then('the countdown reads {string}', function (text) {
-  const m = this.plain.match(/5h:\d+%·(\S+)/);
+  // >=1d format is now "Weekday HH:MM" (local time); capture includes the space before HH:MM.
+  const m = this.plain.match(/5h:\d+%·(↺\S+(?:\s\d{2}:\d{2})?)/);
   assert.ok(m, `no countdown found in: ${this.plain}`);
-  assert.equal(m[1], text);
+  let expected = text;
+  if (/↺\d+d\b/.test(text)) {
+    const ra = this.data?.rate_limits?.five_hour?.resets_at;
+    if (ra != null) expected = `↺${countdown(ra * 1000, this.now)}`;
+  }
+  assert.equal(m[1], expected);
 });
 
 Then('the segment is colored {word}', function (color) {
@@ -720,4 +741,65 @@ Then('the 5h segment is colored {word}', function (color) {
 
 Then('the magnitude reads {string}', function (text) {
   assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
+});
+
+// ===========================================================================
+// 14 — per-session state foundation
+// ===========================================================================
+Given('a session_id of {string}', function (id) {
+  this.data.session_id = id;
+});
+
+Given('no session_id in stdin', function () {
+  delete this.data.session_id;
+});
+
+Given('no state file exists', function () {
+  // Sandbox HOME starts clean — this step is documentary.
+});
+
+Given('a corrupted state file', function () {
+  fs.writeFileSync(stateFilePath(this), 'not valid json {{{{');
+});
+
+Given('a state file with session {string} having cost {float}', function (id, cost) {
+  const state = { sessions: { [id]: { cost, ts: this.now } } };
+  fs.writeFileSync(stateFilePath(this), JSON.stringify(state));
+});
+
+Then('the output is not empty', function () {
+  assert.ok(this.plain.trim().length > 0, 'expected non-empty output');
+});
+
+Then('a state file is written', function () {
+  assert.ok(fs.existsSync(stateFilePath(this)), 'state file was not written');
+});
+
+Then('no state file is written', function () {
+  assert.ok(!fs.existsSync(stateFilePath(this)), 'state file was unexpectedly written');
+});
+
+Then('the state for session {string} has cost {float}', function (id, expected) {
+  const raw = fs.readFileSync(stateFilePath(this), 'utf8');
+  const state = JSON.parse(raw);
+  const actual = state?.sessions?.[id]?.cost;
+  assert.ok(typeof actual === 'number', `cost missing for session ${id}`);
+  assert.ok(Math.abs(actual - expected) < 0.001, `expected cost ${expected}, got ${actual}`);
+});
+
+// ===========================================================================
+// 15 — cache drop-detection
+// ===========================================================================
+Given('a state file with session {string} having cache_pct {int}', function (id, pct) {
+  const state = { sessions: { [id]: { cache_pct: pct, ts: this.now } } };
+  fs.writeFileSync(stateFilePath(this), JSON.stringify(state));
+});
+
+Given('a state file with session {string} having cache_pct {int} and recovering', function (id, pct) {
+  const state = { sessions: { [id]: { cache_pct: pct, recovering: true, ts: this.now } } };
+  fs.writeFileSync(stateFilePath(this), JSON.stringify(state));
+});
+
+Then('the cache segment is colored {word}', function (color) {
+  assert.equal(colorOf(this.stdout, /cache:\d+%/), color);
 });
