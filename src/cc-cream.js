@@ -23,7 +23,7 @@ export const DEFAULTS = {
   ttl: 'auto',            // 'auto' | 60 | 5
   percentage: 'consumed', // 'consumed' | 'remaining' — display-only flip of ctx/5h/7d (PRDv2 §3)
   segments: {
-    model:    { on: true,  row: 1, order: 1 },
+    model:    { on: true,  row: 3, order: 0.5 },
     // `basis` picks the fullness reference the color (and, by default, the
     // shown %) measures against: 'window' = used_percentage of the real window
     // (no-regression default); 'ceiling' = total_input_tokens / `ceiling`, so
@@ -44,7 +44,7 @@ export const DEFAULTS = {
     effort:       { on: false, row: 1, order: 6 },
     thinking:     { on: false, row: 1, order: 7 },
     api_ratio:    { on: false, row: 1, order: 8 },
-    session_name: { on: false, row: 1, order: 0.5 },
+    session_name: { on: false, row: 3, order: 1 },
     write:        { on: false, row: 1, order: 3.5 },
   },
 };
@@ -52,7 +52,7 @@ export const DEFAULTS = {
 // Row 1 renders as up-to-three visual zones separated by " | " (PRD §4.3):
 // [model] | [session metrics] | [cost]. Empty zones drop out, so a model-only
 // bar is just the name with no separators.
-const ROW1_ZONES = [['model', 'session_name'], ['ctx', 'cache', 'write', 'ttl', 'effort', 'thinking', 'api_ratio'], ['cost']];
+const ROW1_ZONES = [['ctx', 'cache', 'write', 'ttl', 'effort', 'thinking', 'api_ratio'], ['cost']];
 
 const ANSI = { red: '\x1b[31m', green: '\x1b[32m', amber: '\x1b[33m', orange: '\x1b[38;5;208m' };
 
@@ -285,7 +285,7 @@ function segCtx(data, cfg) {
   const shownPct = ceilingPct != null && s.display !== 'window' ? ceilingPct : winPct;
 
   let text = `ctx:${flipPct(Math.round(shownPct), cfg)}%`;
-  if (isNum(mag)) text += ` (${fmtNum(mag, cfg.numbers)})`; // magnitude is absolute, never flips
+  if (isNum(mag)) text += ` [${fmtNum(mag, cfg.numbers)}]`; // magnitude is absolute, never flips
   return { text, color: band(colorPct, s.amber, s.orange, s.red) };
 }
 
@@ -333,7 +333,7 @@ function segRate(window, label, cfg, segId, now) {
   // the percentage rather than a dangling separator. Degrade, never crash.
   const cd = countdown(window.resets_at, now);
   const head = `${label}:${flipPct(Math.round(pct), cfg)}%`;
-  const text = cd ? `${head}·↺${cd}` : head;
+  const text = cd ? `${head} ↺ ${cd}` : head;
   return { text, color };
 }
 
@@ -354,13 +354,13 @@ function segApiRatio(data) {
   const total = data?.cost?.total_duration_ms;
   if (!isNum(api) || !isNum(total) || total <= 0) return null;
   const pct = Math.round(Math.min(100, (api / total) * 100));
-  return { text: `api:${pct}%`, color: null };
+  return { text: `∿ api:${pct}%`, color: null };
 }
 
 function segSessionName(data) {
   const name = data?.session_name;
   if (typeof name !== 'string' || name === '') return null;
-  return { text: `session:${name}`, color: null };
+  return { text: name, color: null };
 }
 
 function segCacheWrite(data) {
@@ -429,8 +429,8 @@ export function render(data, cfg, env, now, prevSessionState = null) {
   const byOrder = (a, b) => cfg.segments[a].order - cfg.segments[b].order;
   const draw = (id) => paint(segs[id].text, segs[id].color);
 
-  // Row 1: zoned, " | " between zones, " " within a zone.
-  const row1 = ROW1_ZONES.map((zone) => zone.filter((id) => visible(id, 1)).sort(byOrder).map(draw).join(' '))
+  // Row 1: zoned, " | " between all segments (both zones and within-zone).
+  const row1 = ROW1_ZONES.map((zone) => zone.filter((id) => visible(id, 1)).sort(byOrder).map(draw).join(' | '))
     .filter((z) => z.length > 0)
     .join(' | ');
 
@@ -439,9 +439,16 @@ export function render(data, cfg, env, now, prevSessionState = null) {
     .filter((id) => visible(id, 2))
     .sort(byOrder)
     .map(draw)
-    .join('  ');
+    .join(' | ');
 
-  return [row1, row2].filter((r) => r.length > 0).join('\n');
+  // Row 3: identity row (model | session_name), " | " between segments.
+  const row3 = Object.keys(cfg.segments)
+    .filter((id) => visible(id, 3))
+    .sort(byOrder)
+    .map(draw)
+    .join(' | ');
+
+  return [row1, row2, row3].filter((r) => r.length > 0).join('\n');
 }
 
 // ---------------------------------------------------------------------------

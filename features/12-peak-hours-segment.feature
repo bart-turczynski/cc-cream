@@ -30,7 +30,7 @@ Feature: Peak-hours environment indicator
     Given the Pacific time is Monday 08:00
     And seven_day with used_percentage 41 resetting in 4 days
     When cc-cream runs
-    Then row 2 reads "5h:41%·↺4d  7d:41%·↺4d  peak"
+    Then row 2 reads "5h:41% ↺ 4d | 7d:41% ↺ 4d | peak"
 
   Scenario: Hidden outside the window on a weekday, with no placeholder
     Given the Pacific time is Monday 12:00

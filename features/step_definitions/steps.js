@@ -40,10 +40,10 @@ function parseDurationMs(s) {
 // Segments are matched by prefix (5h/7d) to pick the right window.
 function resolveNdTokens(text, world) {
   const rl = world.data?.rate_limits;
-  return text.replace(/(5h|7d):[^·]*·↺(\d+d)\b/g, (match, seg) => {
+  return text.replace(/(5h|7d):\S+ ↺ (\d+d)\b/g, (match, seg) => {
     const w = seg === '5h' ? rl?.five_hour : rl?.seven_day;
     if (!w?.resets_at) return match;
-    return match.replace(/↺\d+d\b/, `↺${countdown(w.resets_at * 1000, world.now)}`);
+    return match.replace(/↺ \d+d\b/, `↺ ${countdown(w.resets_at * 1000, world.now)}`);
   });
 }
 
@@ -104,7 +104,7 @@ Given(/^config (\{.*\})$/, function (json) {
   this.configRaw = json;
 });
 
-Then(/^the model segment renders with its built-in defaults \(on, row 1, order 1\)$/, function () {
+Then(/^the model segment renders with its built-in defaults \(on, row 3, order 0\.5\)$/, function () {
   assert.ok(this.plain.includes(this.modelName));
 });
 
@@ -331,12 +331,12 @@ Then('row 2 shows the 5h segment and omits the 7d segment', function () {
 
 Then('the countdown reads {string}', function (text) {
   // >=1d format is now "Weekday HH:MM" (local time); capture includes the space before HH:MM.
-  const m = this.plain.match(/5h:\d+%·(↺\S+(?:\s\d{2}:\d{2})?)/);
+  const m = this.plain.match(/5h:\d+% (↺ \S+(?:\s\d{2}:\d{2})?)/);
   assert.ok(m, `no countdown found in: ${this.plain}`);
   let expected = text;
-  if (/↺\d+d\b/.test(text)) {
+  if (/↺ \d+d\b/.test(text)) {
     const ra = this.data?.rate_limits?.five_hour?.resets_at;
-    if (ra != null) expected = `↺${countdown(ra * 1000, this.now)}`;
+    if (ra != null) expected = `↺ ${countdown(ra * 1000, this.now)}`;
   }
   assert.equal(m[1], expected);
 });
@@ -350,7 +350,7 @@ Then('the segment is colored {word}', function (color) {
 // ===========================================================================
 // The 5h segment is the first whitespace-delimited token on row 2 starting with
 // "5h:" (row-2 segments are joined by two spaces; the segment itself has none).
-const seg5h = (plain) => plain.match(/5h:\S+/)?.[0] ?? null;
+const seg5h = (plain) => plain.match(/5h:\S+(?:\s↺\s\S+(?:\s\d{2}:\d{2})?)?/)?.[0] ?? null;
 
 Given('stdin five_hour with used_percentage {int} and no resets_at', function (pct) {
   this.data.rate_limits = this.data.rate_limits || {};
@@ -364,7 +364,7 @@ Then('the 5h segment reads {string}', function (text) {
 Then('the percentage reads {string} with no ↺ prefix', function (pct) {
   const seg = seg5h(this.plain);
   assert.ok(seg, `no 5h segment in: ${this.plain}`);
-  const percentage = seg.slice('5h:'.length).split('·')[0]; // text before the countdown joiner
+  const percentage = seg.slice('5h:'.length).split(' ')[0]; // text before the countdown joiner
   assert.equal(percentage, pct);
   assert.ok(!percentage.includes('↺'), `↺ leaked into the percentage: ${percentage}`);
 });
@@ -730,7 +730,7 @@ Given('stdin with a last-turn cache hit rate of {int}%', function (pct) {
 Then('the 5h segment percentage reads {string}', function (pct) {
   const seg = seg5h(this.plain);
   assert.ok(seg, `no 5h segment in: ${this.plain}`);
-  assert.equal(seg.slice('5h:'.length).split('·')[0], pct);
+  assert.equal(seg.slice('5h:'.length).split(' ')[0], pct);
 });
 
 Then('the 5h segment is colored {word}', function (color) {
@@ -882,6 +882,12 @@ Then('the write segment is not rendered', function () {
 Then('row 1 includes {string}', function (text) {
   const row1 = this.plain.split('\n')[0];
   assert.ok(row1.includes(text), `expected "${text}" in row 1: ${row1}`);
+});
+
+Then('the last row reads {string}', function (expected) {
+  const rows = this.plain.split('\n').filter((l) => l.length > 0);
+  const last = rows[rows.length - 1];
+  assert.equal(last, expected, `last row: "${last}"`);
 });
 
 // ===========================================================================
