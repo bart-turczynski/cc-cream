@@ -1051,3 +1051,64 @@ Then('the plugin name is lowercase kebab-case', function () {
   const name = readPluginJson().name;
   assert.match(name, /^[a-z][a-z0-9-]*$/, `plugin name must be lowercase kebab-case, got: ${name}`);
 });
+
+// ===========================================================================
+// 21 — npm packaging: LICENSE + package.json polish
+// ===========================================================================
+Then('a LICENSE file exists at the repo root', function () {
+  assert.ok(fs.existsSync(path.join(REPO, 'LICENSE')), 'LICENSE file must exist at repo root');
+});
+
+Then('it is an MIT license', function () {
+  const text = fs.readFileSync(path.join(REPO, 'LICENSE'), 'utf8');
+  assert.ok(/MIT License/i.test(text), 'LICENSE must be an MIT license');
+});
+
+Then('package.json license field is {string}', function (expected) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.equal(pkg.license, expected);
+});
+
+Then('package.json declares a node engines constraint', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.ok(pkg.engines && typeof pkg.engines.node === 'string' && pkg.engines.node.length > 0,
+    'package.json must declare engines.node');
+});
+
+Then('it declares repository, bugs, and homepage URLs', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const repoUrl = typeof pkg.repository === 'string' ? pkg.repository : pkg.repository?.url;
+  assert.ok(typeof repoUrl === 'string' && repoUrl.length > 0, 'repository must be declared');
+  const bugsUrl = typeof pkg.bugs === 'string' ? pkg.bugs : pkg.bugs?.url;
+  assert.ok(typeof bugsUrl === 'string' && bugsUrl.length > 0, 'bugs URL must be declared');
+  assert.ok(typeof pkg.homepage === 'string' && pkg.homepage.length > 0, 'homepage must be declared');
+});
+
+Then('it declares an author and keywords', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const authorName = typeof pkg.author === 'string' ? pkg.author : pkg.author?.name;
+  assert.ok(typeof authorName === 'string' && authorName.length > 0, 'author must be declared');
+  assert.ok(Array.isArray(pkg.keywords) && pkg.keywords.length > 0, 'keywords must be a non-empty array');
+});
+
+Then('package.json restricts published files to the runtime via a files allowlist', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.ok(Array.isArray(pkg.files) && pkg.files.length > 0, 'package.json must declare a files allowlist');
+});
+
+Then('the allowlist includes src and LICENSE and README.md', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const files = pkg.files ?? [];
+  assert.ok(files.some((f) => f === 'src' || f === 'src/'), 'files allowlist must include src/');
+  assert.ok(files.includes('LICENSE'), 'files allowlist must include LICENSE');
+  assert.ok(files.includes('README.md'), 'files allowlist must include README.md');
+});
+
+Then('the allowlist excludes features, fixtures, docs, and archive', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const files = pkg.files ?? [];
+  for (const excluded of ['features', 'fixtures', 'docs', 'archive']) {
+    assert.ok(!files.some((f) => f === excluded || f === `${excluded}/`),
+      `files allowlist must not include "${excluded}"`);
+  }
+});
