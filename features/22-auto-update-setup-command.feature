@@ -8,13 +8,17 @@ Feature: Auto-updating setup command for plugin installs (CREAM-kpsjregt)
   # installed version on every render (the claude-hud pattern). The existing
   # tested install.js behavior — consent-to-replace, padding preservation,
   # refreshInterval 60, trust/restart notice — is retained. Copy-to-home demotes
-  # to the documented manual/GitHub path.
+  # to the documented manual/GitHub path. The selection must consider only
+  # semver-named dirs (CREAM-kxwhbwzq): a git-sha cache dir like c83650b6360f sorts
+  # after every 0.1.x under `sort -V` and would otherwise pin the bar to whatever
+  # version that dir holds, silently defeating auto-update.
 
   Scenario: The plugin setup writes a cache-glob auto-update command
     Given the plugin is installed in the Claude Code plugin cache
     When the setup command runs in plugin mode and I consent
     Then settings.json gains a statusLine of type "command" with refreshInterval 60
     And the command globs the plugin cache for cc-cream and selects the highest version with "sort -V"
+    And the command only considers semver-named version dirs
     And the command appends "src/cc-cream.js" to the resolved version directory
     And it invokes node by its absolute path, not a bare "node" on PATH
 

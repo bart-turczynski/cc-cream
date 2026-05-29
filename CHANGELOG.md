@@ -4,6 +4,11 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11] — 2026-05-29
+
+### Fixed
+- **Status bar could pin to an old version when a non-semver cache dir exists** (CREAM-kxwhbwzq). The plugin-mode statusLine self-resolves the highest installed version with `ls -1d …/cc-cream/*/ | sort -V | tail -1`. `sort -V` sorts directory *names*, so a git-sha install dir (e.g. `c83650b6360f/`) sorts after every `0.1.x` and got picked — pinning the bar to whatever version that dir held (observed: 0.1.3), with `/plugin update` unable to move off it. The command now filters to semver-named dirs (`grep -E '/[0-9]+(\.[0-9]+)+/$'`) before `sort -V`, so a stray non-numeric dir can't hijack version selection. Re-run `/cc-cream:setup` once (or reinstall) to rewrite the statusLine with the hardened command.
+
 ## [0.1.10] — 2026-05-29
 
 ### Added

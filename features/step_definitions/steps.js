@@ -1236,8 +1236,18 @@ Then('the command globs the plugin cache for cc-cream and selects the highest ve
 Then('the command appends {string} to the resolved version directory', function (suffix) {
   const cmd = this.result.settings.statusLine.command;
   // The -d glob yields a trailing slash, so the entrypoint concatenates directly.
-  assert.ok(cmd.includes(`/ 2>/dev/null | sort -V | tail -1)${suffix}`),
+  assert.ok(cmd.includes(`| sort -V | tail -1)${suffix}`),
     `command must append "${suffix}" to the trailing-slash version dir: ${cmd}`);
+});
+
+Then('the command only considers semver-named version dirs', function () {
+  const cmd = this.result.settings.statusLine.command;
+  // A grep filter must run before sort -V, so a non-numeric (git-sha) cache dir
+  // can't sort last and pin the bar to the wrong version.
+  assert.ok(/grep -E '\/\[0-9\]\+\(\\\.\[0-9\]\+\)\+\/\$'/.test(cmd),
+    `command must filter to semver dirs before sort -V: ${cmd}`);
+  assert.ok(cmd.indexOf('grep -E') < cmd.indexOf('sort -V'),
+    `the semver filter must run before sort -V: ${cmd}`);
 });
 
 Then('it invokes node by its absolute path, not a bare {string} on PATH', function (bare) {

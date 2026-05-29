@@ -23,10 +23,13 @@ const TRUST_NOTE =
 // `nodePath` is the ABSOLUTE node binary, resolved once at setup time — the
 // statusLine subprocess may not inherit the user's PATH, so a bare `node` is
 // unsafe. The `-d .../*/` glob yields directory paths with a trailing slash, so
-// `src/cc-cream.js` concatenates directly. `sort -V | tail -1` picks the highest
-// installed version, so `/plugin update` is applied live with no re-run of setup.
+// `src/cc-cream.js` concatenates directly. The `grep` keeps ONLY semver-named
+// dirs (e.g. `0.1.10/`) before `sort -V | tail -1` picks the highest — without
+// it, a non-numeric cache dir (a git-sha install like `c83650b6360f/`) sorts
+// last and pins the bar to whatever version that happens to be, defeating
+// auto-update. With it, `/plugin update` is applied live with no re-run of setup.
 export function autoUpdateCommand(nodePath) {
-  return `${nodePath} "$(ls -1d "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | sort -V | tail -1)src/cc-cream.js"`;
+  return `${nodePath} "$(ls -1d "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | grep -E '/[0-9]+(\\.[0-9]+)+/$' | sort -V | tail -1)src/cc-cream.js"`;
 }
 
 // `desired` is considered already installed if it matches the planned command
