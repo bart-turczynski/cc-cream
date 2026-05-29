@@ -11,7 +11,8 @@ Node status-line tool for Claude Code: reads CC's stdin JSON, prints a colored �
 ## Commands
 
 ```bash
-npm install                                          # install devDeps + register git hooks
+npm install                                          # install devDeps
+npm run hooks                                        # one-time: register the pre-push git hook
 npm test                                             # lint + knip + all Cucumber specs
 npm run coverage                                     # same but wrapped in c8 (coverage table)
 npm run watch                                        # re-run specs on file change (TDD)
@@ -59,7 +60,7 @@ Fourteen segments (all configurable via `~/.claude/cc-cream.json`):
 - **Biome** — lints `src/` on every `npm test` (pretest hook). Rules: `noCommonJs` + `noUndeclaredDependencies` as errors, recommended rules as warnings.
 - **knip** — dead-code / unused-export audit, also runs in pretest. Config: `knip.json`.
 - **c8** — V8 coverage via `npm run coverage`. Current baseline: ~94% statements across `src/`.
-- **simple-git-hooks** — pre-push hook runs `npm run coverage`; installed automatically by `prepare` on `npm install`. Skip with `SKIP_SIMPLE_GIT_HOOKS=1 git push`.
+- **simple-git-hooks** — pre-push hook runs `npm run coverage`; register it once with `npm run hooks` (kept off the `prepare` lifecycle so the published package ships no install-time scripts). Skip with `SKIP_SIMPLE_GIT_HOOKS=1 git push`.
 
 ## Hard constraints
 - **No runtime deps, ESM** — Cucumber is dev-only. Node built-ins only across all `src/` modules.

@@ -4,6 +4,14 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] — 2026-05-29
+
+### Changed
+- **No install-time lifecycle scripts in the published package.** The git-hook
+  registration moved off the `prepare` lifecycle to an opt-in `npm run hooks`,
+  so `npm install`/`npx cc-cream` runs nothing automatically. Improves the
+  supply-chain posture (and Socket score) with no change to the runtime.
+
 ## [0.1.1] — 2026-05-29
 
 ### Added
@@ -51,5 +59,6 @@ line and prints a colored ≤3-row bar — zero tokens, the model never sees it.
 - Supports **macOS and Linux**; Windows is a planned fast-follow.
 - Requires Claude Code **2.1.132+** (`effort` / `thinking` need 2.1.145+).
 
+[0.1.2]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/bart-turczynski/cc-cream/releases/tag/v0.1.0

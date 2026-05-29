@@ -7,11 +7,15 @@ are reviewed when time allows, but there are no SLAs or roadmap commitments.
 
 ```bash
 npm install
+npm run hooks   # one-time: register the pre-push git hook (runs coverage)
 npm test
 ```
 
 `npm test` runs Biome lint, knip (dead-code audit), plugin manifest validation,
 and all Cucumber scenarios. Everything must stay green.
+
+> `npm run hooks` is opt-in rather than an automatic `prepare` step so the
+> published package ships no install-time lifecycle scripts.
 
 For coverage:
 ```bash

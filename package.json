@@ -14,7 +14,7 @@
     "test:manual": "cucumber-js --profile manual",
     "coverage": "c8 cucumber-js",
     "watch": "cucumber-js --watch",
-    "prepare": "simple-git-hooks",
+    "hooks": "simple-git-hooks",
     "prepublishOnly": "npm test"
   },
   "simple-git-hooks": {
