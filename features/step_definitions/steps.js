@@ -1,10 +1,11 @@
 import { Given, When, Then } from '@cucumber/cucumber';
+import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown } from '../../src/cc-cream.js';
-import { plan } from '../../src/install.js';
+import { autoUpdateCommand, plan } from '../../src/install.js';
 
 // Path to the state file inside a scenario's sandbox HOME.
 const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
@@ -1110,5 +1111,147 @@ Then('the allowlist excludes features, fixtures, docs, and archive', function ()
   for (const excluded of ['features', 'fixtures', 'docs', 'archive']) {
     assert.ok(!files.some((f) => f === excluded || f === `${excluded}/`),
       `files allowlist must not include "${excluded}"`);
+  }
+});
+
+// ===========================================================================
+// 22 — auto-updating setup command (plugin mode)
+// ===========================================================================
+// A representative absolute node path the plugin-mode plan() bakes in.
+const ABS_NODE = '/usr/local/bin/node';
+
+Given('the plugin is installed in the Claude Code plugin cache', function () {
+  // The cache layout is the plugin host's concern; plugin-mode plan() emits a
+  // command that resolves it at render time. Nothing to set up here.
+  this.settings = {};
+});
+
+When('the setup command runs in plugin mode and I consent', function () {
+  this.before = JSON.parse(JSON.stringify(this.settings));
+  this.result = plan(this.settings, { plugin: true, nodePath: ABS_NODE, consent: true });
+});
+
+Then('the command globs the plugin cache for cc-cream and selects the highest version with {string}', function (sortFlag) {
+  const cmd = this.result.settings.statusLine.command;
+  assert.ok(cmd.includes('/plugins/cache/'), `command must glob the plugin cache: ${cmd}`);
+  assert.ok(cmd.includes('cc-cream'), `command must target cc-cream: ${cmd}`);
+  assert.ok(cmd.includes('/*/'), `command must glob version dirs: ${cmd}`);
+  assert.ok(cmd.includes(`${sortFlag} | tail -1`), `command must select highest with "${sortFlag}": ${cmd}`);
+});
+
+Then('the command appends {string} to the resolved version directory', function (suffix) {
+  const cmd = this.result.settings.statusLine.command;
+  // The -d glob yields a trailing slash, so the entrypoint concatenates directly.
+  assert.ok(cmd.includes(`/ 2>/dev/null | sort -V | tail -1)${suffix}`),
+    `command must append "${suffix}" to the trailing-slash version dir: ${cmd}`);
+});
+
+Then('it invokes node by its absolute path, not a bare {string} on PATH', function (bare) {
+  const cmd = this.result.settings.statusLine.command;
+  assert.ok(cmd.startsWith(`${ABS_NODE} `), `command must start with the absolute node path: ${cmd}`);
+  assert.ok(!new RegExp(`(^|\\s)${bare}\\s`).test(cmd.replace(ABS_NODE, '')),
+    `command must not invoke a bare "${bare}": ${cmd}`);
+});
+
+Given('the statusLine uses the cache-glob command', function () {
+  this.cacheGlobCommand = autoUpdateCommand(ABS_NODE);
+  this.settings = { statusLine: { type: 'command', command: this.cacheGlobCommand, refreshInterval: 60 } };
+});
+
+Given('a newer cc-cream version directory appears in the plugin cache', function () {
+  // Simulated by the cache layout; the command is version-agnostic so nothing
+  // about settings.json changes. `sort -V | tail -1` will pick the new dir.
+  this.newerVersionAppeared = true;
+});
+
+When('Claude Code next renders the status line', function () {
+  // The render path reads the command verbatim from settings.json; we assert on
+  // the command's self-resolving shape rather than spawning a live host.
+  this.renderedCommand = this.settings.statusLine.command;
+});
+
+Then('it runs the newer version without any change to settings.json', function () {
+  assert.equal(this.renderedCommand, this.cacheGlobCommand,
+    'settings.json command must be unchanged');
+  // The command resolves the version at render time (no hardcoded version dir).
+  assert.ok(!/cache\/[^*]*cc-cream\/\d/.test(this.renderedCommand),
+    `command must not hardcode a version: ${this.renderedCommand}`);
+  assert.ok(this.renderedCommand.includes('sort -V | tail -1'),
+    'command must re-select the highest cached version on every render');
+});
+
+Then(/^commands\/setup\.md exists and registers as the (\/cc-cream:setup) command$/, function (cmdName) {
+  const p = path.join(REPO, 'commands', 'setup.md');
+  assert.ok(fs.existsSync(p), 'commands/setup.md must exist');
+  const src = fs.readFileSync(p, 'utf8');
+  // Frontmatter with a description; the slash command name derives from the path
+  // (commands/setup.md -> /cc-cream:setup) and the plugin manifest registration.
+  assert.match(src, /^---\s*\n[\s\S]*?description:[\s\S]*?\n---/, 'setup.md must have frontmatter with a description');
+  this.setupMd = src;
+  assert.equal(cmdName, '/cc-cream:setup');
+});
+
+Then(/^it invokes src\/install\.js in plugin mode rather than writing settings\.json itself$/, function () {
+  const src = this.setupMd ?? fs.readFileSync(path.join(REPO, 'commands', 'setup.md'), 'utf8');
+  assert.ok(src.includes('install.js --plugin'), 'setup.md must shell out to install.js --plugin');
+  assert.ok(!/JSON\.parse|writeFileSync|JSON\.stringify/.test(src),
+    'setup.md must not itself write settings.json');
+});
+
+When('the setup command runs', function () {
+  // Setup runs in plugin mode and finds an existing (different) statusLine.
+  this.before = JSON.parse(JSON.stringify(this.settings));
+  this.result = plan(this.settings, { plugin: true, nodePath: ABS_NODE, consent: false });
+});
+
+Given('a local checkout with no plugin cache', function () {
+  // The sandbox HOME starts clean (no plugins/cache); install.js manual mode
+  // copies the runtime from the repo's src/ into ~/.claude/cc-cream.
+  this.before = {};
+});
+
+When('install.js runs without plugin mode and I consent', function () {
+  const installer = path.join(REPO, 'src', 'install.js');
+  const source = path.join(REPO, 'src', 'cc-cream.js');
+  const res = spawnSync(process.execPath, [installer, source], {
+    input: 'y\n',
+    env: { ...process.env, HOME: this.home },
+    encoding: 'utf8',
+  });
+  this.installerStdout = res.stdout ?? '';
+  this.installerExit = res.status;
+  const settingsFile = path.join(this.home, '.claude', 'settings.json');
+  this.writtenSettings = fs.existsSync(settingsFile)
+    ? JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+    : null;
+});
+
+Then('it copies the runtime into the home cc-cream directory', function () {
+  const homeEntrypoint = path.join(this.home, '.claude', 'cc-cream', 'cc-cream.js');
+  assert.ok(fs.existsSync(homeEntrypoint),
+    `runtime must be copied to ${homeEntrypoint}; installer said: ${this.installerStdout}`);
+});
+
+Then('it points the statusLine command at that copied entrypoint', function () {
+  assert.ok(this.writtenSettings, 'settings.json must be written');
+  const cmd = this.writtenSettings.statusLine.command;
+  const homeEntrypoint = path.join(this.home, '.claude', 'cc-cream', 'cc-cream.js');
+  assert.ok(cmd.includes(homeEntrypoint),
+    `command must point at the copied entrypoint ${homeEntrypoint}, got: ${cmd}`);
+  assert.ok(!cmd.includes('/plugins/cache/'), `manual command must not glob the plugin cache: ${cmd}`);
+});
+
+Then('it prints the formatted bar to stdout without any network access', function () {
+  // The engine source imports no net/http/dns module (asserted statically), and
+  // piping stdin still produces output.
+  assert.ok(this.plain.length > 0, 'expected non-empty output');
+  const runtimeFiles = fs.readdirSync(path.join(REPO, 'src')).filter((name) => name.endsWith('.js'));
+  for (const file of runtimeFiles) {
+    const src = fs.readFileSync(path.join(REPO, 'src', file), 'utf8');
+    for (const m of src.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
+      const spec = m[1];
+      assert.ok(!/^node:(net|http|https|dns|tls|dgram)$/.test(spec) && spec !== 'node:http2',
+        `engine must not import a network module (${spec} in ${file})`);
+    }
   }
 });
