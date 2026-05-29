@@ -13,7 +13,7 @@ Feature: Publish and submit to the community catalog (CREAM-vtjzppjr)
   # --- Automated gates (verifiable in CI) ---
 
   Scenario: The release version is pinned in package.json
-    Then package.json version is exactly "0.1.0"
+    Then package.json version is exactly "0.1.1"
 
   Scenario: The self-hosted marketplace install path is documented
     Then the README documents adding the marketplace with "/plugin marketplace add bart-turczynski/cc-cream"
@@ -30,7 +30,7 @@ Feature: Publish and submit to the community catalog (CREAM-vtjzppjr)
   @manual
   Scenario: The npm package is published at the planned version
     When "npm publish" runs for cc-cream
-    Then the npm registry accepts cc-cream at version 0.1.0
+    Then the npm registry accepts cc-cream at version 0.1.1
 
   @manual
   Scenario: The plugin is submitted to the community catalog
