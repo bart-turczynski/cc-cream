@@ -3,11 +3,9 @@
 // Reads the session JSON Claude Code pipes on stdin and prints a colored
 // <=3-row bar. Hard rule: degrade, never crash.
 
-import { realpathSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadConfig, readConfigFile } from './config.js';
 import { render } from './render.js';
 import {
@@ -17,6 +15,7 @@ import {
   readState,
   writeState,
 } from './state.js';
+import { isEntrypoint } from './utils.js';
 
 export { DEFAULTS } from './defaults.js';
 export { loadConfig } from './config.js';
@@ -73,23 +72,9 @@ async function main() {
   process.exit(0);
 }
 
-// Robust "is this module the entrypoint?" check. Node's ESM loader canonicalizes
-// import.meta.url (symlinks resolved), but process.argv[1] stays as it was invoked.
-// A plain href comparison therefore fails silently when cc-cream runs from a
-// symlinked path — e.g. a ~/.claude managed by a dotfile manager (stow/chezmoi/yadm)
-// or synced via iCloud/Dropbox — skipping main() so the bar renders NOTHING with no
-// error. Comparing realpaths makes the symlinked and canonical paths match. Falls
-// back to the href comparison if realpath fails (e.g. a path that no longer exists).
-function isEntrypoint() {
-  const arg = process.argv[1];
-  if (!arg) return false;
-  try {
-    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(arg);
-  } catch {
-    return import.meta.url === pathToFileURL(arg).href;
-  }
-}
-
-if (isEntrypoint()) {
+// isEntrypoint (src/utils.js) is symlink-robust — see its comment. A plain
+// import.meta.url === pathToFileURL(argv[1]) check fails under a symlinked path and
+// renders nothing with no error.
+if (isEntrypoint(import.meta.url)) {
   main();
 }

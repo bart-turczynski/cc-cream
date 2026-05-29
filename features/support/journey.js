@@ -1,0 +1,113 @@
+// Helpers for the install/uninstall JOURNEY smoke tests (features/27-*).
+//
+// Unlike the unit specs, these drive the REAL artifacts end to end: they stage a
+// plugin cache the way `/plugin install` lays it out, run the actual SessionStart
+// hook and install.js as child processes, and execute the baked statusLine command
+// through `sh -c` exactly as Claude Code does. Everything is keyed off a sandbox
+// HOME so the hook (CLAUDE_CONFIG_DIR-aware), install.js (os.homedir()-based), and
+// the baked command (`$HOME/.claude`) all resolve to the same config dir. We leave
+// CLAUDE_CONFIG_DIR unset on purpose so those three agree on `$HOME/.claude`.
+
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { REPO } from './world.js';
+
+const MARKETPLACE = 'cc-cream';
+const PLUGIN = 'cc-cream';
+
+export const configDirOf = (home) => path.join(home, '.claude');
+export const cacheRoot = (home) => path.join(configDirOf(home), 'plugins', 'cache', MARKETPLACE, PLUGIN);
+
+// A small but fully renderable session payload; the model name lets tests assert
+// the bar actually came out.
+export const SESSION_JSON = JSON.stringify({
+  session_id: 'journey-smoke',
+  model: { display_name: 'Sonnet 4.6' },
+  context_window: { used_percentage: 12, total_input_tokens: 24000 },
+  cost: { total_cost_usd: 0.5 },
+});
+export const MODEL_NAME = 'Sonnet 4.6';
+
+function baseEnv(home) {
+  const env = { ...process.env, HOME: home };
+  // Force the $HOME/.claude default path across hook + install.js + baked command.
+  delete env.CLAUDE_CONFIG_DIR;
+  return env;
+}
+
+// Copy the plugin's runtime tree into <config>/plugins/cache/<mkt>/<plugin>/<version>/,
+// mirroring how `/plugin install` clones it. Returns the plugin root (CLAUDE_PLUGIN_ROOT).
+export function stageCache(home, version) {
+  const root = path.join(cacheRoot(home), version);
+  for (const dir of ['src', 'hooks', '.claude-plugin']) {
+    fs.cpSync(path.join(REPO, dir), path.join(root, dir), { recursive: true });
+  }
+  return root;
+}
+
+// Run the real SessionStart auto-setup hook from a staged cache.
+export function runAutoSetupHook(home, pluginRoot, pluginData) {
+  const env = { ...baseEnv(home), CLAUDE_PLUGIN_ROOT: pluginRoot, CLAUDE_PLUGIN_DATA: pluginData };
+  const res = spawnSync(process.execPath, [path.join(pluginRoot, 'hooks', 'auto-setup.js')], {
+    env,
+    input: '',
+    encoding: 'utf8',
+  });
+  let systemMessage = null;
+  try {
+    systemMessage = JSON.parse(res.stdout || '{}').systemMessage ?? null;
+  } catch {
+    /* no JSON emitted (silent path) */
+  }
+  return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '', systemMessage };
+}
+
+// Run install.js with args, as the cc-cream-setup bin / slash command would
+// (non-interactive: piped stdin, no TTY). `installJs` lets the recovery scenario
+// run the checked-out copy after the plugin cache is gone.
+export function runInstall(home, args, { installJs } = {}) {
+  const entry = installJs || path.join(REPO, 'src', 'install.js');
+  const res = spawnSync(process.execPath, [entry, ...args], {
+    env: baseEnv(home),
+    input: '',
+    encoding: 'utf8',
+  });
+  return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+}
+
+// Execute the baked statusLine command exactly as Claude Code does: `sh -c`, with
+// the session JSON on stdin.
+export function runStatusLine(home, command, input = SESSION_JSON) {
+  const res = spawnSync('sh', ['-c', command], { env: baseEnv(home), input, encoding: 'utf8' });
+  return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+}
+
+// Reuse the EXACT `d="$(...)"` resolution from a baked command, then print $d, to
+// assert which cached version the command would run (sort -V selection over a real
+// multi-version cache).
+export function resolveBakedDir(home, command) {
+  const resolution = command.split('; [ -z')[0];
+  const res = spawnSync('sh', ['-c', `${resolution}; printf %s "$d"`], {
+    env: baseEnv(home),
+    encoding: 'utf8',
+  });
+  return (res.stdout ?? '').trim();
+}
+
+export function readSettings(home) {
+  const p = path.join(configDirOf(home), 'settings.json');
+  if (!fs.existsSync(p)) return {};
+  return JSON.parse(fs.readFileSync(p, 'utf8'));
+}
+
+export function writeSettings(home, settings) {
+  const p = path.join(configDirOf(home), 'settings.json');
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, `${JSON.stringify(settings, null, 2)}\n`);
+}
+
+// Simulate `/plugin uninstall cc-cream`: Claude Code deletes the plugin cache.
+export function removePluginCache(home) {
+  fs.rmSync(path.join(configDirOf(home), 'plugins'), { recursive: true, force: true });
+}

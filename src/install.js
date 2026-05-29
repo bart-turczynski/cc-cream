@@ -14,7 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
-import { pathToFileURL } from 'node:url';
+import { isEntrypoint } from './utils.js';
 
 const TRUST_NOTE =
   'Claude Code must be trusted and possibly restarted for the status line to appear.';
@@ -328,6 +328,9 @@ async function main() {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+// isEntrypoint (src/utils.js) is symlink-robust: a plain href comparison fails when
+// install.js runs from a symlinked path (e.g. a dotfile-managed ~/.claude), which
+// would make `cc-cream-setup` / the slash commands silently do nothing.
+if (isEntrypoint(import.meta.url)) {
   main();
 }

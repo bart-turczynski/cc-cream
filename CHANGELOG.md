@@ -4,6 +4,14 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **`cc-cream-setup` and the `/cc-cream:*` slash commands silently did nothing when `~/.claude` is a symlink.** `install.js` had the same symlink-fragile entrypoint guard fixed in the renderer for 0.1.16 (`import.meta.url` is canonicalized by Node's ESM loader; `process.argv[1]` is not), so running it from a symlinked path skipped `main()` entirely — exit 0, no output, settings.json untouched. The "am-I-the-entrypoint?" check is now a single symlink-robust helper (`isEntrypoint` in `src/utils.js`) shared by both `cc-cream.js` and `install.js`. Caught by the new install-journey smoke tests.
+
+### Added
+- **End-to-end install/uninstall journey smoke tests** (`features/27-install-journey.feature`, CREAM-fxsusmgd). They stage a real plugin cache the way `/plugin install` lays it out, run the actual `SessionStart` hook and `install.js` as child processes, and execute the baked statusLine command through `sh -c` exactly as Claude Code does — guarding the *seams* unit specs can't: cache layout, the settings.json lifecycle, command order, the empty-cache guard (0.1.15), and symlinked config dirs (0.1.16). CI-safe; no live `claude` CLI needed.
+
 ## [0.1.16] — 2026-05-29
 
 ### Fixed

@@ -1,4 +1,24 @@
+import { realpathSync } from 'node:fs';
+import process from 'node:process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ANSI } from './defaults.js';
+
+// Robust "is this module the process entrypoint?" check, shared by every module
+// that may run both as a script and as an import (cc-cream.js, install.js). Node's
+// ESM loader canonicalizes import.meta.url (symlinks resolved) but leaves
+// process.argv[1] as-invoked, so a plain href comparison fails when the module runs
+// from a symlinked path — e.g. a ~/.claude managed by a dotfile manager
+// (stow/chezmoi/yadm) or synced via iCloud/Dropbox — silently skipping main().
+// Comparing realpaths fixes it; falls back to the href compare if realpath throws
+// (e.g. a path that no longer exists). Pass the caller's import.meta.url.
+export function isEntrypoint(metaUrl, arg = process.argv[1]) {
+  if (!arg) return false;
+  try {
+    return realpathSync(fileURLToPath(metaUrl)) === realpathSync(arg);
+  } catch {
+    return metaUrl === pathToFileURL(arg).href;
+  }
+}
 
 export const clone = (o) => JSON.parse(JSON.stringify(o));
 export const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
