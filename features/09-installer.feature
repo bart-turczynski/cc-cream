@@ -31,3 +31,24 @@ Feature: Consent-based installer for the statusLine command
   Scenario: The trust and restart requirement is surfaced
     When the installer completes
     Then it states that Claude Code must be trusted and possibly restarted for the bar to appear
+
+  Scenario: Uninstall removes only a cc-cream statusLine
+    Given cc-cream is already installed
+    When the uninstaller runs
+    Then settings.json no longer has a statusLine
+
+  Scenario: Uninstall leaves a foreign statusLine untouched
+    Given settings.json already has a statusLine command
+    When the uninstaller runs
+    Then the existing statusLine is left unchanged
+
+  Scenario: Uninstall preserves the user's other settings
+    Given settings.json has cc-cream installed alongside other keys
+    When the uninstaller runs
+    Then settings.json no longer has a statusLine
+    And the other settings keys are preserved
+
+  Scenario: A malformed settings.json is never overwritten
+    Given settings.json on disk is not valid JSON
+    When install.js runs against it
+    Then it exits non-zero and leaves the file byte-for-byte unchanged

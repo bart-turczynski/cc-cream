@@ -4,6 +4,20 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Uninstall** — `node src/install.js --uninstall` (and the `/cc-cream:uninstall`
+  plugin command) removes cc-cream's `statusLine` block, but only when it is
+  cc-cream's; a foreign statusLine is left untouched. Offers to delete the copied
+  runtime and session-state files, and keeps `~/.claude/cc-cream.json` unless
+  `--purge` is passed.
+
+### Fixed
+- **Never overwrite a malformed `settings.json`** — the installer now refuses to
+  write when `settings.json` exists but fails to parse (or is not a JSON object),
+  instead of silently starting fresh and erasing the user's other settings.
+
 ## [0.1.0] — 2026-05-29
 
 Initial public release. cc-cream reads the JSON Claude Code pipes to its status

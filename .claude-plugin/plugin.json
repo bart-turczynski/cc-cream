@@ -11,5 +11,5 @@
   "repository": "https://github.com/bart-turczynski/cc-cream",
   "license": "MIT",
   "keywords": ["claude-code", "status-line", "cache", "cost", "monitoring", "cc-cream"],
-  "commands": ["./commands/setup.md"]
+  "commands": ["./commands/setup.md", "./commands/uninstall.md"]
 }

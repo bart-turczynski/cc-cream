@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown } from '../../src/cc-cream.js';
-import { autoUpdateCommand, plan } from '../../src/install.js';
+import { autoUpdateCommand, plan, planUninstall } from '../../src/install.js';
 
 // Path to the state file inside a scenario's sandbox HOME.
 const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
@@ -490,6 +490,56 @@ Then('it states that Claude Code must be trusted and possibly restarted for the 
   const joined = this.result.messages.join('\n').toLowerCase();
   assert.ok(joined.includes('trusted'));
   assert.ok(joined.includes('restart'));
+});
+
+Given('settings.json has cc-cream installed alongside other keys', function () {
+  this.settings = {
+    model: 'opus',
+    permissions: { allow: ['Bash(ls:*)'] },
+    statusLine: { type: 'command', command: `node ${ENGINE}`, refreshInterval: 60 },
+  };
+});
+
+When('the uninstaller runs', function () {
+  this.before = JSON.parse(JSON.stringify(this.settings));
+  this.result = planUninstall(this.settings);
+});
+
+Then('settings.json no longer has a statusLine', function () {
+  assert.equal(this.result.changed, true);
+  assert.ok(!('statusLine' in this.result.settings), 'statusLine key must be gone');
+});
+
+Then('the existing statusLine is left unchanged', function () {
+  assert.equal(this.result.changed, false);
+  assert.deepEqual(this.result.settings.statusLine, this.before.statusLine);
+});
+
+Then('the other settings keys are preserved', function () {
+  assert.equal(this.result.settings.model, 'opus');
+  assert.deepEqual(this.result.settings.permissions, this.before.permissions);
+});
+
+Given('settings.json on disk is not valid JSON', function () {
+  this.malformed = '{ "model": "opus", oops not json';
+  fs.writeFileSync(path.join(this.home, '.claude', 'settings.json'), this.malformed);
+});
+
+When('install.js runs against it', function () {
+  const installer = path.join(REPO, 'src', 'install.js');
+  const source = path.join(REPO, 'src', 'cc-cream.js');
+  const res = spawnSync(process.execPath, [installer, source], {
+    input: 'y\n',
+    env: { ...process.env, HOME: this.home },
+    encoding: 'utf8',
+  });
+  this.installerExit = res.status;
+  this.afterContents = fs.readFileSync(path.join(this.home, '.claude', 'settings.json'), 'utf8');
+});
+
+Then('it exits non-zero and leaves the file byte-for-byte unchanged', function () {
+  assert.notEqual(this.installerExit, 0, 'installer must exit non-zero on malformed settings');
+  assert.equal(this.afterContents, this.malformed, 'malformed settings.json must be untouched');
 });
 
 // ===========================================================================

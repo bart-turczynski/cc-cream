@@ -109,6 +109,26 @@ The installer:
 After install, Claude Code must be **trusted** for the directory (if prompted),
 and you may need to **restart** it for the bar to appear.
 
+### Uninstall
+
+Plugin users:
+```
+/cc-cream:uninstall
+/plugin uninstall cc-cream
+```
+
+npm / manual users:
+```bash
+node $(npm root -g)/cc-cream/src/install.js --uninstall   # npm
+node cc-cream/src/install.js --uninstall                  # manual clone
+```
+
+Uninstall removes the `statusLine` block **only if it is cc-cream's** — a
+statusLine you wired for something else is left untouched. It then offers to
+delete the copied runtime and session-state files, and **keeps your
+`~/.claude/cc-cream.json` config** unless you add `--purge`. Restart Claude Code
+to clear the bar.
+
 ## Configuration
 
 Every display decision is read from `~/.claude/cc-cream.json`. Edit it by hand
