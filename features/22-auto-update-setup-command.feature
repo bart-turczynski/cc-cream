@@ -31,6 +31,7 @@ Feature: Auto-updating setup command for plugin installs (CREAM-kpsjregt)
   Scenario: The setup command is a thin wrapper over install.js
     Then commands/setup.md exists and registers as the /cc-cream:setup command
     And it invokes src/install.js in plugin mode rather than writing settings.json itself
+    And it shows a brief one-line note, not a verbose body
 
   Scenario: An existing statusLine is still confirmed before replacing
     Given settings.json already has a statusLine command

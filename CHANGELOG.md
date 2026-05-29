@@ -4,6 +4,11 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.13] — 2026-05-29
+
+### Fixed
+- **Setup/uninstall commands showed no visible feedback** (regression from 0.1.12). Trimming the command `.md` bodies to just the bang line removed the only part Claude Code surfaces prominently — a slash command's bang (`` !`…` ``) output is folded into the model prompt, not shown to the user — so running `/cc-cream:setup` appeared to do nothing. Restored a brief one-line note to each command body (visible confirmation of what's happening), while keeping the expensive statusLine-JSON echo out of `install.js` (the real token win from 0.1.12). Net: still far cheaper than ≤0.1.11, but the command no longer looks silent.
+
 ## [0.1.12] — 2026-05-29
 
 ### Changed

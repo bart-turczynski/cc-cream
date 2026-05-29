@@ -3,4 +3,6 @@ description: Remove cc-cream's statusLine wiring from your settings.json. Run /p
 allowed-tools: Bash(node:*)
 ---
 
+Removing cc-cream's status-bar wiring from `~/.claude/settings.json`:
+
 !`node ${CLAUDE_PLUGIN_ROOT}/src/install.js --uninstall`

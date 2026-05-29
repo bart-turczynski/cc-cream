@@ -1307,6 +1307,22 @@ Then(/^it invokes src\/install\.js in plugin mode rather than writing settings\.
     'setup.md must not itself write settings.json');
 });
 
+Then('it shows a brief one-line note, not a verbose body', function () {
+  const src = this.setupMd ?? fs.readFileSync(path.join(REPO, 'commands', 'setup.md'), 'utf8');
+  const body = src.replace(/^---\n[\s\S]*?\n---\n/, ''); // strip frontmatter
+  const proseLines = body
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('!`')); // visible, non-bang lines
+  // At least one visible line, so the user sees feedback that the command ran
+  // (a body of just the bang line is folded away — that was the 0.1.12 regression).
+  assert.ok(proseLines.length >= 1,
+    'setup.md must carry a visible note line so the user sees feedback');
+  // …but kept brief, so it doesn't bloat the model-facing token cost again.
+  assert.ok(proseLines.length <= 2,
+    `setup.md note must stay brief (≤2 lines), got ${proseLines.length}: ${proseLines.join(' / ')}`);
+});
+
 When('the setup command runs', function () {
   // Setup runs in plugin mode and finds an existing (different) statusLine.
   this.before = JSON.parse(JSON.stringify(this.settings));
