@@ -12,6 +12,14 @@ Feature: Consent-based installer for the statusLine command
     Then settings.json gains a statusLine of type "command" with refreshInterval 60
     And its command points at the cc-cream entrypoint
 
+  # The setup/uninstall slash commands are model-facing (body + bang output enter
+  # the conversation), so install.js must NOT echo the full statusLine command —
+  # a short confirmation keeps the per-invocation token cost down (CREAM-qhgyiodh).
+  Scenario: The installer output does not echo the full statusLine command
+    Given settings.json has no statusLine
+    When the installer runs and I consent
+    Then the messages do not echo the full statusLine command
+
   Scenario: An existing statusLine is detected and confirmed before replacing
     Given settings.json already has a statusLine command
     When the installer runs

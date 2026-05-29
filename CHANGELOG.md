@@ -4,6 +4,11 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12] — 2026-05-29
+
+### Changed
+- **`/cc-cream:setup` and `/cc-cream:uninstall` are much cheaper to run** (CREAM-qhgyiodh). These are slash commands, so their `.md` body and the installer's stdout both enter the model context (~1k tokens for an uninstall). Trimmed the command bodies to just the bang line — the only essential human hint (“run `/plugin uninstall cc-cream` afterwards”) now lives in the frontmatter `description`, which is menu metadata rather than model-facing body. And `install.js` no longer echoes the full statusLine command JSON: it prints terse confirmations (`Removed cc-cream's statusLine.`, `Setting the cc-cream statusLine.`). The terse summary also survives Claude Code's command-output fold, so the “what was removed / kept” feedback is actually visible. (The bar itself remains zero-token — it's never in the model context; this only concerns the occasional setup/uninstall commands.)
+
 ## [0.1.11] — 2026-05-29
 
 ### Fixed

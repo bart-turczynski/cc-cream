@@ -68,16 +68,14 @@ export function planUninstall(settings) {
 
   if (!isCcCreamStatusLine(existing)) {
     if (existing && typeof existing === 'object') {
-      messages.push(
-        `Your statusLine is not cc-cream's — leaving it untouched:\n  ${JSON.stringify(existing)}`,
-      );
+      messages.push("Your statusLine is not cc-cream's — leaving it untouched.");
     } else {
       messages.push('No cc-cream statusLine found in settings.json — nothing to remove.');
     }
     return { settings: s, changed: false, messages };
   }
 
-  messages.push(`Removing cc-cream statusLine:\n  ${JSON.stringify(existing)}`);
+  messages.push("Removed cc-cream's statusLine.");
   const next = { ...s };
   delete next.statusLine;
   return { settings: next, changed: true, messages };
@@ -113,7 +111,7 @@ export function plan(settings, { entrypoint, consent, plugin = false, nodePath }
   // An existing (different) statusLine must be confirmed before replacing.
   const hasExisting = existing && typeof existing === 'object';
   if (hasExisting) {
-    messages.push(`An existing statusLine is configured:\n  ${JSON.stringify(existing)}`);
+    messages.push('An existing statusLine is configured.');
     messages.push('Replace it with cc-cream?');
     if (consent !== true) {
       messages.push('Declined — your existing statusLine is unchanged.');
@@ -121,7 +119,7 @@ export function plan(settings, { entrypoint, consent, plugin = false, nodePath }
     }
   }
 
-  messages.push(`Will set statusLine to:\n  ${JSON.stringify(desired)}`);
+  messages.push('Setting the cc-cream statusLine.');
   messages.push(TRUST_NOTE);
   return { settings: { ...s, statusLine: desired }, changed: true, messages, needsConsent: hasExisting };
 }
