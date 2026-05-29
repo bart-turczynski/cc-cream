@@ -63,3 +63,18 @@ Feature: TTL segment — cache-warmth countdown
     When cc-cream runs
     Then the ttl segment is not rendered
     And cc-cream exits 0
+
+  Scenario: TTL does not reset when a non-API event updates the transcript mtime
+    Given a resolved TTL of 60 minutes
+    And session state records last_api_ts 52 minutes ago with total_input_tokens 1000
+    And the transcript was just appended, so its mtime is now
+    And stdin with an input-token total of 1000
+    When cc-cream runs
+    Then the ttl segment reads "ttl:00:08"
+
+  Scenario: TTL resets to full when token count grows (new API turn detected)
+    Given a resolved TTL of 60 minutes
+    And session state records last_api_ts 52 minutes ago with total_input_tokens 1000
+    And stdin with an input-token total of 2000
+    When cc-cream runs
+    Then the ttl segment reads "ttl:01:00" and is green

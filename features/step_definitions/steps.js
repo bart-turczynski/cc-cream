@@ -229,6 +229,14 @@ Then('the ttl segment is not rendered', function () {
   assert.ok(!/ttl:/.test(this.plain));
 });
 
+Given('session state records last_api_ts {int} minutes ago with total_input_tokens {int}', function (mins, tokens) {
+  const sessionId = 'ttl-test-session';
+  this.data.session_id = sessionId;
+  const lastApiTs = this.now - mins * 60_000;
+  const state = { sessions: { [sessionId]: { last_api_ts: lastApiTs, total_input_tokens: tokens } } };
+  fs.writeFileSync(stateFilePath(this), JSON.stringify(state));
+});
+
 // TTL inference (pure function, no spawn)
 Given(/^environment (.+) and rate_limits (.+)$/, function (env, rl) {
   if (env !== 'none') this.env[env] = '1';

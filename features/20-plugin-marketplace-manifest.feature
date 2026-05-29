@@ -16,7 +16,7 @@ Feature: Plugin manifest and marketplace metadata (CREAM-qjhgdpnk)
     And it declares version, homepage, repository, and license MIT
     And it declares a non-empty keywords array
     And it sets author to "Bart Turczynski" with email "support@spoonkeyworks.com"
-    And it registers the setup command at "../commands/setup.md"
+    And it registers the setup command at "./commands/setup.md"
 
   Scenario: The description carries the brand hook
     Then plugin.json description references "Claude Code Cache Rules Everything Around Me"

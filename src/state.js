@@ -53,5 +53,11 @@ export function nextSessionPatch(data, prevSessionState, cfg, now) {
   }
   const fh = data?.rate_limits?.five_hour;
   if (fh && isNum(fh.used_percentage)) patch.five_hour_pct = fh.used_percentage;
+  const curTokens = data?.context_window?.total_input_tokens;
+  const prevTokens = prevSessionState?.total_input_tokens;
+  if (isNum(curTokens)) {
+    patch.total_input_tokens = curTokens;
+    if (isNum(prevTokens) && curTokens > prevTokens) patch.last_api_ts = now;
+  }
   return patch;
 }

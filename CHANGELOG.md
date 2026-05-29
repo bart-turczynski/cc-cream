@@ -4,6 +4,12 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] — 2026-05-29
+
+### Fixed
+- **TTL falsely resets after non-API Claude Code events** (e.g. `/plugin update`). The TTL anchor was the `mtime` of the transcript file, which updates whenever Claude Code writes any event to the transcript — not just API turns. The anchor is now derived from session state: when `total_input_tokens` grows between renders (indicating a real API turn), `last_api_ts` is stored and used as the anchor on subsequent renders. Falls back to transcript mtime only on the first render before any state exists.
+- **Plugin command paths fixed for real** (reverts the `../` change from 0.1.3). The Claude Code plugin validator rejects `..` path traversal; command paths in `plugin.json` resolve from the plugin root, not from `.claude-plugin/`, so `./commands/setup.md` is correct.
+
 ## [0.1.4] — 2026-05-29
 
 ### Fixed
@@ -69,6 +75,7 @@ line and prints a colored ≤3-row bar — zero tokens, the model never sees it.
 - Supports **macOS and Linux**; Windows is a planned fast-follow.
 - Requires Claude Code **2.1.132+** (`effort` / `thinking` need 2.1.145+).
 
+[0.1.5]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.1...v0.1.2

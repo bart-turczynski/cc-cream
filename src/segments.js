@@ -56,16 +56,26 @@ function segCache(data, cfg, prevCachePct, recovering) {
   return { text: `cache:${pct}%`, color };
 }
 
-function segTtl(data, cfg, ttlMin, now) {
-  const tp = data?.transcript_path;
-  if (typeof tp !== 'string' || tp === '') return null;
-  let mtimeMs;
-  try {
-    mtimeMs = fs.statSync(tp).mtimeMs;
-  } catch {
-    return null;
+function segTtl(data, cfg, ttlMin, now, prevSessionState) {
+  const prevTokens = prevSessionState?.total_input_tokens;
+  const curTokens = data?.context_window?.total_input_tokens;
+  const tokensGrew = isNum(curTokens) && isNum(prevTokens) && curTokens > prevTokens;
+
+  let anchorMs;
+  if (tokensGrew) {
+    anchorMs = now;
+  } else if (isNum(prevSessionState?.last_api_ts)) {
+    anchorMs = prevSessionState.last_api_ts;
+  } else {
+    const tp = data?.transcript_path;
+    if (typeof tp !== 'string' || tp === '') return null;
+    try {
+      anchorMs = fs.statSync(tp).mtimeMs;
+    } catch {
+      return null;
+    }
   }
-  const elapsedMin = Math.floor(Math.max(0, now - mtimeMs) / 60000);
+  const elapsedMin = Math.floor(Math.max(0, now - anchorMs) / 60000);
   const remainingMin = Math.max(0, ttlMin - elapsedMin);
   const text = `ttl:${pad2(Math.floor(remainingMin / 60))}:${pad2(remainingMin % 60)}`;
   const s = cfg.segments.ttl;
@@ -158,7 +168,7 @@ export function renderSegments(data, cfg, ttlMin, now, prevSessionState = null, 
       prevSessionState && isNum(prevSessionState.cache_pct) ? prevSessionState.cache_pct : undefined,
       prevSessionState?.recovering === true,
     ),
-    ttl: segTtl(data, cfg, ttlMin, now),
+    ttl: segTtl(data, cfg, ttlMin, now, prevSessionState),
     cost: segCost(data),
     '5h': segRate(data?.rate_limits?.five_hour, '5h', cfg, '5h', now),
     '7d': segRate(data?.rate_limits?.seven_day, '7d', cfg, '7d', now),
