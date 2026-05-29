@@ -927,3 +927,127 @@ Then(/^src\/cc-cream\.js starts with "([^"]+)"$/, function (shebang) {
   const src = fs.readFileSync(ENGINE, 'utf8');
   assert.ok(src.startsWith(shebang), `Engine does not start with "${shebang}"`);
 });
+
+// ===========================================================================
+// 20 — plugin manifest and marketplace metadata
+// ===========================================================================
+const pluginDir = path.join(REPO, '.claude-plugin');
+let _pluginJson = null;
+let _marketplaceJson = null;
+
+function readPluginJson() {
+  if (!_pluginJson) {
+    const raw = fs.readFileSync(path.join(pluginDir, 'plugin.json'), 'utf8');
+    _pluginJson = JSON.parse(raw);
+  }
+  return _pluginJson;
+}
+
+function readMarketplaceJson() {
+  if (!_marketplaceJson) {
+    const raw = fs.readFileSync(path.join(pluginDir, 'marketplace.json'), 'utf8');
+    _marketplaceJson = JSON.parse(raw);
+  }
+  return _marketplaceJson;
+}
+
+Then(/^\.claude-plugin\/plugin\.json exists and is valid JSON$/, function () {
+  const p = path.join(pluginDir, 'plugin.json');
+  assert.ok(fs.existsSync(p), '.claude-plugin/plugin.json does not exist');
+  assert.doesNotThrow(() => readPluginJson(), 'plugin.json is not valid JSON');
+});
+
+Then('it sets name to {string}', function (name) {
+  assert.equal(readPluginJson().name, name);
+});
+
+Then('it sets displayName to {string}', function (displayName) {
+  assert.equal(readPluginJson().displayName, displayName);
+});
+
+Then('it declares version, homepage, repository, and license MIT', function () {
+  const p = readPluginJson();
+  assert.ok(typeof p.version === 'string' && p.version.length > 0, 'version must be a non-empty string');
+  assert.ok(typeof p.homepage === 'string' && p.homepage.length > 0, 'homepage must be a non-empty string');
+  assert.ok(typeof p.repository === 'string' && p.repository.length > 0, 'repository must be a non-empty string');
+  assert.equal(p.license, 'MIT', 'license must be MIT');
+});
+
+Then('it declares a non-empty keywords array', function () {
+  const p = readPluginJson();
+  assert.ok(Array.isArray(p.keywords) && p.keywords.length > 0, 'keywords must be a non-empty array');
+});
+
+Then('it sets author to {string} with email {string}', function (name, email) {
+  const author = readPluginJson().author;
+  assert.ok(author && typeof author === 'object', 'author must be an object');
+  assert.equal(author.name, name);
+  assert.equal(author.email, email);
+});
+
+Then('it registers the setup command at {string}', function (cmd) {
+  const commands = readPluginJson().commands;
+  assert.ok(Array.isArray(commands) && commands.includes(cmd),
+    `commands must include "${cmd}", got: ${JSON.stringify(commands)}`);
+});
+
+Then(/^plugin\.json description references "([^"]+)"$/, function (phrase) {
+  const desc = readPluginJson().description;
+  assert.ok(typeof desc === 'string' && desc.includes(phrase),
+    `description must include "${phrase}", got: ${desc}`);
+});
+
+Then(/^\.claude-plugin contains exactly plugin\.json and marketplace\.json$/, function () {
+  const entries = fs.readdirSync(pluginDir).sort();
+  assert.deepEqual(entries, ['marketplace.json', 'plugin.json'],
+    `.claude-plugin must contain exactly plugin.json and marketplace.json, got: ${entries}`);
+});
+
+Then(/^no commands, agents, hooks, or source modules live inside \.claude-plugin$/, function () {
+  const entries = fs.readdirSync(pluginDir);
+  for (const entry of entries) {
+    const stat = fs.statSync(path.join(pluginDir, entry));
+    assert.ok(!stat.isDirectory(),
+      `unexpected directory inside .claude-plugin: ${entry}`);
+  }
+  assert.ok(entries.every((e) => e === 'plugin.json' || e === 'marketplace.json'),
+    `unexpected files inside .claude-plugin: ${entries.filter((e) => e !== 'plugin.json' && e !== 'marketplace.json')}`);
+});
+
+Then(/^\.claude-plugin\/marketplace\.json exists and is valid JSON$/, function () {
+  const p = path.join(pluginDir, 'marketplace.json');
+  assert.ok(fs.existsSync(p), '.claude-plugin/marketplace.json does not exist');
+  assert.doesNotThrow(() => readMarketplaceJson(), 'marketplace.json is not valid JSON');
+});
+
+Then('it declares an owner with name {string} and email {string}', function (name, email) {
+  const owner = readMarketplaceJson().owner;
+  assert.ok(owner && typeof owner === 'object', 'owner must be an object');
+  assert.equal(owner.name, name);
+  assert.equal(owner.email, email);
+});
+
+Then('it lists a single plugin {string} with source {string}', function (name, source) {
+  const plugins = readMarketplaceJson().plugins;
+  assert.ok(Array.isArray(plugins) && plugins.length === 1,
+    `plugins must be an array with exactly one entry, got length: ${plugins?.length}`);
+  assert.equal(plugins[0].name, name);
+  assert.equal(plugins[0].source, source);
+});
+
+Then('the plugin entry sets category {string}', function (category) {
+  const plugins = readMarketplaceJson().plugins;
+  assert.ok(Array.isArray(plugins) && plugins.length > 0, 'plugins array is empty');
+  assert.equal(plugins[0].category, category);
+});
+
+Then(/^the plugin name does not start with "([^"]+)" or "([^"]+)"$/, function (prefix1, prefix2) {
+  const name = readPluginJson().name;
+  assert.ok(!name.startsWith(prefix1), `plugin name must not start with "${prefix1}"`);
+  assert.ok(!name.startsWith(prefix2), `plugin name must not start with "${prefix2}"`);
+});
+
+Then('the plugin name is lowercase kebab-case', function () {
+  const name = readPluginJson().name;
+  assert.match(name, /^[a-z][a-z0-9-]*$/, `plugin name must be lowercase kebab-case, got: ${name}`);
+});

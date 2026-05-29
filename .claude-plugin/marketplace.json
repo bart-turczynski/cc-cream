@@ -1,0 +1,14 @@
+{
+  "owner": {
+    "name": "Bart Turczynski",
+    "email": "support@spoonkeyworks.com"
+  },
+  "plugins": [
+    {
+      "name": "cc-cream",
+      "source": "./",
+      "category": "monitoring",
+      "tags": ["status-line", "cache", "cost", "context", "rate-limits", "monitoring"]
+    }
+  ]
+}
