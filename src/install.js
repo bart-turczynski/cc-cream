@@ -42,6 +42,44 @@ function isInstalled(existing, command) {
   );
 }
 
+// True if an existing statusLine belongs to cc-cream under ANY install strategy
+// (dev repo, copied home runtime, or the plugin cache-glob) — every command
+// references the cc-cream entrypoint. Used by uninstall so we never touch a
+// statusLine the user wired for something else.
+function isCcCreamStatusLine(existing) {
+  return (
+    !!existing &&
+    typeof existing === 'object' &&
+    existing.type === 'command' &&
+    typeof existing.command === 'string' &&
+    existing.command.includes('cc-cream')
+  );
+}
+
+// Decide what an uninstall should do. Pure: returns { settings, changed, messages }.
+// Removes ONLY a cc-cream statusLine; a foreign statusLine is left verbatim.
+export function planUninstall(settings) {
+  const s = settings && typeof settings === 'object' ? settings : {};
+  const existing = s.statusLine;
+  const messages = [];
+
+  if (!isCcCreamStatusLine(existing)) {
+    if (existing && typeof existing === 'object') {
+      messages.push(
+        `Your statusLine is not cc-cream's — leaving it untouched:\n  ${JSON.stringify(existing)}`,
+      );
+    } else {
+      messages.push('No cc-cream statusLine found in settings.json — nothing to remove.');
+    }
+    return { settings: s, changed: false, messages };
+  }
+
+  messages.push(`Removing cc-cream statusLine:\n  ${JSON.stringify(existing)}`);
+  const next = { ...s };
+  delete next.statusLine;
+  return { settings: next, changed: true, messages };
+}
+
 // Decide what to do. Returns { settings, changed, messages, needsConsent }.
 // `consent` is the user's yes/no when an existing statusLine must be replaced.
 //
@@ -96,6 +134,32 @@ function destinationPath() {
   return path.join(os.homedir(), '.claude', 'cc-cream', 'cc-cream.js');
 }
 
+// Read settings.json safely. A MISSING or empty file -> {} (fresh start, nothing
+// to lose). A file that exists with content but fails to parse, or parses to a
+// non-object, is REFUSED: we exit rather than overwrite and erase the user's
+// other settings (permissions, hooks, plugins...). This guards the one path
+// where a blind write would be destructive.
+function readSettings(file) {
+  if (!fs.existsSync(file)) return {};
+  const raw = fs.readFileSync(file, 'utf8');
+  if (raw.trim() === '') return {};
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    console.error(`Error: ${file} is not valid JSON.`);
+    console.error('Refusing to write it — that would erase your other settings.');
+    console.error('Fix the JSON (or move the file aside) and re-run.');
+    process.exit(1);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    console.error(`Error: ${file} does not contain a JSON object.`);
+    console.error('Refusing to overwrite it. Move it aside and re-run if intended.');
+    process.exit(1);
+  }
+  return parsed;
+}
+
 function runtimeFiles(sourceFile) {
   const sourceDir = path.dirname(sourceFile);
   return fs.readdirSync(sourceDir)
@@ -143,19 +207,55 @@ function ask(question) {
   }));
 }
 
+// Remove the cc-cream wiring (and, with consent, its install artifacts). Keeps
+// the user's config (~/.claude/cc-cream.json) unless `--purge` is passed.
+async function uninstall({ purge }) {
+  const file = settingsPath();
+  const settings = readSettings(file);
+  const result = planUninstall(settings);
+  for (const m of result.messages) console.log(m);
+  if (result.changed) {
+    fs.writeFileSync(file, `${JSON.stringify(result.settings, null, 2)}\n`);
+    console.log(`\nUpdated ${file}.`);
+  }
+
+  const home = path.join(os.homedir(), '.claude');
+  const runtimeDir = path.join(home, 'cc-cream');
+  const stateFile = path.join(home, 'cc-cream-state.json');
+  const configFile = path.join(home, 'cc-cream.json');
+
+  const artifacts = [runtimeDir, stateFile].filter((p) => fs.existsSync(p));
+  if (artifacts.length) {
+    const remove = purge || (await ask(`Also delete the copied runtime and session state?\n  ${artifacts.join('\n  ')}`));
+    if (remove) {
+      for (const p of artifacts) fs.rmSync(p, { recursive: true, force: true });
+      console.log('Removed runtime and state files.');
+    } else {
+      console.log('Left runtime and state files in place.');
+    }
+  }
+  if (purge && fs.existsSync(configFile)) {
+    fs.rmSync(configFile, { force: true });
+    console.log(`Removed config ${configFile}.`);
+  } else if (fs.existsSync(configFile)) {
+    console.log(`Kept your config ${configFile} (pass --purge to remove it too).`);
+  }
+
+  console.log('\nRestart Claude Code to drop the bar.');
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('--uninstall')) {
+    await uninstall({ purge: args.includes('--purge') });
+    return;
+  }
   const plugin = args.includes('--plugin');
   // First non-flag arg is an optional local source path (manual mode only).
   const positional = args.filter((a) => !a.startsWith('--'));
 
   const file = settingsPath();
-  let settings = {};
-  try {
-    settings = JSON.parse(fs.readFileSync(file, 'utf8')) || {};
-  } catch {
-    settings = {}; // missing or malformed -> start fresh, don't clobber blindly below
-  }
+  const settings = readSettings(file);
 
   // planOpts holds whatever the chosen strategy needs to build its command.
   let planOpts;
