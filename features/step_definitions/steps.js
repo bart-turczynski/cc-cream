@@ -1394,3 +1394,129 @@ Then('it reports no errors and no warnings', function () {
   assert.equal(this.strictValidateExit, 0,
     `claude plugin validate . --strict must exit 0, got ${this.strictValidateExit}\nOutput: ${this.strictValidateOutput}`);
 });
+
+// ===========================================================================
+// 24 — User-facing docs & disclosure
+// ===========================================================================
+function readmeText() {
+  return fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
+}
+
+function securityText() {
+  return fs.readFileSync(path.join(REPO, 'SECURITY.md'), 'utf8');
+}
+
+function contributingText() {
+  return fs.readFileSync(path.join(REPO, 'CONTRIBUTING.md'), 'utf8');
+}
+
+// Install paths
+Then('the README documents installing from the community catalog or self-hosted marketplace', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('plugin marketplace add') || readme.includes('/plugin install'),
+    'README must document the marketplace install path');
+  assert.ok(readme.includes('plugin marketplace add') && readme.includes('/plugin install'),
+    'README must document both marketplace add and plugin install commands');
+});
+
+Then('it documents installing via npm or npx', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('npx') || readme.includes('npm install'),
+    'README must document npm/npx install');
+  assert.ok(readme.includes('npx') && readme.includes('npm install'),
+    'README must document both npx and npm install');
+});
+
+Then('it documents the manual GitHub clone path', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('git clone') || readme.includes('github'),
+    'README must document the manual GitHub clone path');
+  assert.ok(readme.includes('git clone'), 'README must include git clone command');
+});
+
+// Version requirements
+Then('the README states the minimum Claude Code version of 2.1.132', function () {
+  const readme = readmeText();
+  assert.ok(readme.includes('2.1.132'),
+    'README must state minimum Claude Code version 2.1.132');
+});
+
+Then('it notes effort and thinking segments require 2.1.145', function () {
+  const readme = readmeText();
+  assert.ok(readme.includes('2.1.145'),
+    'README must note that effort/thinking segments require 2.1.145');
+});
+
+// Data posture
+Then('the README states that cc-cream makes no network calls', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('no network') || readme.includes('never') && readme.includes('network'),
+    'README must state that cc-cream makes no network calls');
+});
+
+Then('it states that it collects no telemetry', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('no telemetry') || readme.includes('telemetry'),
+    'README must state that cc-cream collects no telemetry');
+  assert.ok(readme.includes('no telemetry'), 'README must explicitly state "no telemetry"');
+});
+
+Then('it states that it has no runtime dependencies and costs zero tokens', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('no runtime') || readme.includes('runtime dependencies'),
+    'README must state no runtime dependencies');
+  assert.ok(readme.includes('zero tokens') || readme.includes('costs zero tokens'),
+    'README must state zero tokens cost');
+});
+
+// Visual + config reference
+Then('the README includes a visual of the rendered status bar', function () {
+  const readme = readmeText();
+  // A fenced code block containing typical bar content (ctx or model line)
+  assert.ok(/```[\s\S]*?ctx:[\s\S]*?```/.test(readme) || /```[\s\S]*?cache:[\s\S]*?```/.test(readme),
+    'README must include a fenced code block showing the rendered bar');
+});
+
+Then('it documents the ~\\/.claude\\/cc-cream.json configuration and the segment catalog', function () {
+  const readme = readmeText();
+  assert.ok(readme.includes('cc-cream.json'), 'README must reference cc-cream.json');
+  // Segment catalog: check for key segment names
+  assert.ok(readme.includes('ctx') && readme.includes('cache') && readme.includes('ttl'),
+    'README must document the segment catalog');
+  assert.ok(readme.includes('amber') && readme.includes('red'),
+    'README must document threshold colors in the segment catalog');
+});
+
+// Trust signal files
+Then('a SECURITY.md describes the threat model and the no-network posture', function () {
+  const security = securityText();
+  assert.ok(fs.existsSync(path.join(REPO, 'SECURITY.md')), 'SECURITY.md must exist');
+  const lower = security.toLowerCase();
+  assert.ok(lower.includes('threat model') || lower.includes('threat'),
+    'SECURITY.md must describe the threat model');
+  assert.ok(lower.includes('no network') || (lower.includes('network') && lower.includes('no')),
+    'SECURITY.md must describe the no-network posture');
+});
+
+Then('a CONTRIBUTING.md states the best-effort maintenance posture', function () {
+  const contributing = contributingText();
+  assert.ok(fs.existsSync(path.join(REPO, 'CONTRIBUTING.md')), 'CONTRIBUTING.md must exist');
+  const lower = contributing.toLowerCase();
+  assert.ok(lower.includes('best-effort') || lower.includes('best effort'),
+    'CONTRIBUTING.md must state the best-effort maintenance posture');
+});
+
+// Platform scope
+Then('the README states that v1 supports macOS and Linux', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('macos') && readme.includes('linux'),
+    'README must state that v1 supports macOS and Linux');
+});
+
+Then('it notes Windows support is a planned fast-follow', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('windows'),
+    'README must mention Windows support');
+  assert.ok(readme.includes('fast-follow') || readme.includes('planned'),
+    'README must note Windows is a planned fast-follow');
+});
