@@ -116,6 +116,13 @@ The installer:
 After install, Claude Code must be **trusted** for the directory (if prompted),
 and you may need to **restart** it for the bar to appear.
 
+> **Pick one install method.** If you wire cc-cream via npm/manual (Options 2–3)
+> and *then* install the plugin, the plugin won't take over the existing wiring —
+> it points at your home copy, so `/plugin update` won't auto-update the bar. To
+> switch to the auto-updating plugin, run `/cc-cream:setup` (or `cc-cream-setup
+> --uninstall` first). Nothing breaks either way; it just stays on whichever
+> method wired it.
+
 ### Uninstall
 
 Plugin users — two steps, **in this order** (Claude Code can't clean
