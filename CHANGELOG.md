@@ -4,7 +4,7 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.1] — 2026-05-29
 
 ### Added
 - **Uninstall** — `node src/install.js --uninstall` (and the `/cc-cream:uninstall`
@@ -51,4 +51,5 @@ line and prints a colored ≤3-row bar — zero tokens, the model never sees it.
 - Supports **macOS and Linux**; Windows is a planned fast-follow.
 - Requires Claude Code **2.1.132+** (`effort` / `thinking` need 2.1.145+).
 
+[0.1.1]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/bart-turczynski/cc-cream/releases/tag/v0.1.0

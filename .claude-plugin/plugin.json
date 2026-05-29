@@ -2,7 +2,7 @@
   "name": "cc-cream",
   "displayName": "cc-cream",
   "description": "Claude Code Cache Rules Everything Around Me — a zero-token status-line tool that shows cache, context, cost, and rate-limit data as a colored ≤3-row bar.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Bart Turczynski",
     "email": "support@spoonkeyworks.com"
