@@ -37,7 +37,7 @@ const TRUST_NOTE =
 // MODULE_NOT_FOUND on every render. "Degrade, never crash" (CLAUDE.md). `exec`
 // replaces the shell so stdin/stdout pass straight through to the renderer.
 export function autoUpdateCommand(nodePath) {
-  return `d="$(ls -1d "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | grep -E '/[0-9]+(\\.[0-9]+)+/$' | sort -V | tail -1)"; [ -z "$d" ] && exit 0; exec ${nodePath} "\${d}src/cc-cream.js"`;
+  return `d="$(ls -1d "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | grep -E '/[0-9]+(\\.[0-9]+)+/$' | sort -V | tail -1)"; [ -z "$d" ] && exit 0; exec "${nodePath}" "\${d}src/cc-cream.js"`;
 }
 
 // `desired` is considered already installed if it matches the planned command
@@ -143,6 +143,22 @@ function destinationPath() {
   return path.join(os.homedir(), '.claude', 'cc-cream', 'cc-cream.js');
 }
 
+// Write `contents` to `file` atomically: write a sibling temp file, then rename
+// over the target (rename is atomic within a filesystem). settings.json holds
+// the user's permissions/hooks/plugins/MCP config — a direct writeFileSync that
+// is interrupted (crash, ENOSPC) could truncate it and erase all of that. The
+// temp file shares the target's directory so the rename never crosses devices.
+export function writeFileAtomic(file, contents) {
+  const tmp = `${file}.tmp-${process.pid}`;
+  fs.writeFileSync(tmp, contents);
+  try {
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    try { fs.rmSync(tmp, { force: true }); } catch {}
+    throw err;
+  }
+}
+
 // Read settings.json safely. A MISSING or empty file -> {} (fresh start, nothing
 // to lose). A file that exists with content but fails to parse, or parses to a
 // non-object, is REFUSED: we exit rather than overwrite and erase the user's
@@ -221,7 +237,7 @@ async function uninstall({ purge }) {
   const result = planUninstall(settings);
   for (const m of result.messages) console.log(m);
   if (result.changed) {
-    fs.writeFileSync(file, `${JSON.stringify(result.settings, null, 2)}\n`);
+    writeFileAtomic(file, `${JSON.stringify(result.settings, null, 2)}\n`);
     console.log(`\nUpdated ${file}.`);
   }
 
@@ -323,7 +339,7 @@ async function main() {
   for (const m of result.messages) console.log(m);
   if (result.changed) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, `${JSON.stringify(result.settings, null, 2)}\n`);
+    writeFileAtomic(file, `${JSON.stringify(result.settings, null, 2)}\n`);
     console.log(`\nWrote ${file}.`);
   }
 }

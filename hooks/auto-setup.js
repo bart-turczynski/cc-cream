@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { isCcCreamStatusLine, plan, resolveNodePath } from '../src/install.js';
+import { isCcCreamStatusLine, plan, resolveNodePath, writeFileAtomic } from '../src/install.js';
 
 function configDir() {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
@@ -95,7 +95,7 @@ function main() {
   if (!result.changed) return; // defensive — plan should always write here
   try {
     fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
-    fs.writeFileSync(settingsPath(), `${JSON.stringify(result.settings, null, 2)}\n`);
+    writeFileAtomic(settingsPath(), `${JSON.stringify(result.settings, null, 2)}\n`);
   } catch {
     return; // couldn't write — say nothing, try again next session
   }

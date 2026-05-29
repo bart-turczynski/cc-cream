@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
-import { loadConfig, resolveTtl, countdown } from '../../src/cc-cream.js';
-import { autoUpdateCommand, plan, planUninstall } from '../../src/install.js';
+import { loadConfig, resolveTtl, countdown, patchSessionState } from '../../src/cc-cream.js';
+import { autoUpdateCommand, plan, planUninstall, writeFileAtomic } from '../../src/install.js';
 
 // Path to the state file inside a scenario's sandbox HOME.
 const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
@@ -1272,7 +1272,7 @@ Then('the command only considers semver-named version dirs', function () {
 
 Then('it invokes node by its absolute path, not a bare {string} on PATH', function (bare) {
   const cmd = this.result.settings.statusLine.command;
-  assert.ok(cmd.includes(`exec ${ABS_NODE} `), `command must exec the absolute node path: ${cmd}`);
+  assert.ok(cmd.includes(`exec "${ABS_NODE}" `), `command must exec the absolute node path (quoted): ${cmd}`);
   assert.ok(!new RegExp(`(^|\\s)${bare}\\s`).test(cmd.replace(ABS_NODE, '')),
     `command must not invoke a bare "${bare}": ${cmd}`);
 });
@@ -1916,4 +1916,85 @@ Then('then installing with {string}', function (command) {
   const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
   assert.ok(readme.includes(command),
     `README must include "${command}"`);
+});
+
+// ===========================================================================
+// 28 — security hardening
+// ===========================================================================
+// A name laced with: an OSC title-set (ESC ] 0 ; … BEL), a CSI erase-line, and
+// a raw DEL. The printable residue ("safeOSCeraseDEL...") must survive; every
+// control byte must be gone from what reaches the terminal.
+const EVIL = 'safe\x1b]0;pwned\x07OSC\x1b[2KeraseDEL\x7fend';
+
+Given('stdin whose model display_name carries terminal escape sequences', function () {
+  this.data.model = { display_name: EVIL };
+});
+
+Given('stdin whose session_name carries terminal escape sequences, with the segment enabled', function () {
+  this.data.session_name = EVIL;
+  this.configRaw = JSON.stringify({ segments: { session_name: { on: true } } });
+});
+
+// No C0/C1 control byte may reach the terminal — except the row-separator
+// newline (0x0A) the renderer itself inserts between rows.
+Then('the output contains no terminal control characters', function () {
+  const bad = [...this.stdout].filter((ch) => {
+    const c = ch.charCodeAt(0);
+    return (c < 0x20 && c !== 0x0a) || (c >= 0x7f && c <= 0x9f); // C0 (sans \n) + DEL + C1
+  });
+  assert.deepEqual(bad, [], `control bytes leaked to the terminal: ${bad.map((ch) => ch.charCodeAt(0)).join(',')}`);
+});
+
+Then('the output still shows the printable part of the name', function () {
+  assert.ok(this.plain.includes('safe') && this.plain.includes('end'),
+    `printable text was lost: ${JSON.stringify(this.plain)}`);
+});
+
+When('I atomically write {string} to a file in the sandbox', function (contents) {
+  this.atomicTarget = path.join(this.home, '.claude', 'atomic-test.txt');
+  this.atomicContents = contents;
+  writeFileAtomic(this.atomicTarget, contents);
+});
+
+Then('the file contains exactly {string}', function (expected) {
+  assert.equal(fs.readFileSync(this.atomicTarget, 'utf8'), expected);
+});
+
+Then('no temporary write-file remains in the directory', function () {
+  const dir = path.dirname(this.atomicTarget);
+  const base = path.basename(this.atomicTarget);
+  const leftovers = fs.readdirSync(dir).filter((n) => n.startsWith(`${base}.tmp-`));
+  assert.deepEqual(leftovers, [], `temp files left behind: ${leftovers.join(', ')}`);
+});
+
+Then('no session entry is recorded for {string}', function (id) {
+  if (!fs.existsSync(stateFilePath(this))) return; // nothing written at all is fine
+  const state = JSON.parse(fs.readFileSync(stateFilePath(this), 'utf8'));
+  const sessions = state?.sessions ?? {};
+  assert.ok(!Object.hasOwn(sessions, id), `a "${id}" session entry was recorded`);
+});
+
+Given('a session state holding {int} sessions', function (n) {
+  const sessions = {};
+  // ts ascending with index, so session-0 is the oldest and session-(n-1) the newest.
+  for (let i = 0; i < n; i++) sessions[`session-${i}`] = { cost: i, ts: 1000 + i };
+  this.seedState = { sessions };
+  this.seedCount = n;
+});
+
+When('a new session is patched in', function () {
+  // ts above every seeded session, so the new one is the newest.
+  this.patched = patchSessionState(this.seedState, 'session-new', { ts: 999999 });
+});
+
+Then('the session map keeps at most {int} sessions', function (cap) {
+  const count = Object.keys(this.patched.sessions).length;
+  assert.ok(count <= cap, `expected at most ${cap} sessions, got ${count}`);
+});
+
+Then('it keeps the newest prior session and drops the oldest', function () {
+  const sessions = this.patched.sessions;
+  assert.ok(Object.hasOwn(sessions, 'session-new'), 'the just-patched session was dropped');
+  assert.ok(Object.hasOwn(sessions, `session-${this.seedCount - 1}`), 'the newest prior session was dropped');
+  assert.ok(!Object.hasOwn(sessions, 'session-0'), 'the oldest session was not evicted');
 });

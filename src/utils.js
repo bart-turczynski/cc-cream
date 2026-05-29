@@ -32,8 +32,19 @@ export function fmtNum(n, mode) {
   return String(n);
 }
 
+// Strip C0/C1 control characters (incl. ESC, BEL, DEL) from any text bound for
+// the terminal. stdin fields like session_name, model.display_name, and
+// effort.level are echoed into the status line verbatim; without this, escape
+// sequences smuggled into them would be interpreted by the terminal (title/OSC
+// rewrites, clipboard writes, cursor moves that spoof or hide output). The bar
+// is purely visual, so dropping control bytes is lossless. The tool's own ANSI
+// color codes are added AFTER sanitizing, so they survive.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control bytes is the intent
+const sanitize = (text) => String(text).replace(/[\x00-\x1f\x7f-\x9f]/g, '');
+
 export function paint(text, color) {
-  return color && ANSI[color] ? `${ANSI[color]}${text}\x1b[0m` : text;
+  const clean = sanitize(text);
+  return color && ANSI[color] ? `${ANSI[color]}${clean}\x1b[0m` : clean;
 }
 
 // 3-arg form: band(value, amber, red) — used by ttl / rate limits.

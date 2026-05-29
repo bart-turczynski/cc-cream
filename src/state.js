@@ -1,5 +1,16 @@
 import fs from 'node:fs';
+import process from 'node:process';
 import { isNum, numOr } from './utils.js';
+
+// Cap on retained per-session entries. The state file gains one key per
+// session_id and is never otherwise pruned, so without a cap it grows without
+// bound. We keep the most-recently-touched sessions (by `ts`) and drop the rest.
+const MAX_SESSIONS = 50;
+
+// session_id is used as an object key. A value of __proto__/constructor/prototype
+// would mutate the object's prototype instead of storing data; reject those so a
+// crafted or poisoned id can't corrupt the session map.
+const isUnsafeKey = (k) => k === '__proto__' || k === 'constructor' || k === 'prototype';
 
 export function readState(stateFilePath) {
   try {
@@ -13,25 +24,45 @@ export function readState(stateFilePath) {
 }
 
 export function writeState(stateFilePath, state) {
+  // Atomic write: a direct writeFileSync interrupted mid-write (crash, ENOSPC)
+  // would truncate the state file. Write a sibling temp file, then rename over
+  // the target (atomic within a filesystem; the temp shares the target's dir so
+  // the rename never crosses devices). State is regenerable, so any failure
+  // degrades silently — a stateless render is fine.
+  const tmp = `${stateFilePath}.tmp-${process.pid}`;
   try {
-    fs.writeFileSync(stateFilePath, JSON.stringify(state));
+    fs.writeFileSync(tmp, JSON.stringify(state));
+    fs.renameSync(tmp, stateFilePath);
   } catch {
-    // degrade silently — stateless render is fine
+    try { fs.rmSync(tmp, { force: true }); } catch {}
   }
 }
 
 export function getSessionState(state, sessionId) {
-  if (!sessionId || typeof sessionId !== 'string') return null;
+  if (!sessionId || typeof sessionId !== 'string' || isUnsafeKey(sessionId)) return null;
   const sessions = state?.sessions;
   if (!sessions || typeof sessions !== 'object') return null;
-  return sessions[sessionId] ?? null;
+  return Object.hasOwn(sessions, sessionId) ? sessions[sessionId] : null;
+}
+
+// Keep at most MAX_SESSIONS entries, evicting the lowest `ts` (oldest touched)
+// first. Sessions without a numeric ts sort oldest.
+function prune(sessions) {
+  const keys = Object.keys(sessions);
+  if (keys.length <= MAX_SESSIONS) return sessions;
+  const keep = keys
+    .sort((a, b) => numOr(sessions[b]?.ts, 0) - numOr(sessions[a]?.ts, 0))
+    .slice(0, MAX_SESSIONS);
+  const out = {};
+  for (const k of keep) out[k] = sessions[k];
+  return out;
 }
 
 export function patchSessionState(state, sessionId, patch) {
-  if (!sessionId || typeof sessionId !== 'string') return state;
+  if (!sessionId || typeof sessionId !== 'string' || isUnsafeKey(sessionId)) return state;
   const sessions = { ...(state?.sessions ?? {}) };
   sessions[sessionId] = { ...(sessions[sessionId] ?? {}), ...patch };
-  return { ...state, sessions };
+  return { ...state, sessions: prune(sessions) };
 }
 
 export function nextSessionPatch(data, prevSessionState, cfg, now) {

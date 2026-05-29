@@ -4,6 +4,19 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- **Status-line text is now stripped of terminal control characters before output.** Three stdin-derived fields — `model.display_name`, `session_name`, and `effort.level` — were written to the terminal verbatim on every render. Because `session_name` can be derived from conversation content (which may include untrusted material), an embedded ANSI/OSC escape sequence would have been interpreted by the terminal (window-title/clipboard rewrites via OSC, or cursor/erase sequences that spoof or hide output). `paint()` now passes every segment through a `sanitize()` pass that drops C0/C1 control bytes (incl. ESC, BEL, DEL) while preserving the tool's own color codes, which are added afterward. The bar is purely visual, so the strip is lossless.
+- **A crafted `session_id` can no longer corrupt the session-state map.** `session_id` is used as an object key; values of `__proto__`/`constructor`/`prototype` are now rejected in `getSessionState`/`patchSessionState`, and reads use `Object.hasOwn`.
+
+### Fixed
+- **Writes to `settings.json` (and the state file) are now atomic.** `install.js`, the `SessionStart` auto-setup hook, and `state.js` wrote via a direct `writeFileSync` over the live file; an interruption (crash, `ENOSPC`) mid-write could truncate `settings.json` and erase the user's permissions/hooks/plugins/MCP config — the very loss `readSettings` works to avoid. They now write a sibling temp file and `rename` it over the target (atomic within a filesystem; the temp shares the target's directory so the rename never crosses devices).
+- **The plugin auto-update command now quotes the node binary path** (`exec "${nodePath}"`), so a node path containing spaces no longer breaks the status line.
+
+### Changed
+- **The session-state map is capped at 50 entries**, evicting the least-recently-touched sessions. It previously gained one key per `session_id` and was never pruned, growing without bound.
+
 ## [0.1.17] — 2026-05-29
 
 ### Fixed
