@@ -28,7 +28,7 @@ npm pack --dry-run                                   # verify published tarball 
 
 ## Source of truth (read before working)
 - `docs/PRD.md` and `docs/PRDv2.md` — full spec (v2 + **§14 decisions, which supersede any conflicting earlier prose**).
-- `features/NN-*.feature` — Gherkin user stories, one per slice (00–25, 26 files). The feature file IS the acceptance spec. Scenarios tagged `@manual` are not run in CI (use `npm run test:manual`). Scenarios that shell out to a host CLI (e.g. a live `claude`) **must** be tagged `@needs-cli` — they're excluded from the default profile so they can't break `npm publish` on a CLI-less runner; run them with `npm run test:cli`.
+- `features/NN-*.feature` — Gherkin user stories, one per slice (00–26, 27 files). The feature file IS the acceptance spec. Scenarios tagged `@manual` are not run in CI (use `npm run test:manual`). Scenarios that shell out to a host CLI (e.g. a live `claude`) **must** be tagged `@needs-cli` — they're excluded from the default profile so they can't break `npm publish` on a CLI-less runner; run them with `npm run test:cli`.
 - FP epic `CREAM-lwiwezhg` — the backlog. `fp tree` for deps / build order.
 
 ## Architecture
@@ -51,6 +51,7 @@ Plugin distribution layer:
 - `.claude-plugin/marketplace.json` — self-hosted marketplace listing.
 - `commands/setup.md` — registers `/cc-cream:setup`; invokes `src/install.js` in plugin mode and writes a cache-glob `statusLine` command so `/plugin update` auto-updates without re-running setup.
 - `commands/uninstall.md` — registers `/cc-cream:uninstall`.
+- `hooks/hooks.json` + `hooks/setup-reminder.js` — a `SessionStart` hook (auto-discovered, no `hooks` key in `plugin.json`, like `ralph-loop`) that emits a `systemMessage` nudging the user to run `/cc-cream:setup` **only while cc-cream's statusLine is absent** (it self-silences once wired). `systemMessage` is user-facing and adds **nothing** to the model context — zero tokens. Plugin-only; npm/manual users run `cc-cream-setup` explicitly.
 - Command files **must** live in a top-level `commands/` directory (plugin root, sibling of `.claude-plugin/`), and the `commands` key in `plugin.json` **must be omitted** so Claude Code auto-discovers them. The install-time schema rejects an array of file paths (`commands: Invalid input`) even though `claude plugin validate` — which is more lenient — accepts it. This matches the official `ralph-loop` plugin layout. Command files reference `${CLAUDE_PLUGIN_ROOT}/src/...`, so their own location is otherwise irrelevant.
 
 Test infrastructure:
@@ -68,7 +69,7 @@ Fourteen segments (all configurable via `~/.claude/cc-cream.json`):
 - Engine code in `src/`, step defs in `features/step_definitions/`. Gate "done" on `npm test` (cucumber-js) green.
 
 ## Dev tooling
-- **Biome** — lints `src/` on every `npm test` (pretest hook). Rules: `noCommonJs` + `noUndeclaredDependencies` as errors, recommended rules as warnings.
+- **Biome** — lints `src/` and `hooks/` on every `npm test` (pretest hook). Rules: `noCommonJs` + `noUndeclaredDependencies` as errors, recommended rules as warnings.
 - **knip** — dead-code / unused-export audit, also runs in pretest. Config: `knip.json`.
 - **validate** — `claude plugin validate .` runs in pretest; skips gracefully when the `claude` CLI is absent. `--strict` (warnings-as-errors) is reserved for `npm run test:manual` pre-submission only.
 - **CI** — `.github/workflows/ci.yml` runs the exact publish gate (`npm test`) on every PR + push to `main`, on a runner with **no `claude` CLI** (it asserts the CLI is absent, mirroring the npm-publish environment). This is the guard for CREAM-xzhidmjt: any `@needs-cli`-untagged scenario that shells out to a missing CLI fails here, at review time, instead of silently breaking `npm publish`. The default cucumber profile is `not @manual and not @needs-cli`, so the gate is CI-safe by construction.

@@ -72,9 +72,10 @@ Then wire it into your settings in one step:
 ```
 
 The `/cc-cream:setup` command runs the consent installer, which writes the
-`statusLine` block to `~/.claude/settings.json`. Updates are automatic: when
-`/plugin update` drops a new version into the cache, the next render picks it
-up without any further action.
+`statusLine` block to `~/.claude/settings.json`. Until you run it, cc-cream
+prints a one-line reminder at the start of each session (it stops once the bar
+is wired). Updates are automatic: when `/plugin update` drops a new version into
+the cache, the next render picks it up without any further action.
 
 ### Option 2 — npm
 

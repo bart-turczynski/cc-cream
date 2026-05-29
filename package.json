@@ -6,7 +6,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "lint": "biome lint src/",
+    "lint": "biome lint src/ hooks/",
     "knip": "knip",
     "validate": "command -v claude >/dev/null 2>&1 && claude plugin validate . || echo 'cc-cream: claude CLI not found — skipping plugin validation'",
     "pretest": "npm run lint && npm run knip && npm run validate",

@@ -1604,6 +1604,72 @@ Then("it exits zero and rewrites the statusLine to cc-cream's", function () {
 });
 
 // ===========================================================================
+// 26 — setup reminder SessionStart hook
+// ===========================================================================
+Then(/^hooks\/hooks\.json exists and registers a SessionStart command hook$/, function () {
+  const file = path.join(REPO, 'hooks', 'hooks.json');
+  assert.ok(fs.existsSync(file), 'hooks/hooks.json must exist');
+  this.hooksJson = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const entries = this.hooksJson.hooks?.SessionStart;
+  assert.ok(Array.isArray(entries) && entries.length > 0, 'hooks.json must register a SessionStart hook');
+  const inner = entries[0].hooks?.[0];
+  assert.equal(inner?.type, 'command', 'the SessionStart hook must be of type "command"');
+  this.hookCommand = inner.command;
+});
+
+Then(/^the hook command runs hooks\/setup-reminder\.js via \$\{CLAUDE_PLUGIN_ROOT\}$/, function () {
+  assert.ok(this.hookCommand.includes('${CLAUDE_PLUGIN_ROOT}'),
+    `hook command must use \${CLAUDE_PLUGIN_ROOT}, got: ${this.hookCommand}`);
+  assert.ok(this.hookCommand.includes('hooks/setup-reminder.js'),
+    `hook command must run hooks/setup-reminder.js, got: ${this.hookCommand}`);
+  // And that script must actually exist in the plugin.
+  assert.ok(fs.existsSync(path.join(REPO, 'hooks', 'setup-reminder.js')),
+    'hooks/setup-reminder.js must exist');
+});
+
+Given('there is no settings.json on disk', function () {
+  const file = path.join(this.home, '.claude', 'settings.json');
+  if (fs.existsSync(file)) fs.rmSync(file);
+});
+
+When('the setup-reminder hook runs', function () {
+  const env = { ...process.env, HOME: this.home };
+  delete env.CLAUDE_CONFIG_DIR; // force the hook to resolve ~/.claude under the sandbox HOME
+  const res = spawnSync(process.execPath, [path.join(REPO, 'hooks', 'setup-reminder.js')], {
+    env,
+    encoding: 'utf8',
+    timeout: 15000,
+  });
+  this.reminderExit = res.status;
+  this.reminderOut = (res.stdout ?? '').trim();
+});
+
+Then(/^it prints a systemMessage telling the user to run \/cc-cream:setup$/, function () {
+  assert.ok(this.reminderOut, `expected a systemMessage, got empty output`);
+  this.reminderJson = JSON.parse(this.reminderOut);
+  assert.ok(typeof this.reminderJson.systemMessage === 'string',
+    `output must carry a systemMessage, got: ${this.reminderOut}`);
+  assert.ok(this.reminderJson.systemMessage.includes('/cc-cream:setup'),
+    `systemMessage must point to /cc-cream:setup, got: ${this.reminderJson.systemMessage}`);
+});
+
+Then('the reminder adds nothing to the model context', function () {
+  // systemMessage is user-facing only; additionalContext is what would cost tokens.
+  const json = this.reminderJson ?? JSON.parse(this.reminderOut);
+  assert.equal(json.additionalContext, undefined, 'reminder must not set additionalContext');
+  assert.equal(json.hookSpecificOutput?.additionalContext, undefined,
+    'reminder must not set hookSpecificOutput.additionalContext');
+});
+
+Then('the reminder exits zero', function () {
+  assert.equal(this.reminderExit, 0, `setup-reminder hook must exit 0, got ${this.reminderExit}`);
+});
+
+Then('it prints nothing', function () {
+  assert.equal(this.reminderOut, '', `expected no output, got: ${this.reminderOut}`);
+});
+
+// ===========================================================================
 // 24 — User-facing docs & disclosure
 // ===========================================================================
 function readmeText() {

@@ -4,6 +4,11 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10] — 2026-05-29
+
+### Added
+- **Setup reminder after plugin install** (CREAM-cpcwjkxi). Installing the plugin makes the commands available but can't wire the status bar (Claude Code has no install hook to write `settings.json`), so users saw no bar and didn't know to run `/cc-cream:setup`. A `SessionStart` hook (`hooks/hooks.json`, auto-discovered) now emits a one-line `systemMessage` nudging the user to run `/cc-cream:setup` — but **only while cc-cream's statusLine is absent**, so it self-silences once setup runs. `systemMessage` is shown to the user and adds **nothing** to the model context (zero tokens). Degrades safely: missing `settings.json` → nudge; malformed → silent; always exits 0. Biome now also lints `hooks/`.
+
 ## [0.1.9] — 2026-05-29
 
 ### Fixed
