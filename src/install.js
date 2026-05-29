@@ -8,7 +8,7 @@
 // The pure `plan()` function does all the decision-making (no I/O) so it is
 // testable; the CLI wrapper at the bottom handles reading/prompting/writing.
 
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -188,10 +188,7 @@ function copyRuntimeFiles(sourceFile, destDir) {
 // process.execPath (the node currently running setup) if that fails.
 function resolveNodePath() {
   try {
-    const found = execFileSync('command', ['-v', 'node'], {
-      shell: true,
-      encoding: 'utf8',
-    }).trim();
+    const found = execSync('command -v node', { encoding: 'utf8' }).trim();
     if (found) return found;
   } catch {
     // fall through

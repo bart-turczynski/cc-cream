@@ -4,6 +4,11 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] — 2026-05-29
+
+### Fixed
+- **Node DEP0190 deprecation warning during setup.** `resolveNodePath()` called `execFileSync('command', ['-v', 'node'], { shell: true })`, which Node warns about because args are concatenated rather than escaped when `shell` is true. Switched to `execSync('command -v node')` — no behavior change, warning gone.
+
 ## [0.1.3] — 2026-05-29
 
 ### Fixed
@@ -64,6 +69,7 @@ line and prints a colored ≤3-row bar — zero tokens, the model never sees it.
 - Supports **macOS and Linux**; Windows is a planned fast-follow.
 - Requires Claude Code **2.1.132+** (`effort` / `thinking` need 2.1.145+).
 
+[0.1.4]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.0...v0.1.1
