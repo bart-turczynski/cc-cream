@@ -24,6 +24,10 @@ Feature: Plugin validation gate (CREAM-ldigvksg)
     When the validate script runs
     Then it exits non-zero so the gate blocks the change
 
+  # @manual: the --strict pass is a pre-submission readiness check that needs the
+  # claude CLI; CI runners don't have it, so this would go pending (and fail
+  # cucumber's strict mode / prepublishOnly). Run it via `npm run test:manual`.
+  @manual
   Scenario: The pre-submission pass demands a fully clean strict report
     Given the plugin and marketplace manifests
     When "claude plugin validate . --strict" runs before submission
