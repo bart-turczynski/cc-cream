@@ -46,11 +46,11 @@ Key source modules (all Node built-ins only, ESM, no runtime deps):
 - `src/install.js` — consent-based installer; pure `plan()` function plus thin I/O shell. Writes a `statusLine` block into `~/.claude/settings.json`.
 
 Plugin distribution layer:
-- `.claude-plugin/plugin.json` — Claude Code plugin manifest (name, version, commands, author).
+- `.claude-plugin/plugin.json` — Claude Code plugin manifest (name, version, author). **Does not** declare `commands`.
 - `.claude-plugin/marketplace.json` — self-hosted marketplace listing.
-- `.claude-plugin/commands/setup.md` — registers `/cc-cream:setup`; invokes `src/install.js` in plugin mode and writes a cache-glob `statusLine` command so `/plugin update` auto-updates without re-running setup.
-- `.claude-plugin/commands/uninstall.md` — registers `/cc-cream:uninstall`.
-- Command files **must** live inside `.claude-plugin/commands/` — the plugin validator resolves `commands` paths in `plugin.json` relative to `.claude-plugin/`, and rejects `..` path traversal.
+- `commands/setup.md` — registers `/cc-cream:setup`; invokes `src/install.js` in plugin mode and writes a cache-glob `statusLine` command so `/plugin update` auto-updates without re-running setup.
+- `commands/uninstall.md` — registers `/cc-cream:uninstall`.
+- Command files **must** live in a top-level `commands/` directory (plugin root, sibling of `.claude-plugin/`), and the `commands` key in `plugin.json` **must be omitted** so Claude Code auto-discovers them. The install-time schema rejects an array of file paths (`commands: Invalid input`) even though `claude plugin validate` — which is more lenient — accepts it. This matches the official `ralph-loop` plugin layout. Command files reference `${CLAUDE_PLUGIN_ROOT}/src/...`, so their own location is otherwise irrelevant.
 
 Test infrastructure:
 - `features/step_definitions/steps.js` — all Cucumber step definitions.

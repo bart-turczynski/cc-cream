@@ -4,6 +4,11 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] — 2026-05-29
+
+### Fixed
+- **Marketplace install failed with `commands: Invalid input`** (regression from 0.1.6). The install-time manifest schema rejects a `commands` array of file paths in `plugin.json`, even though `claude plugin validate` (which is more lenient) accepts it — so the 0.1.6 "fix" passed local validation but still broke real installs. Removed the `commands` key entirely and moved the command files back to a top-level `commands/` directory (plugin root), letting Claude Code auto-discover them. This matches the official `ralph-loop` plugin layout. Verified end-to-end with a real `claude plugin install` from a local marketplace.
+
 ## [0.1.6] — 2026-05-29
 
 ### Fixed
