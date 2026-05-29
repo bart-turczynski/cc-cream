@@ -1344,25 +1344,43 @@ Then('it exits zero with a skip notice and does not block the build', function (
 });
 
 Given('a plugin.json with an invalid field type', function () {
-  // This scenario requires the claude CLI to run validation.
-  // We mark it pending if the CLI is unavailable; since this environment
-  // has the CLI installed, the step simply sets up context.
-  this.pendingReason = null;
+  // Copy manifests to a sandbox temp dir and corrupt marketplace.json with an invalid
+  // field type. `claude plugin validate` validates the marketplace manifest schema;
+  // setting the top-level `name` to an integer triggers a type error.
+  const tmpDir = fs.mkdtempSync(path.join(this.home, 'validate-tmp-'));
+  const pluginJsonSrc = path.join(REPO, '.claude-plugin', 'plugin.json');
+  const marketplaceSrc = path.join(REPO, '.claude-plugin', 'marketplace.json');
+  const pluginDir2 = path.join(tmpDir, '.claude-plugin');
+  fs.mkdirSync(pluginDir2, { recursive: true });
+  // Copy plugin.json unchanged
+  fs.copyFileSync(pluginJsonSrc, path.join(pluginDir2, 'plugin.json'));
+  // Corrupt marketplace.json: set top-level `name` to an integer (must be a string)
+  const marketplace = JSON.parse(fs.readFileSync(marketplaceSrc, 'utf8'));
+  marketplace.name = 12345; // force a type error — `claude plugin validate` catches this
+  fs.writeFileSync(path.join(pluginDir2, 'marketplace.json'), JSON.stringify(marketplace));
+  this.validateTmpDir = tmpDir;
 });
 
 Given('the {string} CLI is installed', function (cliName) {
-  const which = spawnSync('command', ['-v', cliName], { shell: true, encoding: 'utf8' });
+  const which = spawnSync('sh', ['-c', `command -v ${cliName}`], { encoding: 'utf8' });
   if (which.status !== 0) {
-    return 'pending'; // eslint-disable-line consistent-return
+    this.cliSkip = true; // CLI absent — downstream Then will skip-pass
+    return;
   }
   this.cliInstalled = cliName;
 });
 
 Then('it exits non-zero so the gate blocks the change', function () {
-  // This step requires running claude plugin validate against a broken manifest,
-  // which requires the real claude CLI and a modified manifest. We cannot mutate
-  // .claude-plugin/ in-flight without side effects, so this step is marked pending.
-  return 'pending';
+  // Skip-pass when claude CLI is absent (consistent with the graceful-skip design).
+  if (this.cliSkip) return;
+
+  // Run claude plugin validate against the temp dir with the corrupted plugin.json.
+  const res = spawnSync('claude', ['plugin', 'validate', '.'], {
+    cwd: this.validateTmpDir,
+    encoding: 'utf8',
+  });
+  assert.notEqual(res.status, 0,
+    `claude plugin validate must exit non-zero on an invalid manifest, got exit 0.\nOutput: ${(res.stdout ?? '') + (res.stderr ?? '')}`);
 });
 
 Given('the plugin and marketplace manifests', function () {
@@ -1519,4 +1537,26 @@ Then('it notes Windows support is a planned fast-follow', function () {
     'README must mention Windows support');
   assert.ok(readme.includes('fast-follow') || readme.includes('planned'),
     'README must note Windows is a planned fast-follow');
+});
+
+// ===========================================================================
+// 25 — Publish & submit (automated gates)
+// ===========================================================================
+
+Then('package.json version is exactly {string}', function (expected) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.equal(pkg.version, expected,
+    `package.json version must be exactly "${expected}", got: ${pkg.version}`);
+});
+
+Then('the README documents adding the marketplace with {string}', function (command) {
+  const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
+  assert.ok(readme.includes(command),
+    `README must include "${command}"`);
+});
+
+Then('then installing with {string}', function (command) {
+  const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
+  assert.ok(readme.includes(command),
+    `README must include "${command}"`);
 });

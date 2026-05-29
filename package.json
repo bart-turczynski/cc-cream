@@ -11,6 +11,7 @@
     "validate": "command -v claude >/dev/null 2>&1 && claude plugin validate . || echo 'cc-cream: claude CLI not found — skipping plugin validation'",
     "pretest": "npm run lint && npm run knip && npm run validate",
     "test": "cucumber-js",
+    "test:manual": "cucumber-js --profile manual",
     "coverage": "c8 cucumber-js",
     "watch": "cucumber-js --watch",
     "prepare": "simple-git-hooks"
