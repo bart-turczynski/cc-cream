@@ -4,7 +4,7 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.17] — 2026-05-29
 
 ### Fixed
 - **`cc-cream-setup` and the `/cc-cream:*` slash commands silently did nothing when `~/.claude` is a symlink.** `install.js` had the same symlink-fragile entrypoint guard fixed in the renderer for 0.1.16 (`import.meta.url` is canonicalized by Node's ESM loader; `process.argv[1]` is not), so running it from a symlinked path skipped `main()` entirely — exit 0, no output, settings.json untouched. The "am-I-the-entrypoint?" check is now a single symlink-robust helper (`isEntrypoint` in `src/utils.js`) shared by both `cc-cream.js` and `install.js`. Caught by the new install-journey smoke tests.
@@ -142,6 +142,7 @@ line and prints a colored ≤3-row bar — zero tokens, the model never sees it.
 - Supports **macOS and Linux**; Windows is a planned fast-follow.
 - Requires Claude Code **2.1.132+** (`effort` / `thinking` need 2.1.145+).
 
+[0.1.17]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.16...v0.1.17
 [0.1.16]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.14...v0.1.15
 [0.1.6]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.5...v0.1.6
