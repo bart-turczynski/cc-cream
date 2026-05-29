@@ -66,7 +66,7 @@ switches to it automatically. No network, no re-run of setup.
 ### Phase 1 — Repo & metadata foundation
 - **1.1** Add `LICENSE` (MIT).
 - **1.2** Create `.claude-plugin/plugin.json`: `name`, `displayName`, `description` (with backronym), `version`, `author {name, email}`, `homepage`, `repository`, `license`, `keywords` (non-empty), `commands: ["./commands/setup.md"]`.
-- **1.3** Create `.claude-plugin/marketplace.json`: single-plugin entry, `source: "./"`, `owner {name, email}`, `category: "monitoring"`, tags. Doubles as the self-hosted marketplace.
+- **1.3** Create `.claude-plugin/marketplace.json`: **top-level `name: "cc-cream"` and `description`** (required — `claude plugin validate` rejects a marketplace with no root `name`; discovered during S23, 2026-05-29), `owner {name, email}`, and a single-plugin entry with `source: "./"`, `category: "monitoring"`, tags, **plus per-entry `description` and `homepage`** (community-catalog schema). Doubles as the self-hosted marketplace; its `name` is the `@cc-cream` suffix in `/plugin install cc-cream@cc-cream`.
 - **1.4** Polish `package.json` for npm: `engines.node`, `files` allowlist (ship `src/`, exclude tests/fixtures/docs/archive), `repository`, `bugs`, `homepage`, `keywords`, real `author`.
 
 **Manifest layout (explicit):** both `plugin.json` and `marketplace.json` live *inside* `.claude-plugin/` (proven by claude-hud, a catalog-listed statusLine plugin) — they are the only two files in that directory. The "components live at repo root" rule applies only to actual plugin *components* (`commands/`, `agents/`, `hooks/`, source modules), which must NOT go inside `.claude-plugin/`.

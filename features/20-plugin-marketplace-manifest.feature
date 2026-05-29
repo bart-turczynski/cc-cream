@@ -27,9 +27,13 @@ Feature: Plugin manifest and marketplace metadata (CREAM-qjhgdpnk)
 
   Scenario: The marketplace manifest lists cc-cream as a self-hosted entry
     Then .claude-plugin/marketplace.json exists and is valid JSON
+    And the marketplace manifest has top-level name "cc-cream"
+    And the marketplace manifest has a non-empty top-level description
     And it declares an owner with name "Bart Turczynski" and email "support@spoonkeyworks.com"
     And it lists a single plugin "cc-cream" with source "./"
     And the plugin entry sets category "monitoring"
+    And the plugin entry has a non-empty description
+    And the plugin entry has homepage "https://github.com/bart-turczynski/cc-cream"
 
   Scenario: The name avoids reserved catalog prefixes
     Then the plugin name does not start with "claude-" or "anthropic-"

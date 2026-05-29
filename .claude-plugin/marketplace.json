@@ -1,4 +1,6 @@
 {
+  "name": "cc-cream",
+  "description": "cc-cream — a context/cache/cost status line for Claude Code. Cache Rules Everything Around Me.",
   "owner": {
     "name": "Bart Turczynski",
     "email": "support@spoonkeyworks.com"
@@ -6,6 +8,8 @@
   "plugins": [
     {
       "name": "cc-cream",
+      "description": "Colored ≤3-row status bar for Claude Code: context usage, cache hit rate, cost, rate limits, and more. Zero tokens — the model never sees the output.",
+      "homepage": "https://github.com/bart-turczynski/cc-cream",
       "source": "./",
       "category": "monitoring",
       "tags": ["status-line", "cache", "cost", "context", "rate-limits", "monitoring"]

@@ -1,4 +1,5 @@
 {
   "entry": ["src/install.js"],
-  "project": ["src/**/*.js"]
+  "project": ["src/**/*.js"],
+  "ignoreBinaries": ["claude"]
 }
