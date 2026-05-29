@@ -28,8 +28,16 @@ const TRUST_NOTE =
 // it, a non-numeric cache dir (a git-sha install like `c83650b6360f/`) sorts
 // last and pins the bar to whatever version that happens to be, defeating
 // auto-update. With it, `/plugin update` is applied live with no re-run of setup.
+//
+// The resolved dir is captured in `$d` and GUARDED with `[ -z "$d" ] && exit 0`:
+// when the glob matches nothing — the state left behind if a user runs
+// `/plugin uninstall cc-cream` WITHOUT first running `/cc-cream:uninstall`, so a
+// stale statusLine outlives the deleted cache — the command degrades to a silent
+// exit 0 instead of running a bare relative `src/cc-cream.js` that crashes with
+// MODULE_NOT_FOUND on every render. "Degrade, never crash" (CLAUDE.md). `exec`
+// replaces the shell so stdin/stdout pass straight through to the renderer.
 export function autoUpdateCommand(nodePath) {
-  return `${nodePath} "$(ls -1d "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | grep -E '/[0-9]+(\\.[0-9]+)+/$' | sort -V | tail -1)src/cc-cream.js"`;
+  return `d="$(ls -1d "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | grep -E '/[0-9]+(\\.[0-9]+)+/$' | sort -V | tail -1)"; [ -z "$d" ] && exit 0; exec ${nodePath} "\${d}src/cc-cream.js"`;
 }
 
 // `desired` is considered already installed if it matches the planned command

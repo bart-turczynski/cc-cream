@@ -118,12 +118,23 @@ and you may need to **restart** it for the bar to appear.
 
 ### Uninstall
 
-Plugin users — two steps (Claude Code can't clean `settings.json` when a plugin
-is removed, so the wiring is cleared separately from the cache):
+Plugin users — two steps, **in this order** (Claude Code can't clean
+`settings.json` when a plugin is removed, so the wiring is cleared separately
+from the cache):
 ```
-/cc-cream:uninstall          # removes the statusLine wiring
-/plugin uninstall cc-cream   # drops the plugin from the cache
+/cc-cream:uninstall          # 1. removes the statusLine wiring (run this FIRST)
+/plugin uninstall cc-cream   # 2. drops the plugin from the cache
 ```
+
+> **Order matters.** `/cc-cream:uninstall` lives inside the plugin, so once you
+> run `/plugin uninstall` it's gone. The status line itself degrades to nothing
+> if the cache is missing (it won't error), but the now-inert `statusLine` block
+> lingers in `settings.json`. To clear it after the plugin is already gone, run
+> the npm bin (no global install needed):
+> ```bash
+> npx -y -p cc-cream cc-cream-setup --uninstall
+> ```
+> or remove the `statusLine` key from `~/.claude/settings.json` by hand.
 
 npm / manual users:
 ```bash

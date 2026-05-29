@@ -1242,8 +1242,11 @@ Then('the command globs the plugin cache for cc-cream and selects the highest ve
 
 Then('the command appends {string} to the resolved version directory', function (suffix) {
   const cmd = this.result.settings.statusLine.command;
-  // The -d glob yields a trailing slash, so the entrypoint concatenates directly.
-  assert.ok(cmd.includes(`| sort -V | tail -1)${suffix}`),
+  // The -d glob yields a trailing slash, captured in $d, so the entrypoint
+  // concatenates directly onto it.
+  assert.ok(cmd.includes('| sort -V | tail -1)"'),
+    `command must capture the highest version dir in $d: ${cmd}`);
+  assert.ok(cmd.includes(`"\${d}${suffix}"`),
     `command must append "${suffix}" to the trailing-slash version dir: ${cmd}`);
 });
 
@@ -1259,7 +1262,7 @@ Then('the command only considers semver-named version dirs', function () {
 
 Then('it invokes node by its absolute path, not a bare {string} on PATH', function (bare) {
   const cmd = this.result.settings.statusLine.command;
-  assert.ok(cmd.startsWith(`${ABS_NODE} `), `command must start with the absolute node path: ${cmd}`);
+  assert.ok(cmd.includes(`exec ${ABS_NODE} `), `command must exec the absolute node path: ${cmd}`);
   assert.ok(!new RegExp(`(^|\\s)${bare}\\s`).test(cmd.replace(ABS_NODE, '')),
     `command must not invoke a bare "${bare}": ${cmd}`);
 });
@@ -1267,6 +1270,25 @@ Then('it invokes node by its absolute path, not a bare {string} on PATH', functi
 Given('the statusLine uses the cache-glob command', function () {
   this.cacheGlobCommand = autoUpdateCommand(ABS_NODE);
   this.settings = { statusLine: { type: 'command', command: this.cacheGlobCommand, refreshInterval: 60 } };
+});
+
+When('the command runs with no cc-cream version in the plugin cache', function () {
+  // Point CLAUDE_CONFIG_DIR at an empty dir so the glob matches nothing — the
+  // exact state left after `/plugin uninstall` deletes the cache. The guard must
+  // short-circuit before `exec`, so the (non-existent) ABS_NODE is never reached.
+  const emptyDir = fs.mkdtempSync(path.join(this.home, 'no-cache-'));
+  this.orphanRun = spawnSync('sh', ['-c', this.cacheGlobCommand], {
+    cwd: emptyDir,
+    env: { ...process.env, CLAUDE_CONFIG_DIR: emptyDir },
+    input: '{"session_id":"x"}',
+    encoding: 'utf8',
+  });
+});
+
+Then('it prints nothing and exits zero', function () {
+  assert.equal(this.orphanRun.status, 0, `expected exit 0, got ${this.orphanRun.status}: ${this.orphanRun.stderr}`);
+  assert.equal(this.orphanRun.stdout, '', `expected no stdout, got: ${this.orphanRun.stdout}`);
+  assert.equal(this.orphanRun.stderr, '', `expected no stderr, got: ${this.orphanRun.stderr}`);
 });
 
 Given('a newer cc-cream version directory appears in the plugin cache', function () {

@@ -45,12 +45,12 @@ The statusLine `command` written to the user's `~/.claude/settings.json` must
 version on every render:
 
 ```bash
-{NODE} "$(ls -1d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | sort -V | tail -1)src/cc-cream.js"
+d="$(ls -1d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | grep -E '/[0-9]+(\.[0-9]+)+/$' | sort -V | tail -1)"; [ -z "$d" ] && exit 0; exec {NODE} "${d}src/cc-cream.js"
 ```
 
-- `{NODE}` is the **absolute path** to the node binary, resolved once at setup time (`command -v node`) and written literally into the command — never a bare `node`, since the statusLine subprocess may not inherit the user's `PATH`.
+- `{NODE}` is the **absolute path** to the node binary, resolved once at setup time (`command -v node`) and written literally into the command — never a bare `node`, since the statusLine subprocess may not inherit the user's `PATH`. `exec` replaces the shell so stdin/stdout pass straight through.
 - `*/cc-cream/*/` matches `cache/<marketplace>/cc-cream/<version>/`; the `-d .../*/` glob yields directory paths with a **trailing slash**, so concatenating `src/cc-cream.js` directly produces `.../<version>/src/cc-cream.js`. `sort -V | tail -1` picks the highest version.
-- **First-install / empty-cache:** if the glob matches nothing the command substitution is empty and the entrypoint would be a bare `src/cc-cream.js`; this only occurs if setup runs before the plugin is cached, which the plugin-mode flow precludes. The manual path (copy-to-home) is unaffected. Renderer still degrades to exit 0 on any failure.
+- **Empty-cache guard:** the resolved dir is captured in `$d` and `[ -z "$d" ] && exit 0` short-circuits when the glob matches nothing. This is **not** only a first-install edge case: it is the exact state left behind when a user runs `/plugin uninstall cc-cream` without first running `/cc-cream:uninstall` — the statusLine outlives the deleted cache. Without the guard the command degraded to a bare relative `src/cc-cream.js` and crashed with `MODULE_NOT_FOUND` on every render; with it, an orphaned statusLine is inert (silent exit 0). The manual path (copy-to-home) is unaffected.
 - **`sort -V` caveat:** reliable for `MAJOR.MINOR.PATCH`; pre-release tags (`0.1.0-rc.1`) would sort unexpectedly. cc-cream ships plain semver, so this is acceptable; revisit if pre-releases ever land in the cache.
 - `refreshInterval: 60` and existing install.js behavior (preserve `padding`, back up + consent-to-replace an existing statusLine) are retained.
 - `COLUMNS` export: evaluate whether the fixed ≤80-col renderer needs it (claude-hud needs it for dynamic width; cc-cream likely does not). Add only if layout requires.

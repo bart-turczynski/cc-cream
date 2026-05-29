@@ -45,6 +45,15 @@ Feature: Auto-updating setup command for plugin installs (CREAM-kpsjregt)
     Then it copies the runtime into the home cc-cream directory
     And it points the statusLine command at that copied entrypoint
 
+  # If a user runs `/plugin uninstall cc-cream` without first running
+  # /cc-cream:uninstall, the statusLine outlives the deleted plugin cache. The
+  # glob then matches nothing — the command MUST degrade to a silent exit 0, not
+  # crash with MODULE_NOT_FOUND on a bare relative src/cc-cream.js every render.
+  Scenario: An orphaned statusLine degrades silently when the plugin cache is gone
+    Given the statusLine uses the cache-glob command
+    When the command runs with no cc-cream version in the plugin cache
+    Then it prints nothing and exits zero
+
   Scenario: The engine makes no network call on render
     Given the downloaded cc-cream.js
     When Claude Code pipes it a session JSON on stdin

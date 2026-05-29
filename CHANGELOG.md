@@ -4,6 +4,11 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.15] — 2026-05-29
+
+### Fixed
+- **An orphaned status line no longer crashes on every render after `/plugin uninstall`.** If you ran `/plugin uninstall cc-cream` without first running `/cc-cream:uninstall`, the `statusLine` entry stayed in `settings.json` while the plugin cache was deleted. The cache-glob then matched nothing, the baked command collapsed to a bare relative `src/cc-cream.js`, and Claude Code hit `MODULE_NOT_FOUND` (exit 1) on every render — and `/cc-cream:uninstall` was gone, so the only fix was hand-editing `settings.json`. The auto-update command now captures the resolved version dir in `$d` and short-circuits with `[ -z "$d" ] && exit 0`, so an orphaned status line is inert (silent, exit 0) instead of a recurring error. "Degrade, never crash." New installs/auto-wires get the guarded command; existing users pick it up on their next `/cc-cream:setup`.
+
 ## [0.1.14] — 2026-05-29
 
 ### Changed
@@ -124,6 +129,7 @@ line and prints a colored ≤3-row bar — zero tokens, the model never sees it.
 - Supports **macOS and Linux**; Windows is a planned fast-follow.
 - Requires Claude Code **2.1.132+** (`effort` / `thinking` need 2.1.145+).
 
+[0.1.15]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.14...v0.1.15
 [0.1.6]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.3...v0.1.4
