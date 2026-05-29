@@ -36,6 +36,7 @@ class CcCreamWorld extends World {
     this.rawStdin = null;   // verbatim stdin (for malformed-input scenarios)
     this.configRaw = null;  // contents of ~/.claude/cc-cream.json, or null
     this.env = {};          // extra env vars for the engine
+    this.engineOverride = null; // run the engine via this path instead of ENGINE (e.g. a symlink)
     this.now = Date.now();
   }
 
@@ -65,7 +66,7 @@ class CcCreamWorld extends World {
       ...this.env,
     };
     const start = process.hrtime.bigint();
-    const res = spawnSync(process.execPath, [ENGINE], { input: stdin, env, encoding: 'utf8' });
+    const res = spawnSync(process.execPath, [this.engineOverride ?? ENGINE], { input: stdin, env, encoding: 'utf8' });
     this.durationMs = Number(process.hrtime.bigint() - start) / 1e6;
     this.exitCode = res.status;
     this.stdout = res.stdout ?? '';

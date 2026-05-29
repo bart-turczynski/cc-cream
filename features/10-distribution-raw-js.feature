@@ -21,3 +21,13 @@ Feature: Distribution as raw JavaScript on GitHub
     When Claude Code pipes it a session JSON on stdin
     Then it prints the formatted bar to stdout
     And it finishes well inside the ~300ms post-message event path (PRD §8)
+
+  # A ~/.claude managed by a dotfile manager (stow/chezmoi/yadm) or synced via
+  # iCloud/Dropbox is a symlink, so the engine runs from a symlinked path. Node's
+  # ESM loader canonicalizes import.meta.url but leaves process.argv[1] as-invoked,
+  # so a plain href "am-I-main" check fails and main() never runs — an empty bar
+  # with no error. The guard must compare realpaths.
+  Scenario: Running through a symlinked path still renders the bar
+    Given the downloaded cc-cream.js reached through a symlink
+    When Claude Code pipes it a session JSON on stdin
+    Then it prints the formatted bar to stdout

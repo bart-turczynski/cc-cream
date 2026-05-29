@@ -595,6 +595,16 @@ Given('the downloaded cc-cream.js', function () {
   assert.ok(fs.existsSync(ENGINE));
 });
 
+Given('the downloaded cc-cream.js reached through a symlink', function () {
+  // Reproduce a dotfile-managed/synced config dir: the src/ directory is reached
+  // through a symlink, so the engine's invoked path differs from its realpath.
+  // The "am-I-main" guard must compare realpaths, or main() never runs.
+  const link = path.join(this.home, 'linked-src');
+  fs.symlinkSync(path.dirname(ENGINE), link);
+  this.engineOverride = path.join(link, 'cc-cream.js');
+  assert.ok(fs.existsSync(this.engineOverride));
+});
+
 When('Claude Code pipes it a session JSON on stdin', function () {
   this.data = {
     model: { display_name: 'Opus 4.7 (1M context)' },
