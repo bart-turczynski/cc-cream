@@ -25,7 +25,7 @@ Feature: Auto-updating setup command for plugin installs (CREAM-kpsjregt)
     Then it runs the newer version without any change to settings.json
 
   Scenario: The setup command is a thin wrapper over install.js
-    Then commands/setup.md exists and registers as the /cc-cream:setup command
+    Then .claude-plugin/commands/setup.md exists and registers as the /cc-cream:setup command
     And it invokes src/install.js in plugin mode rather than writing settings.json itself
 
   Scenario: An existing statusLine is still confirmed before replacing

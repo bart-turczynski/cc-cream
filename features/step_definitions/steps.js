@@ -1056,21 +1056,19 @@ Then(/^plugin\.json description references "([^"]+)"$/, function (phrase) {
     `description must include "${phrase}", got: ${desc}`);
 });
 
-Then(/^\.claude-plugin contains exactly plugin\.json and marketplace\.json$/, function () {
+Then(/^\.claude-plugin contains plugin\.json, marketplace\.json, and a commands directory$/, function () {
   const entries = fs.readdirSync(pluginDir).sort();
-  assert.deepEqual(entries, ['marketplace.json', 'plugin.json'],
-    `.claude-plugin must contain exactly plugin.json and marketplace.json, got: ${entries}`);
+  assert.deepEqual(entries, ['commands', 'marketplace.json', 'plugin.json'],
+    `.claude-plugin must contain commands/, plugin.json, and marketplace.json, got: ${entries}`);
+  assert.ok(fs.statSync(path.join(pluginDir, 'commands')).isDirectory(),
+    'commands must be a directory');
 });
 
-Then(/^no commands, agents, hooks, or source modules live inside \.claude-plugin$/, function () {
+Then(/^no source modules, agents, or hooks live directly inside \.claude-plugin$/, function () {
   const entries = fs.readdirSync(pluginDir);
-  for (const entry of entries) {
-    const stat = fs.statSync(path.join(pluginDir, entry));
-    assert.ok(!stat.isDirectory(),
-      `unexpected directory inside .claude-plugin: ${entry}`);
-  }
-  assert.ok(entries.every((e) => e === 'plugin.json' || e === 'marketplace.json'),
-    `unexpected files inside .claude-plugin: ${entries.filter((e) => e !== 'plugin.json' && e !== 'marketplace.json')}`);
+  const allowed = new Set(['plugin.json', 'marketplace.json', 'commands']);
+  const unexpected = entries.filter((e) => !allowed.has(e));
+  assert.deepEqual(unexpected, [], `unexpected entries inside .claude-plugin: ${unexpected}`);
 });
 
 Then(/^\.claude-plugin\/marketplace\.json exists and is valid JSON$/, function () {
@@ -1264,19 +1262,17 @@ Then('it runs the newer version without any change to settings.json', function (
     'command must re-select the highest cached version on every render');
 });
 
-Then(/^commands\/setup\.md exists and registers as the (\/cc-cream:setup) command$/, function (cmdName) {
-  const p = path.join(REPO, 'commands', 'setup.md');
-  assert.ok(fs.existsSync(p), 'commands/setup.md must exist');
+Then(/^\.claude-plugin\/commands\/setup\.md exists and registers as the (\/cc-cream:setup) command$/, function (cmdName) {
+  const p = path.join(REPO, '.claude-plugin', 'commands', 'setup.md');
+  assert.ok(fs.existsSync(p), '.claude-plugin/commands/setup.md must exist');
   const src = fs.readFileSync(p, 'utf8');
-  // Frontmatter with a description; the slash command name derives from the path
-  // (commands/setup.md -> /cc-cream:setup) and the plugin manifest registration.
   assert.match(src, /^---\s*\n[\s\S]*?description:[\s\S]*?\n---/, 'setup.md must have frontmatter with a description');
   this.setupMd = src;
   assert.equal(cmdName, '/cc-cream:setup');
 });
 
 Then(/^it invokes src\/install\.js in plugin mode rather than writing settings\.json itself$/, function () {
-  const src = this.setupMd ?? fs.readFileSync(path.join(REPO, 'commands', 'setup.md'), 'utf8');
+  const src = this.setupMd ?? fs.readFileSync(path.join(REPO, '.claude-plugin', 'commands', 'setup.md'), 'utf8');
   assert.ok(src.includes('install.js --plugin'), 'setup.md must shell out to install.js --plugin');
   assert.ok(!/JSON\.parse|writeFileSync|JSON\.stringify/.test(src),
     'setup.md must not itself write settings.json');

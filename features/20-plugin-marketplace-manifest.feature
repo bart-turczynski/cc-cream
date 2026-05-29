@@ -3,9 +3,10 @@ Feature: Plugin manifest and marketplace metadata (CREAM-qjhgdpnk)
   I want cc-cream to ship valid plugin and marketplace manifests
   So that I can discover and install it with /plugin install cc-cream
 
-  # docs/RELEASE_PLAN.md Phase 1.2/1.3. Single-repo layout: both plugin.json and
-  # marketplace.json live inside .claude-plugin/ and are the only two files there;
-  # the plugin entry uses source "./". Name is the catalog-enforced lowercase
+  # docs/RELEASE_PLAN.md Phase 1.2/1.3. Single-repo layout: plugin.json and
+  # marketplace.json live inside .claude-plugin/; command files live in
+  # .claude-plugin/commands/ (the validator resolves paths relative to .claude-plugin/).
+  # The plugin entry uses source "./". Name is the catalog-enforced lowercase
   # kebab; the C.R.E.A.M. backronym lives in the description, not the name.
   # author and owner share one identity: Bart Turczynski / support@spoonkeyworks.com.
 
@@ -21,9 +22,9 @@ Feature: Plugin manifest and marketplace metadata (CREAM-qjhgdpnk)
   Scenario: The description carries the brand hook
     Then plugin.json description references "Claude Code Cache Rules Everything Around Me"
 
-  Scenario: Both manifests are the only files inside .claude-plugin
-    Then .claude-plugin contains exactly plugin.json and marketplace.json
-    And no commands, agents, hooks, or source modules live inside .claude-plugin
+  Scenario: .claude-plugin contains only manifests and the commands directory
+    Then .claude-plugin contains plugin.json, marketplace.json, and a commands directory
+    And no source modules, agents, or hooks live directly inside .claude-plugin
 
   Scenario: The marketplace manifest lists cc-cream as a self-hosted entry
     Then .claude-plugin/marketplace.json exists and is valid JSON

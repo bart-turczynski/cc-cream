@@ -47,9 +47,10 @@ Key source modules (all Node built-ins only, ESM, no runtime deps):
 
 Plugin distribution layer:
 - `.claude-plugin/plugin.json` — Claude Code plugin manifest (name, version, commands, author).
-- `.claude-plugin/marketplace.json` — self-hosted marketplace listing; only two files may live in `.claude-plugin/`.
-- `commands/setup.md` — registers `/cc-cream:setup`; invokes `src/install.js` in plugin mode and writes a cache-glob `statusLine` command so `/plugin update` auto-updates without re-running setup.
-- `commands/uninstall.md` — registers `/cc-cream:uninstall`.
+- `.claude-plugin/marketplace.json` — self-hosted marketplace listing.
+- `.claude-plugin/commands/setup.md` — registers `/cc-cream:setup`; invokes `src/install.js` in plugin mode and writes a cache-glob `statusLine` command so `/plugin update` auto-updates without re-running setup.
+- `.claude-plugin/commands/uninstall.md` — registers `/cc-cream:uninstall`.
+- Command files **must** live inside `.claude-plugin/commands/` — the plugin validator resolves `commands` paths in `plugin.json` relative to `.claude-plugin/`, and rejects `..` path traversal.
 
 Test infrastructure:
 - `features/step_definitions/steps.js` — all Cucumber step definitions.

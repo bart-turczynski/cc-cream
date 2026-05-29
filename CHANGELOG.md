@@ -4,6 +4,11 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] — 2026-05-29
+
+### Fixed
+- **Plugin commands still not appearing after installation.** The validator resolves `commands` paths in `plugin.json` relative to `.claude-plugin/`, and also requires the file to exist at that path. Moved command files from `commands/` (repo root) to `.claude-plugin/commands/`, so `./commands/setup.md` now correctly resolves to `.claude-plugin/commands/setup.md`. `${CLAUDE_PLUGIN_ROOT}` in the command bodies is unaffected — it always points to the plugin root.
+
 ## [0.1.5] — 2026-05-29
 
 ### Fixed
@@ -75,6 +80,7 @@ line and prints a colored ≤3-row bar — zero tokens, the model never sees it.
 - Supports **macOS and Linux**; Windows is a planned fast-follow.
 - Requires Claude Code **2.1.132+** (`effort` / `thinking` need 2.1.145+).
 
+[0.1.6]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/bart-turczynski/cc-cream/compare/v0.1.2...v0.1.3
