@@ -1,5 +1,10 @@
 {
   "default": {
-    "import": ["features/step_definitions/**/*.js", "features/support/**/*.js"]
+    "import": ["features/step_definitions/**/*.js", "features/support/**/*.js"],
+    "tags": "not @manual"
+  },
+  "manual": {
+    "import": ["features/step_definitions/**/*.js", "features/support/**/*.js"],
+    "tags": "@manual"
   }
 }

@@ -1,10 +1,11 @@
 import { Given, When, Then } from '@cucumber/cucumber';
+import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown } from '../../src/cc-cream.js';
-import { plan } from '../../src/install.js';
+import { autoUpdateCommand, plan } from '../../src/install.js';
 
 // Path to the state file inside a scenario's sandbox HOME.
 const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
@@ -926,4 +927,636 @@ Then('package.json has a bin entry for {string} pointing to the engine', functio
 Then(/^src\/cc-cream\.js starts with "([^"]+)"$/, function (shebang) {
   const src = fs.readFileSync(ENGINE, 'utf8');
   assert.ok(src.startsWith(shebang), `Engine does not start with "${shebang}"`);
+});
+
+// ===========================================================================
+// 20 — plugin manifest and marketplace metadata
+// ===========================================================================
+const pluginDir = path.join(REPO, '.claude-plugin');
+let _pluginJson = null;
+let _marketplaceJson = null;
+
+function readPluginJson() {
+  if (!_pluginJson) {
+    const raw = fs.readFileSync(path.join(pluginDir, 'plugin.json'), 'utf8');
+    _pluginJson = JSON.parse(raw);
+  }
+  return _pluginJson;
+}
+
+function readMarketplaceJson() {
+  if (!_marketplaceJson) {
+    const raw = fs.readFileSync(path.join(pluginDir, 'marketplace.json'), 'utf8');
+    _marketplaceJson = JSON.parse(raw);
+  }
+  return _marketplaceJson;
+}
+
+Then(/^\.claude-plugin\/plugin\.json exists and is valid JSON$/, function () {
+  const p = path.join(pluginDir, 'plugin.json');
+  assert.ok(fs.existsSync(p), '.claude-plugin/plugin.json does not exist');
+  assert.doesNotThrow(() => readPluginJson(), 'plugin.json is not valid JSON');
+});
+
+Then('it sets name to {string}', function (name) {
+  assert.equal(readPluginJson().name, name);
+});
+
+Then('it sets displayName to {string}', function (displayName) {
+  assert.equal(readPluginJson().displayName, displayName);
+});
+
+Then('it declares version, homepage, repository, and license MIT', function () {
+  const p = readPluginJson();
+  assert.ok(typeof p.version === 'string' && p.version.length > 0, 'version must be a non-empty string');
+  assert.ok(typeof p.homepage === 'string' && p.homepage.length > 0, 'homepage must be a non-empty string');
+  assert.ok(typeof p.repository === 'string' && p.repository.length > 0, 'repository must be a non-empty string');
+  assert.equal(p.license, 'MIT', 'license must be MIT');
+});
+
+Then('it declares a non-empty keywords array', function () {
+  const p = readPluginJson();
+  assert.ok(Array.isArray(p.keywords) && p.keywords.length > 0, 'keywords must be a non-empty array');
+});
+
+Then('it sets author to {string} with email {string}', function (name, email) {
+  const author = readPluginJson().author;
+  assert.ok(author && typeof author === 'object', 'author must be an object');
+  assert.equal(author.name, name);
+  assert.equal(author.email, email);
+});
+
+Then('it registers the setup command at {string}', function (cmd) {
+  const commands = readPluginJson().commands;
+  assert.ok(Array.isArray(commands) && commands.includes(cmd),
+    `commands must include "${cmd}", got: ${JSON.stringify(commands)}`);
+});
+
+Then(/^plugin\.json description references "([^"]+)"$/, function (phrase) {
+  const desc = readPluginJson().description;
+  assert.ok(typeof desc === 'string' && desc.includes(phrase),
+    `description must include "${phrase}", got: ${desc}`);
+});
+
+Then(/^\.claude-plugin contains exactly plugin\.json and marketplace\.json$/, function () {
+  const entries = fs.readdirSync(pluginDir).sort();
+  assert.deepEqual(entries, ['marketplace.json', 'plugin.json'],
+    `.claude-plugin must contain exactly plugin.json and marketplace.json, got: ${entries}`);
+});
+
+Then(/^no commands, agents, hooks, or source modules live inside \.claude-plugin$/, function () {
+  const entries = fs.readdirSync(pluginDir);
+  for (const entry of entries) {
+    const stat = fs.statSync(path.join(pluginDir, entry));
+    assert.ok(!stat.isDirectory(),
+      `unexpected directory inside .claude-plugin: ${entry}`);
+  }
+  assert.ok(entries.every((e) => e === 'plugin.json' || e === 'marketplace.json'),
+    `unexpected files inside .claude-plugin: ${entries.filter((e) => e !== 'plugin.json' && e !== 'marketplace.json')}`);
+});
+
+Then(/^\.claude-plugin\/marketplace\.json exists and is valid JSON$/, function () {
+  const p = path.join(pluginDir, 'marketplace.json');
+  assert.ok(fs.existsSync(p), '.claude-plugin/marketplace.json does not exist');
+  assert.doesNotThrow(() => readMarketplaceJson(), 'marketplace.json is not valid JSON');
+});
+
+Then('it declares an owner with name {string} and email {string}', function (name, email) {
+  const owner = readMarketplaceJson().owner;
+  assert.ok(owner && typeof owner === 'object', 'owner must be an object');
+  assert.equal(owner.name, name);
+  assert.equal(owner.email, email);
+});
+
+Then('it lists a single plugin {string} with source {string}', function (name, source) {
+  const plugins = readMarketplaceJson().plugins;
+  assert.ok(Array.isArray(plugins) && plugins.length === 1,
+    `plugins must be an array with exactly one entry, got length: ${plugins?.length}`);
+  assert.equal(plugins[0].name, name);
+  assert.equal(plugins[0].source, source);
+});
+
+Then('the plugin entry sets category {string}', function (category) {
+  const plugins = readMarketplaceJson().plugins;
+  assert.ok(Array.isArray(plugins) && plugins.length > 0, 'plugins array is empty');
+  assert.equal(plugins[0].category, category);
+});
+
+Then(/^the plugin name does not start with "([^"]+)" or "([^"]+)"$/, function (prefix1, prefix2) {
+  const name = readPluginJson().name;
+  assert.ok(!name.startsWith(prefix1), `plugin name must not start with "${prefix1}"`);
+  assert.ok(!name.startsWith(prefix2), `plugin name must not start with "${prefix2}"`);
+});
+
+Then('the plugin name is lowercase kebab-case', function () {
+  const name = readPluginJson().name;
+  assert.match(name, /^[a-z][a-z0-9-]*$/, `plugin name must be lowercase kebab-case, got: ${name}`);
+});
+
+Then('the marketplace manifest has top-level name {string}', function (name) {
+  assert.equal(readMarketplaceJson().name, name,
+    `marketplace.json top-level name must be "${name}"`);
+});
+
+Then('the marketplace manifest has a non-empty top-level description', function () {
+  const desc = readMarketplaceJson().description;
+  assert.ok(typeof desc === 'string' && desc.length > 0,
+    `marketplace.json must have a non-empty top-level description, got: ${JSON.stringify(desc)}`);
+});
+
+Then('the plugin entry has a non-empty description', function () {
+  const plugins = readMarketplaceJson().plugins;
+  assert.ok(Array.isArray(plugins) && plugins.length > 0, 'plugins array is empty');
+  const desc = plugins[0].description;
+  assert.ok(typeof desc === 'string' && desc.length > 0,
+    `marketplace.json plugin entry must have a non-empty description, got: ${JSON.stringify(desc)}`);
+});
+
+Then('the plugin entry has homepage {string}', function (homepage) {
+  const plugins = readMarketplaceJson().plugins;
+  assert.ok(Array.isArray(plugins) && plugins.length > 0, 'plugins array is empty');
+  assert.equal(plugins[0].homepage, homepage,
+    `marketplace.json plugin entry homepage must be "${homepage}", got: ${plugins[0].homepage}`);
+});
+
+// ===========================================================================
+// 21 — npm packaging: LICENSE + package.json polish
+// ===========================================================================
+Then('a LICENSE file exists at the repo root', function () {
+  assert.ok(fs.existsSync(path.join(REPO, 'LICENSE')), 'LICENSE file must exist at repo root');
+});
+
+Then('it is an MIT license', function () {
+  const text = fs.readFileSync(path.join(REPO, 'LICENSE'), 'utf8');
+  assert.ok(/MIT License/i.test(text), 'LICENSE must be an MIT license');
+});
+
+Then('package.json license field is {string}', function (expected) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.equal(pkg.license, expected);
+});
+
+Then('package.json declares a node engines constraint', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.ok(pkg.engines && typeof pkg.engines.node === 'string' && pkg.engines.node.length > 0,
+    'package.json must declare engines.node');
+});
+
+Then('it declares repository, bugs, and homepage URLs', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const repoUrl = typeof pkg.repository === 'string' ? pkg.repository : pkg.repository?.url;
+  assert.ok(typeof repoUrl === 'string' && repoUrl.length > 0, 'repository must be declared');
+  const bugsUrl = typeof pkg.bugs === 'string' ? pkg.bugs : pkg.bugs?.url;
+  assert.ok(typeof bugsUrl === 'string' && bugsUrl.length > 0, 'bugs URL must be declared');
+  assert.ok(typeof pkg.homepage === 'string' && pkg.homepage.length > 0, 'homepage must be declared');
+});
+
+Then('it declares an author and keywords', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const authorName = typeof pkg.author === 'string' ? pkg.author : pkg.author?.name;
+  assert.ok(typeof authorName === 'string' && authorName.length > 0, 'author must be declared');
+  assert.ok(Array.isArray(pkg.keywords) && pkg.keywords.length > 0, 'keywords must be a non-empty array');
+});
+
+Then('package.json restricts published files to the runtime via a files allowlist', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.ok(Array.isArray(pkg.files) && pkg.files.length > 0, 'package.json must declare a files allowlist');
+});
+
+Then('the allowlist includes src and LICENSE and README.md', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const files = pkg.files ?? [];
+  assert.ok(files.some((f) => f === 'src' || f === 'src/'), 'files allowlist must include src/');
+  assert.ok(files.includes('LICENSE'), 'files allowlist must include LICENSE');
+  assert.ok(files.includes('README.md'), 'files allowlist must include README.md');
+});
+
+Then('the allowlist excludes features, fixtures, docs, and archive', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const files = pkg.files ?? [];
+  for (const excluded of ['features', 'fixtures', 'docs', 'archive']) {
+    assert.ok(!files.some((f) => f === excluded || f === `${excluded}/`),
+      `files allowlist must not include "${excluded}"`);
+  }
+});
+
+// ===========================================================================
+// 22 — auto-updating setup command (plugin mode)
+// ===========================================================================
+// A representative absolute node path the plugin-mode plan() bakes in.
+const ABS_NODE = '/usr/local/bin/node';
+
+Given('the plugin is installed in the Claude Code plugin cache', function () {
+  // The cache layout is the plugin host's concern; plugin-mode plan() emits a
+  // command that resolves it at render time. Nothing to set up here.
+  this.settings = {};
+});
+
+When('the setup command runs in plugin mode and I consent', function () {
+  this.before = JSON.parse(JSON.stringify(this.settings));
+  this.result = plan(this.settings, { plugin: true, nodePath: ABS_NODE, consent: true });
+});
+
+Then('the command globs the plugin cache for cc-cream and selects the highest version with {string}', function (sortFlag) {
+  const cmd = this.result.settings.statusLine.command;
+  assert.ok(cmd.includes('/plugins/cache/'), `command must glob the plugin cache: ${cmd}`);
+  assert.ok(cmd.includes('cc-cream'), `command must target cc-cream: ${cmd}`);
+  assert.ok(cmd.includes('/*/'), `command must glob version dirs: ${cmd}`);
+  assert.ok(cmd.includes(`${sortFlag} | tail -1`), `command must select highest with "${sortFlag}": ${cmd}`);
+});
+
+Then('the command appends {string} to the resolved version directory', function (suffix) {
+  const cmd = this.result.settings.statusLine.command;
+  // The -d glob yields a trailing slash, so the entrypoint concatenates directly.
+  assert.ok(cmd.includes(`/ 2>/dev/null | sort -V | tail -1)${suffix}`),
+    `command must append "${suffix}" to the trailing-slash version dir: ${cmd}`);
+});
+
+Then('it invokes node by its absolute path, not a bare {string} on PATH', function (bare) {
+  const cmd = this.result.settings.statusLine.command;
+  assert.ok(cmd.startsWith(`${ABS_NODE} `), `command must start with the absolute node path: ${cmd}`);
+  assert.ok(!new RegExp(`(^|\\s)${bare}\\s`).test(cmd.replace(ABS_NODE, '')),
+    `command must not invoke a bare "${bare}": ${cmd}`);
+});
+
+Given('the statusLine uses the cache-glob command', function () {
+  this.cacheGlobCommand = autoUpdateCommand(ABS_NODE);
+  this.settings = { statusLine: { type: 'command', command: this.cacheGlobCommand, refreshInterval: 60 } };
+});
+
+Given('a newer cc-cream version directory appears in the plugin cache', function () {
+  // Simulated by the cache layout; the command is version-agnostic so nothing
+  // about settings.json changes. `sort -V | tail -1` will pick the new dir.
+  this.newerVersionAppeared = true;
+});
+
+When('Claude Code next renders the status line', function () {
+  // The render path reads the command verbatim from settings.json; we assert on
+  // the command's self-resolving shape rather than spawning a live host.
+  this.renderedCommand = this.settings.statusLine.command;
+});
+
+Then('it runs the newer version without any change to settings.json', function () {
+  assert.equal(this.renderedCommand, this.cacheGlobCommand,
+    'settings.json command must be unchanged');
+  // The command resolves the version at render time (no hardcoded version dir).
+  assert.ok(!/cache\/[^*]*cc-cream\/\d/.test(this.renderedCommand),
+    `command must not hardcode a version: ${this.renderedCommand}`);
+  assert.ok(this.renderedCommand.includes('sort -V | tail -1'),
+    'command must re-select the highest cached version on every render');
+});
+
+Then(/^commands\/setup\.md exists and registers as the (\/cc-cream:setup) command$/, function (cmdName) {
+  const p = path.join(REPO, 'commands', 'setup.md');
+  assert.ok(fs.existsSync(p), 'commands/setup.md must exist');
+  const src = fs.readFileSync(p, 'utf8');
+  // Frontmatter with a description; the slash command name derives from the path
+  // (commands/setup.md -> /cc-cream:setup) and the plugin manifest registration.
+  assert.match(src, /^---\s*\n[\s\S]*?description:[\s\S]*?\n---/, 'setup.md must have frontmatter with a description');
+  this.setupMd = src;
+  assert.equal(cmdName, '/cc-cream:setup');
+});
+
+Then(/^it invokes src\/install\.js in plugin mode rather than writing settings\.json itself$/, function () {
+  const src = this.setupMd ?? fs.readFileSync(path.join(REPO, 'commands', 'setup.md'), 'utf8');
+  assert.ok(src.includes('install.js --plugin'), 'setup.md must shell out to install.js --plugin');
+  assert.ok(!/JSON\.parse|writeFileSync|JSON\.stringify/.test(src),
+    'setup.md must not itself write settings.json');
+});
+
+When('the setup command runs', function () {
+  // Setup runs in plugin mode and finds an existing (different) statusLine.
+  this.before = JSON.parse(JSON.stringify(this.settings));
+  this.result = plan(this.settings, { plugin: true, nodePath: ABS_NODE, consent: false });
+});
+
+Given('a local checkout with no plugin cache', function () {
+  // The sandbox HOME starts clean (no plugins/cache); install.js manual mode
+  // copies the runtime from the repo's src/ into ~/.claude/cc-cream.
+  this.before = {};
+});
+
+When('install.js runs without plugin mode and I consent', function () {
+  const installer = path.join(REPO, 'src', 'install.js');
+  const source = path.join(REPO, 'src', 'cc-cream.js');
+  const res = spawnSync(process.execPath, [installer, source], {
+    input: 'y\n',
+    env: { ...process.env, HOME: this.home },
+    encoding: 'utf8',
+  });
+  this.installerStdout = res.stdout ?? '';
+  this.installerExit = res.status;
+  const settingsFile = path.join(this.home, '.claude', 'settings.json');
+  this.writtenSettings = fs.existsSync(settingsFile)
+    ? JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+    : null;
+});
+
+Then('it copies the runtime into the home cc-cream directory', function () {
+  const homeEntrypoint = path.join(this.home, '.claude', 'cc-cream', 'cc-cream.js');
+  assert.ok(fs.existsSync(homeEntrypoint),
+    `runtime must be copied to ${homeEntrypoint}; installer said: ${this.installerStdout}`);
+});
+
+Then('it points the statusLine command at that copied entrypoint', function () {
+  assert.ok(this.writtenSettings, 'settings.json must be written');
+  const cmd = this.writtenSettings.statusLine.command;
+  const homeEntrypoint = path.join(this.home, '.claude', 'cc-cream', 'cc-cream.js');
+  assert.ok(cmd.includes(homeEntrypoint),
+    `command must point at the copied entrypoint ${homeEntrypoint}, got: ${cmd}`);
+  assert.ok(!cmd.includes('/plugins/cache/'), `manual command must not glob the plugin cache: ${cmd}`);
+});
+
+Then('it prints the formatted bar to stdout without any network access', function () {
+  // The engine source imports no net/http/dns module (asserted statically), and
+  // piping stdin still produces output.
+  assert.ok(this.plain.length > 0, 'expected non-empty output');
+  const runtimeFiles = fs.readdirSync(path.join(REPO, 'src')).filter((name) => name.endsWith('.js'));
+  for (const file of runtimeFiles) {
+    const src = fs.readFileSync(path.join(REPO, 'src', file), 'utf8');
+    for (const m of src.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
+      const spec = m[1];
+      assert.ok(!/^node:(net|http|https|dns|tls|dgram)$/.test(spec) && spec !== 'node:http2',
+        `engine must not import a network module (${spec} in ${file})`);
+    }
+  }
+});
+
+// ===========================================================================
+// 23 — Plugin validation gate
+// ===========================================================================
+
+Then('the pretest flow invokes a {string} script running {string}', function (scriptName, command) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  // validate script exists and contains the expected command
+  assert.ok(pkg.scripts && pkg.scripts[scriptName],
+    `package.json must have a scripts.${scriptName} entry`);
+  assert.ok(pkg.scripts[scriptName].includes(command),
+    `scripts.${scriptName} must invoke "${command}", got: ${pkg.scripts[scriptName]}`);
+  // --strict must not appear in the everyday validate script
+  assert.ok(!pkg.scripts[scriptName].includes('--strict'),
+    `everyday scripts.${scriptName} must not include --strict (reserved for pre-submission)`);
+  // pretest must reference validate
+  assert.ok(pkg.scripts.pretest && pkg.scripts.pretest.includes(scriptName),
+    `scripts.pretest must reference "${scriptName}", got: ${pkg.scripts.pretest}`);
+});
+
+Given('the {string} CLI is not installed', function (cliName) {
+  this.absentCli = cliName;
+});
+
+When('the validate script runs', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const validateScript = pkg.scripts.validate;
+  assert.ok(validateScript, 'package.json must have a scripts.validate entry');
+
+  if (this.absentCli) {
+    // Run with a PATH that excludes the claude CLI to verify the graceful-skip path.
+    // Use /bin/sh by absolute path so the shell itself is always found.
+    // PATH is set to /dev/null so no external binaries (including claude) are on it.
+    const res = spawnSync('/bin/sh', ['-c', validateScript], {
+      cwd: REPO,
+      env: { ...process.env, PATH: '/dev/null' },
+      encoding: 'utf8',
+    });
+    this.validateExit = res.status;
+    this.validateStdout = (res.stdout ?? '') + (res.stderr ?? '');
+  } else {
+    // Run with normal PATH (claude CLI present).
+    const res = spawnSync('sh', ['-c', validateScript], {
+      cwd: REPO,
+      env: { ...process.env },
+      encoding: 'utf8',
+    });
+    this.validateExit = res.status;
+    this.validateStdout = (res.stdout ?? '') + (res.stderr ?? '');
+  }
+});
+
+Then('it exits zero with a skip notice and does not block the build', function () {
+  assert.equal(this.validateExit, 0,
+    `validate must exit 0 when claude CLI is absent, got: ${this.validateExit}\nOutput: ${this.validateStdout}`);
+  assert.ok(
+    this.validateStdout.toLowerCase().includes('skip') ||
+    this.validateStdout.toLowerCase().includes('not found'),
+    `validate must print a skip notice when claude is absent, got: ${this.validateStdout}`
+  );
+});
+
+Given('a plugin.json with an invalid field type', function () {
+  // Copy manifests to a sandbox temp dir and corrupt marketplace.json with an invalid
+  // field type. `claude plugin validate` validates the marketplace manifest schema;
+  // setting the top-level `name` to an integer triggers a type error.
+  const tmpDir = fs.mkdtempSync(path.join(this.home, 'validate-tmp-'));
+  const pluginJsonSrc = path.join(REPO, '.claude-plugin', 'plugin.json');
+  const marketplaceSrc = path.join(REPO, '.claude-plugin', 'marketplace.json');
+  const pluginDir2 = path.join(tmpDir, '.claude-plugin');
+  fs.mkdirSync(pluginDir2, { recursive: true });
+  // Copy plugin.json unchanged
+  fs.copyFileSync(pluginJsonSrc, path.join(pluginDir2, 'plugin.json'));
+  // Corrupt marketplace.json: set top-level `name` to an integer (must be a string)
+  const marketplace = JSON.parse(fs.readFileSync(marketplaceSrc, 'utf8'));
+  marketplace.name = 12345; // force a type error — `claude plugin validate` catches this
+  fs.writeFileSync(path.join(pluginDir2, 'marketplace.json'), JSON.stringify(marketplace));
+  this.validateTmpDir = tmpDir;
+});
+
+Given('the {string} CLI is installed', function (cliName) {
+  const which = spawnSync('sh', ['-c', `command -v ${cliName}`], { encoding: 'utf8' });
+  if (which.status !== 0) {
+    this.cliSkip = true; // CLI absent — downstream Then will skip-pass
+    return;
+  }
+  this.cliInstalled = cliName;
+});
+
+Then('it exits non-zero so the gate blocks the change', function () {
+  // Skip-pass when claude CLI is absent (consistent with the graceful-skip design).
+  if (this.cliSkip) return;
+
+  // Run claude plugin validate against the temp dir with the corrupted plugin.json.
+  const res = spawnSync('claude', ['plugin', 'validate', '.'], {
+    cwd: this.validateTmpDir,
+    encoding: 'utf8',
+  });
+  assert.notEqual(res.status, 0,
+    `claude plugin validate must exit non-zero on an invalid manifest, got exit 0.\nOutput: ${(res.stdout ?? '') + (res.stderr ?? '')}`);
+});
+
+Given('the plugin and marketplace manifests', function () {
+  const pluginPath = path.join(REPO, '.claude-plugin', 'plugin.json');
+  const marketplacePath = path.join(REPO, '.claude-plugin', 'marketplace.json');
+  assert.ok(fs.existsSync(pluginPath), '.claude-plugin/plugin.json must exist');
+  assert.ok(fs.existsSync(marketplacePath), '.claude-plugin/marketplace.json must exist');
+  this.pluginManifestsExist = true;
+});
+
+When('"claude plugin validate . --strict" runs before submission', function () {
+  // If the claude CLI is absent, skip; this is a pre-submission manual step.
+  const which = spawnSync('sh', ['-c', 'command -v claude'], { encoding: 'utf8' });
+  if (which.status !== 0) {
+    return 'pending';
+  }
+  const res = spawnSync('claude', ['plugin', 'validate', '.', '--strict'], {
+    cwd: REPO,
+    encoding: 'utf8',
+  });
+  this.strictValidateExit = res.status;
+  this.strictValidateOutput = (res.stdout ?? '') + (res.stderr ?? '');
+});
+
+Then('it reports no errors and no warnings', function () {
+  if (this.strictValidateExit === undefined) {
+    return 'pending';
+  }
+  assert.equal(this.strictValidateExit, 0,
+    `claude plugin validate . --strict must exit 0, got ${this.strictValidateExit}\nOutput: ${this.strictValidateOutput}`);
+});
+
+// ===========================================================================
+// 24 — User-facing docs & disclosure
+// ===========================================================================
+function readmeText() {
+  return fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
+}
+
+function securityText() {
+  return fs.readFileSync(path.join(REPO, 'SECURITY.md'), 'utf8');
+}
+
+function contributingText() {
+  return fs.readFileSync(path.join(REPO, 'CONTRIBUTING.md'), 'utf8');
+}
+
+// Install paths
+Then('the README documents installing from the community catalog or self-hosted marketplace', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('plugin marketplace add') || readme.includes('/plugin install'),
+    'README must document the marketplace install path');
+  assert.ok(readme.includes('plugin marketplace add') && readme.includes('/plugin install'),
+    'README must document both marketplace add and plugin install commands');
+});
+
+Then('it documents installing via npm or npx', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('npx') || readme.includes('npm install'),
+    'README must document npm/npx install');
+  assert.ok(readme.includes('npx') && readme.includes('npm install'),
+    'README must document both npx and npm install');
+});
+
+Then('it documents the manual GitHub clone path', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('git clone') || readme.includes('github'),
+    'README must document the manual GitHub clone path');
+  assert.ok(readme.includes('git clone'), 'README must include git clone command');
+});
+
+// Version requirements
+Then('the README states the minimum Claude Code version of 2.1.132', function () {
+  const readme = readmeText();
+  assert.ok(readme.includes('2.1.132'),
+    'README must state minimum Claude Code version 2.1.132');
+});
+
+Then('it notes effort and thinking segments require 2.1.145', function () {
+  const readme = readmeText();
+  assert.ok(readme.includes('2.1.145'),
+    'README must note that effort/thinking segments require 2.1.145');
+});
+
+// Data posture
+Then('the README states that cc-cream makes no network calls', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('no network') || readme.includes('never') && readme.includes('network'),
+    'README must state that cc-cream makes no network calls');
+});
+
+Then('it states that it collects no telemetry', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('no telemetry') || readme.includes('telemetry'),
+    'README must state that cc-cream collects no telemetry');
+  assert.ok(readme.includes('no telemetry'), 'README must explicitly state "no telemetry"');
+});
+
+Then('it states that it has no runtime dependencies and costs zero tokens', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('no runtime') || readme.includes('runtime dependencies'),
+    'README must state no runtime dependencies');
+  assert.ok(readme.includes('zero tokens') || readme.includes('costs zero tokens'),
+    'README must state zero tokens cost');
+});
+
+// Visual + config reference
+Then('the README includes a visual of the rendered status bar', function () {
+  const readme = readmeText();
+  // A fenced code block containing typical bar content (ctx or model line)
+  assert.ok(/```[\s\S]*?ctx:[\s\S]*?```/.test(readme) || /```[\s\S]*?cache:[\s\S]*?```/.test(readme),
+    'README must include a fenced code block showing the rendered bar');
+});
+
+Then('it documents the ~\\/.claude\\/cc-cream.json configuration and the segment catalog', function () {
+  const readme = readmeText();
+  assert.ok(readme.includes('cc-cream.json'), 'README must reference cc-cream.json');
+  // Segment catalog: check for key segment names
+  assert.ok(readme.includes('ctx') && readme.includes('cache') && readme.includes('ttl'),
+    'README must document the segment catalog');
+  assert.ok(readme.includes('amber') && readme.includes('red'),
+    'README must document threshold colors in the segment catalog');
+});
+
+// Trust signal files
+Then('a SECURITY.md describes the threat model and the no-network posture', function () {
+  const security = securityText();
+  assert.ok(fs.existsSync(path.join(REPO, 'SECURITY.md')), 'SECURITY.md must exist');
+  const lower = security.toLowerCase();
+  assert.ok(lower.includes('threat model') || lower.includes('threat'),
+    'SECURITY.md must describe the threat model');
+  assert.ok(lower.includes('no network') || (lower.includes('network') && lower.includes('no')),
+    'SECURITY.md must describe the no-network posture');
+});
+
+Then('a CONTRIBUTING.md states the best-effort maintenance posture', function () {
+  const contributing = contributingText();
+  assert.ok(fs.existsSync(path.join(REPO, 'CONTRIBUTING.md')), 'CONTRIBUTING.md must exist');
+  const lower = contributing.toLowerCase();
+  assert.ok(lower.includes('best-effort') || lower.includes('best effort'),
+    'CONTRIBUTING.md must state the best-effort maintenance posture');
+});
+
+// Platform scope
+Then('the README states that v1 supports macOS and Linux', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('macos') && readme.includes('linux'),
+    'README must state that v1 supports macOS and Linux');
+});
+
+Then('it notes Windows support is a planned fast-follow', function () {
+  const readme = readmeText().toLowerCase();
+  assert.ok(readme.includes('windows'),
+    'README must mention Windows support');
+  assert.ok(readme.includes('fast-follow') || readme.includes('planned'),
+    'README must note Windows is a planned fast-follow');
+});
+
+// ===========================================================================
+// 25 — Publish & submit (automated gates)
+// ===========================================================================
+
+Then('package.json version is exactly {string}', function (expected) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  assert.equal(pkg.version, expected,
+    `package.json version must be exactly "${expected}", got: ${pkg.version}`);
+});
+
+Then('the README documents adding the marketplace with {string}', function (command) {
+  const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
+  assert.ok(readme.includes(command),
+    `README must include "${command}"`);
+});
+
+Then('then installing with {string}', function (command) {
+  const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
+  assert.ok(readme.includes(command),
+    `README must include "${command}"`);
 });

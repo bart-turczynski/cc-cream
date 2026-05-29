@@ -8,6 +8,7 @@
 // The pure `plan()` function does all the decision-making (no I/O) so it is
 // testable; the CLI wrapper at the bottom handles reading/prompting/writing.
 
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,31 +19,52 @@ import { pathToFileURL } from 'node:url';
 const TRUST_NOTE =
   'Claude Code must be trusted and possibly restarted for the status line to appear.';
 
-function isInstalled(existing, entrypoint) {
+// The cache-glob auto-update command (docs/RELEASE_PLAN.md "Auto-update mechanism").
+// `nodePath` is the ABSOLUTE node binary, resolved once at setup time — the
+// statusLine subprocess may not inherit the user's PATH, so a bare `node` is
+// unsafe. The `-d .../*/` glob yields directory paths with a trailing slash, so
+// `src/cc-cream.js` concatenates directly. `sort -V | tail -1` picks the highest
+// installed version, so `/plugin update` is applied live with no re-run of setup.
+export function autoUpdateCommand(nodePath) {
+  return `${nodePath} "$(ls -1d "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | sort -V | tail -1)src/cc-cream.js"`;
+}
+
+// `desired` is considered already installed if it matches the planned command
+// verbatim (so switching strategy or node path re-plans), at refreshInterval 60.
+function isInstalled(existing, command) {
   return (
     !!existing &&
     typeof existing === 'object' &&
     existing.type === 'command' &&
     typeof existing.command === 'string' &&
-    existing.command.includes(entrypoint) &&
+    existing.command === command &&
     existing.refreshInterval === 60
   );
 }
 
 // Decide what to do. Returns { settings, changed, messages, needsConsent }.
 // `consent` is the user's yes/no when an existing statusLine must be replaced.
-export function plan(settings, { entrypoint, consent } = {}) {
+//
+// Two command strategies:
+//   - manual (default): `node <entrypoint>` pointing at the copied-to-home runtime.
+//   - plugin: the cache-glob auto-update command, using the absolute `nodePath`.
+//     Pass `{ plugin: true, nodePath }` to select it; the plugin cache IS the
+//     install, so no files are copied to home in that mode.
+export function plan(settings, { entrypoint, consent, plugin = false, nodePath } = {}) {
   const s = settings && typeof settings === 'object' ? settings : {};
   const existing = s.statusLine;
   const messages = [];
 
-  const desired = { type: 'command', command: `node ${entrypoint}`, refreshInterval: 60 };
+  const command = plugin
+    ? autoUpdateCommand(nodePath)
+    : `node ${entrypoint}`;
+  const desired = { type: 'command', command, refreshInterval: 60 };
   // Preserve any user padding — it shrinks the 80-col budget (PRD §7).
   if (existing && typeof existing === 'object' && existing.padding !== undefined) {
     desired.padding = existing.padding;
   }
 
-  if (isInstalled(existing, entrypoint)) {
+  if (isInstalled(existing, command)) {
     messages.push('cc-cream is already installed — no changes needed.');
     return { settings: s, changed: false, messages, needsConsent: false };
   }
@@ -95,6 +117,24 @@ function copyRuntimeFiles(sourceFile, destDir) {
   return copied;
 }
 
+// Resolve the absolute node binary to bake into the statusLine command. The
+// status line runs as a detached subprocess that may not inherit the user's
+// PATH, so a bare `node` is unsafe. We prefer the shell's `command -v node`
+// (the path the user's interactive shell would pick), falling back to
+// process.execPath (the node currently running setup) if that fails.
+function resolveNodePath() {
+  try {
+    const found = execFileSync('command', ['-v', 'node'], {
+      shell: true,
+      encoding: 'utf8',
+    }).trim();
+    if (found) return found;
+  } catch {
+    // fall through
+  }
+  return process.execPath;
+}
+
 function ask(question) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => rl.question(`${question} [y/N] `, (a) => {
@@ -104,6 +144,11 @@ function ask(question) {
 }
 
 async function main() {
+  const args = process.argv.slice(2);
+  const plugin = args.includes('--plugin');
+  // First non-flag arg is an optional local source path (manual mode only).
+  const positional = args.filter((a) => !a.startsWith('--'));
+
   const file = settingsPath();
   let settings = {};
   try {
@@ -112,32 +157,38 @@ async function main() {
     settings = {}; // missing or malformed -> start fresh, don't clobber blindly below
   }
 
-  // Determine source: use first CLI arg (local path) or default to cc-cream.js in same dir.
-  const sourceFile = process.argv[2]
-    ? path.resolve(process.argv[2])
-    : path.resolve(path.dirname(new URL(import.meta.url).pathname), 'cc-cream.js');
+  // planOpts holds whatever the chosen strategy needs to build its command.
+  let planOpts;
+  if (plugin) {
+    // Plugin mode: the plugin cache IS the install — do NOT copy to home. The
+    // command self-resolves the latest cached version on every render.
+    planOpts = { plugin: true, nodePath: resolveNodePath() };
+  } else {
+    // Manual / GitHub mode: copy the runtime into ~/.claude/cc-cream and point
+    // the statusLine at that copied entrypoint.
+    const sourceFile = positional[0]
+      ? path.resolve(positional[0])
+      : path.resolve(path.dirname(new URL(import.meta.url).pathname), 'cc-cream.js');
 
-  // Ensure source file exists.
-  if (!fs.existsSync(sourceFile)) {
-    console.error(`Error: cc-cream.js not found at ${sourceFile}`);
-    process.exit(1);
+    if (!fs.existsSync(sourceFile)) {
+      console.error(`Error: cc-cream.js not found at ${sourceFile}`);
+      process.exit(1);
+    }
+
+    const dest = destinationPath();
+    const destDir = path.dirname(dest);
+    if (copyRuntimeFiles(sourceFile, destDir)) {
+      console.log(`Copied cc-cream runtime files to ${destDir}`);
+    }
+    planOpts = { entrypoint: dest };
   }
 
-  const dest = destinationPath();
-  const destDir = path.dirname(dest);
-  if (copyRuntimeFiles(sourceFile, destDir)) {
-    console.log(`Copied cc-cream runtime files to ${destDir}`);
-  }
-
-  // Use the installed location as the entrypoint.
-  const entrypoint = dest;
-
-  let result = plan(settings, { entrypoint });
+  let result = plan(settings, planOpts);
   // If a replace needs consent, ask now and re-plan with the answer.
-  if (!result.changed && result.needsConsent && !isInstalled(settings.statusLine, entrypoint)) {
+  if (!result.changed && result.needsConsent) {
     for (const m of result.messages) console.log(m);
     const yes = await ask('Replace it with cc-cream?');
-    result = plan(settings, { entrypoint, consent: yes });
+    result = plan(settings, { ...planOpts, consent: yes });
   }
 
   for (const m of result.messages) console.log(m);
