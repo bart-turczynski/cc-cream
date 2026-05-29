@@ -1,0 +1,42 @@
+name: Publish to npm
+
+# Publishes cc-cream to npm via OIDC "trusted publishing" — no long-lived
+# tokens, and npm generates a provenance attestation automatically.
+# Triggered when a GitHub Release is published (cut a release for the tag),
+# or run manually from the Actions tab.
+#
+# Prerequisite (one-time, on npmjs.com): configure a trusted publisher for the
+# `cc-cream` package pointing at this repo and the workflow filename `publish.yml`.
+# Requires npm >= 11.5.1 and Node >= 22.14.0 on the runner (handled below).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required for OIDC trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22" # >= 22.14.0, required by trusted publishing
+          registry-url: "https://registry.npmjs.org"
+
+      # The Node 22 runner ships npm 10.x; trusted publishing needs >= 11.5.1.
+      - name: Upgrade npm to a trusted-publishing-capable version
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      # prepublishOnly runs the full test suite (lint + knip + validate + cucumber)
+      # before the package is published. OIDC handles auth — no NODE_AUTH_TOKEN.
+      - name: Publish
+        run: npm publish
