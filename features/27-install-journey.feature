@@ -75,3 +75,46 @@ Feature: Installation and uninstallation journey (CREAM-fxsusmgd)
     And the user runs /cc-cream:uninstall
     When the SessionStart auto-setup hook runs
     Then settings.json still has no statusLine
+
+  # The hook won't re-wire after a removal (the marker, above), but the user can
+  # change their mind and re-enable explicitly — manual setup is not marker-gated.
+  Scenario: /cc-cream:setup re-enables the bar after the user removed it
+    Given a fresh Claude config dir
+    And the cc-cream plugin freshly installed in the cache at version "0.1.16"
+    And the auto-setup hook has wired the bar
+    And the user runs /cc-cream:uninstall
+    When the user runs /cc-cream:setup
+    Then settings.json gains cc-cream's statusLine
+    And running the wired status line command renders the bar
+
+  # The hook points foreign-status-line users at /cc-cream:setup; running it must
+  # not clobber their line non-interactively — only --force replaces it.
+  Scenario: /cc-cream:setup over a foreign status line is non-destructive without --force
+    Given a fresh Claude config dir
+    And settings.json already has a foreign statusLine
+    And the cc-cream plugin freshly installed in the cache at version "0.1.16"
+    When the user runs /cc-cream:setup
+    Then the foreign statusLine is left unchanged
+    When the user runs /cc-cream:setup with --force
+    Then settings.json gains cc-cream's statusLine
+
+  # Self-heal: after a wrong-order uninstall left an orphaned (inert) statusLine,
+  # reinstalling the plugin brings the cache back and the same baked command works.
+  Scenario: Reinstalling the plugin heals an orphaned status line
+    Given a fresh Claude config dir
+    And the cc-cream plugin freshly installed in the cache at version "0.1.16"
+    And the auto-setup hook has wired the bar
+    And /plugin uninstall removed the plugin cache
+    When the plugin is reinstalled in the cache at version "0.1.16"
+    Then running the wired status line command renders the bar
+
+  # /plugin update leaves multiple versions cached; if the newest is later pruned
+  # the command must fall back to the next-highest, not break.
+  Scenario: Pruning the newest cached version falls back to the next-highest
+    Given a fresh Claude config dir
+    And the cc-cream plugin freshly installed in the cache at version "0.1.16"
+    And the auto-setup hook has wired the bar
+    And a newer version "0.2.0" appears in the plugin cache
+    When version "0.2.0" is pruned from the cache
+    Then the wired status line command resolves to version "0.1.16"
+    And running the wired status line command renders the bar

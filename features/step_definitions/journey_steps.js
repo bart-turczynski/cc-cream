@@ -13,6 +13,7 @@ import {
   configDirOf,
   readSettings,
   removePluginCache,
+  removeVersion,
   resolveBakedDir,
   runAutoSetupHook,
   runInstall,
@@ -89,6 +90,30 @@ When('the user runs \\/cc-cream:uninstall', function () {
 
 When('\\/plugin uninstall removes the plugin cache', function () {
   removePluginCache(this.journeyHome);
+});
+
+// /cc-cream:setup runs install.js in plugin mode from the cache. One definition
+// serves the When and Given usages.
+When('the user runs \\/cc-cream:setup', function () {
+  this.installResult = runInstall(this.journeyHome, ['--plugin'], {
+    installJs: path.join(this.pluginRoot, 'src', 'install.js'),
+  });
+  assert.equal(this.installResult.status, 0, `setup exited ${this.installResult.status}: ${this.installResult.stderr}`);
+});
+
+When('the user runs \\/cc-cream:setup with --force', function () {
+  this.installResult = runInstall(this.journeyHome, ['--plugin', '--force'], {
+    installJs: path.join(this.pluginRoot, 'src', 'install.js'),
+  });
+  assert.equal(this.installResult.status, 0, `forced setup exited ${this.installResult.status}: ${this.installResult.stderr}`);
+});
+
+When('the plugin is reinstalled in the cache at version {string}', function (version) {
+  this.pluginRoot = stageCache(this.journeyHome, version);
+});
+
+When('version {string} is pruned from the cache', function (version) {
+  removeVersion(this.journeyHome, version);
 });
 
 Given('\\/plugin uninstall removed the plugin cache', function () {

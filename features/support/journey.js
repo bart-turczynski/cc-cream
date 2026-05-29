@@ -111,3 +111,9 @@ export function writeSettings(home, settings) {
 export function removePluginCache(home) {
   fs.rmSync(path.join(configDirOf(home), 'plugins'), { recursive: true, force: true });
 }
+
+// Simulate cache pruning of a single cached version (e.g. `/plugin update` cleaning
+// up an old dir, or the newest being removed).
+export function removeVersion(home, version) {
+  fs.rmSync(path.join(cacheRoot(home), version), { recursive: true, force: true });
+}
