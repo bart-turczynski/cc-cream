@@ -117,3 +117,9 @@ free along the way.
 - Submission: web form at clau.de/plugin-directory-submission → automated security scan + human review (~days) → Anthropic CI pins to commit SHA → nightly sync.
 - Must disclose any network access / data collection. cc-cream: **none.**
 - `cc-cream` hits no reserved-name rule (reserved: `claude-`/`anthropic-` prefixes + explicit blocklist).
+
+## Test convention (added during S25)
+Cucumber runs strict (fails on undefined/pending). Scenarios that depend on external actors or real-world/destructive actions (making the repo public, `npm publish`, catalog submission acceptance, npm indexing, Anthropic review) are tagged **`@manual`** and excluded from the default profile (`cucumber.json` default `tags: "not @manual"`), so `npm test` stays green. They remain runnable via `npm run test:manual` and serve as the **release runbook** — the human checklist for Phase 5.
+
+## Implementation status (2026-05-29)
+Slices S20–S25 implemented and committed on branch `feature/public-release` (7 commits); `npm test` green (183 scenarios, 0 undefined/pending), coverage ~97.5%. **Remaining = the `@manual` runbook itself**: make the GitHub repo public + tag + release notes (5.1), `npm publish` 0.1.0 (5.2), then submit at clau.de/plugin-directory-submission (5.4). Those are manual actions for the maintainer; the codebase is release-ready.
