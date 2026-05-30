@@ -6,6 +6,8 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-30
+
 ### Added
 - **`cc-cream-setup --status` — a read-only footprint report.** Because no Claude Code host removal path drops our `statusLine` or garbage-collects the version cache, users couldn't easily tell whether cc-cream had fully gone away. `--status` reports the whole footprint in one shot: the `statusLine` wiring (flagging a stale/ghost line whose entrypoint is missing), every cached plugin version, the marketplace clone + both registrations, the auto-wire marker, session state, config, and the manual runtime copy — with a "clean slate" verdict when nothing remains and removal guidance when something does (CREAM-zgdcbmfj).
 
