@@ -15,6 +15,7 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { checkConfig } from './config.js';
 import { isSafeToWrite, readSettings as readSettingsFile, writeFileAtomic } from './settings.js';
 import { isEntrypoint } from './utils.js';
 
@@ -263,8 +264,43 @@ async function uninstall({ purge }) {
   console.log('\nRestart Claude Code to drop the bar.');
 }
 
+// `cc-cream-setup --check-config`: lint ~/.claude/cc-cream.json against the
+// config schema, reporting unknown keys and out-of-domain values (which the
+// renderer silently ignores). Exits non-zero when problems are found.
+function checkConfigCli() {
+  const file = path.join(os.homedir(), '.claude', 'cc-cream.json');
+  if (!fs.existsSync(file)) {
+    console.log(`No config at ${file} — cc-cream uses its defaults. Nothing to check.`);
+    return;
+  }
+  const raw = fs.readFileSync(file, 'utf8');
+  if (raw.trim() === '') {
+    console.log(`${file} is empty — cc-cream uses its defaults. Nothing to check.`);
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    console.error(`Error: ${file} is not valid JSON — the whole file is ignored.`);
+    process.exit(1);
+  }
+  const problems = checkConfig(parsed);
+  if (problems.length === 0) {
+    console.log(`${file}: OK — config looks good.`);
+    return;
+  }
+  console.error(`${file}: ${problems.length} problem(s) — each falls back to the default:`);
+  for (const p of problems) console.error(`  - ${p}`);
+  process.exit(1);
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('--check-config')) {
+    checkConfigCli();
+    return;
+  }
   if (args.includes('--uninstall')) {
     await uninstall({ purge: args.includes('--purge') });
     return;

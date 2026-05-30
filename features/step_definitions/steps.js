@@ -2029,3 +2029,35 @@ Then('the rendered bar exactly matches the golden snapshot:', function (expected
   assert.equal(this.plain.replace(/\n$/, ''), expected.replace(/\n$/, ''),
     `rendered bar drifted from the golden snapshot.\n--- got ---\n${this.plain}\n--- want ---\n${expected}\n`);
 });
+
+// ===========================================================================
+// 30 — config doctor (CREAM-kkjlhexy): cc-cream-setup --check-config
+// ===========================================================================
+Given('a cc-cream config file:', function (body) {
+  fs.writeFileSync(path.join(this.home, '.claude', 'cc-cream.json'), body);
+});
+
+Given('no cc-cream config file', function () {
+  const p = path.join(this.home, '.claude', 'cc-cream.json');
+  if (fs.existsSync(p)) fs.rmSync(p);
+});
+
+When('the config doctor runs', function () {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'src', 'install.js'), '--check-config'], {
+    env: { ...process.env, HOME: this.home },
+    encoding: 'utf8',
+    timeout: 15000,
+  });
+  this.doctorExit = res.status;
+  this.doctorOut = (res.stdout ?? '') + (res.stderr ?? '');
+});
+
+Then('the config doctor reports no problems and exits zero', function () {
+  assert.equal(this.doctorExit, 0, `expected exit 0, got ${this.doctorExit}\n${this.doctorOut}`);
+  assert.ok(!/problem/i.test(this.doctorOut), `expected no problems, got:\n${this.doctorOut}`);
+});
+
+Then('the config doctor reports a problem mentioning {string} and exits non-zero', function (needle) {
+  assert.notEqual(this.doctorExit, 0, `expected non-zero exit, got 0\n${this.doctorOut}`);
+  assert.ok(this.doctorOut.includes(needle), `expected a problem mentioning "${needle}", got:\n${this.doctorOut}`);
+});
