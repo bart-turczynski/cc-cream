@@ -87,3 +87,12 @@ Feature: Consent-based installer for the statusLine command
     Given settings.json on disk has an older cc-cream statusLine
     When install.js runs without a TTY
     Then it exits zero and rewrites the statusLine to cc-cream's
+
+  # CREAM-hpjebzes. The detection-only first plan() pass must not leak its
+  # speculative "Declined …" message before a --force replace — the receipt would
+  # otherwise claim it declined AND then replaced the line.
+  Scenario: Non-interactive --force replaces a foreign statusLine without a contradictory receipt
+    Given settings.json on disk has a foreign statusLine
+    When install.js runs without a TTY but with --force
+    Then it exits zero and rewrites the statusLine to cc-cream's
+    And the output does not claim it declined the change

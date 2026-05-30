@@ -1621,6 +1621,21 @@ When('install.js runs without a TTY', function () {
   this.installerOut = (res.stdout ?? '') + (res.stderr ?? '');
 });
 
+When('install.js runs without a TTY but with --force', function () {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'src', 'install.js'), path.join(REPO, 'src', 'cc-cream.js'), '--force'], {
+    env: { ...process.env, HOME: this.home },
+    encoding: 'utf8',
+    timeout: 15000,
+  });
+  this.installerExit = res.status;
+  this.installerOut = (res.stdout ?? '') + (res.stderr ?? '');
+});
+
+Then('the output does not claim it declined the change', function () {
+  assert.ok(!/declined/i.test(this.installerOut),
+    `--force output must not contain a contradictory "declined" line, got:\n${this.installerOut}`);
+});
+
 Then('it exits zero and removes the statusLine', function () {
   assert.equal(this.installerExit, 0, `install.js must exit 0, got ${this.installerExit}\n${this.installerOut}`);
   assert.equal(readSandboxStatusLine(this), undefined,

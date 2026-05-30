@@ -343,12 +343,15 @@ async function main() {
   }
 
   let result = plan(settings, planOpts);
-  // If a replace needs consent, ask now and re-plan with the answer.
+  // A foreign statusLine needs consent before we replace it. This first plan()
+  // pass is detection only — do NOT print its messages: they include a
+  // speculative "Declined …" (consent was absent) that would contradict a
+  // subsequent --force replace. Resolve consent, re-plan, then print the single
+  // coherent second-pass result below (CREAM-hpjebzes).
   if (!result.changed && result.needsConsent) {
-    for (const m of result.messages) console.log(m);
     let yes;
     if (process.stdin.isTTY) {
-      yes = await ask('Replace it with cc-cream?');
+      yes = await ask('Replace your existing statusLine with cc-cream?');
     } else {
       // Non-interactive (e.g. run via the /cc-cream:setup slash command, which has
       // no TTY): never block on a prompt. Safe to overwrite our OWN wiring (an
@@ -356,7 +359,7 @@ async function main() {
       // statusLine without a terminal or an explicit --force.
       yes = force || isCcCreamStatusLine(settings.statusLine);
       console.log(yes
-        ? 'Non-interactive: replacing the existing cc-cream statusLine.'
+        ? 'Non-interactive: replacing the existing statusLine with cc-cream’s.'
         : 'Non-interactive: left your existing statusLine unchanged. Re-run in a terminal, or pass --force, to replace it.');
     }
     result = plan(settings, { ...planOpts, consent: yes });
