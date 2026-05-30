@@ -2377,3 +2377,13 @@ Then('it reports there is nothing to release', function () {
   assert.ok(this.rollError, 'expected rollChangelog to throw on an empty Unreleased section');
   assert.ok(/nothing/i.test(this.rollError.message), `error must mention nothing to release, got: ${this.rollError.message}`);
 });
+
+// @manual: shells out to a live npx — only run post-publish as part of the release runbook.
+// --safe-chain-skip-minimum-package-age bypasses the package-age guard that otherwise
+// blocks freshly-published versions with "No versions available".
+Then('{string} resolves and runs the engine', function (cmd) {
+  const args = cmd.replace(/^npx\s+/, '').split(/\s+/);
+  const res = spawnSync('npx', args, { encoding: 'utf8', timeout: 30000 });
+  assert.equal(res.status, 0, `npx exited ${res.status}:\n${res.stderr}`);
+  assert.ok(res.stdout.trim().length > 0, 'expected engine to print output');
+});

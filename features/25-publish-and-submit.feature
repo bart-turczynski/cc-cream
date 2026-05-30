@@ -49,7 +49,7 @@ Feature: Publish and submit to the community catalog (CREAM-vtjzppjr)
   Scenario: npm indexing makes npx resolution available
     Given cc-cream has been published to npm
     When npm registry indexing completes (typically minutes)
-    Then "npx -y cc-cream@latest" resolves and runs the engine
+    Then "npx --safe-chain-skip-minimum-package-age -y cc-cream@latest" resolves and runs the engine
 
   @manual
   Scenario: Anthropic review lands cc-cream in the catalog
