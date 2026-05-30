@@ -100,7 +100,10 @@ function main() {
   if (!skipTests) run('npm test');
   run('git add package.json package-lock.json .claude-plugin/plugin.json CHANGELOG.md');
   run(`git commit -m "Release ${tag}"`);
-  run(`git tag ${tag}`);
+  // Annotated (not lightweight) so `git push --follow-tags` actually pushes it —
+  // a lightweight tag is silently skipped, which strands the tag locally and makes
+  // `gh release create` fail with "tag not pushed".
+  run(`git tag -a ${tag} -m "Release ${tag}"`);
 
   if (publish) {
     run('git push --follow-tags');
