@@ -6,6 +6,9 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+- **`npm run coverage` (and the pre-push hook) no longer crash on Node ≥ 26.** `c8@11` does `require('yargs/yargs')`, and yargs 17's `exports` map resolves that to an **extensionless** CJS file; under Node 26's `require(ESM)` loader an extensionless file in a `"type": "module"` package is parsed as ESM, throwing `ReferenceError: require is not defined in ES module scope`. This broke the `simple-git-hooks` pre-push gate, forcing `SKIP_SIMPLE_GIT_HOOKS=1` on every push. Pinned yargs to `^18.0.0` via `overrides` — its `./yargs` export is a proper `.mjs` that Node 26 loads cleanly, and `c8@11` works against it unchanged (all 248 scenarios green under coverage). Dev-only; no runtime-dependency or published-package impact.
+
 ## [0.3.1] — 2026-05-30
 
 ### Fixed
