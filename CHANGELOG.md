@@ -11,6 +11,7 @@ All notable changes to cc-cream are documented here. Format follows
 
 ### Internal
 - **Settings.json read/parse/atomic-write logic is shared** between the installer and the `SessionStart` hook via a new `src/settings.js`, instead of a copy in each.
+- **Segment rendering is now pure.** The TTL anchor (including its `transcript_path` `statSync`) is resolved once in the I/O layer (`cc-cream.js`) and injected into `render()`, so `src/segments.js` no longer performs any filesystem access.
 
 ## [0.1.18] — 2026-05-29
 
