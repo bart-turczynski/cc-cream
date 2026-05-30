@@ -72,8 +72,10 @@ function main() {
     console.error('Refusing to release: not on main (releases are cut from main — RELEASING.md).');
     process.exit(1);
   }
-  if (git('status --porcelain')) {
-    console.error('Refusing to release: working tree is not clean (the release commit must be just the bump).');
+  // Tracked changes only — stray untracked files (scratch notes, editor configs)
+  // must neither block a release nor get swept into the release commit.
+  if (git('status --porcelain --untracked-files=no')) {
+    console.error('Refusing to release: tracked files have uncommitted changes (the release commit must be just the bump).');
     process.exit(1);
   }
   const current = JSON.parse(fs.readFileSync(at('package.json'), 'utf8')).version;
@@ -89,9 +91,10 @@ function main() {
   setJsonVersion(at('.claude-plugin', 'plugin.json'), version);
   fs.writeFileSync(at('CHANGELOG.md'), rolled);
 
-  // Gate, then commit + tag.
+  // Gate, then commit + tag — staging ONLY the bump files, never a stray
+  // untracked file that happens to be lying around.
   if (!skipTests) run('npm test');
-  run('git add -A');
+  run('git add package.json package-lock.json .claude-plugin/plugin.json CHANGELOG.md');
   run(`git commit -m "Release ${tag}"`);
   run(`git tag ${tag}`);
 
