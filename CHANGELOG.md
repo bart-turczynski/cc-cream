@@ -6,6 +6,9 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+- **TTL segment now displays minutes only** (`ttl:60`, `ttl:8`, `ttl:0`) instead of the previous `HH:MM` format (`ttl:01:00`). Simpler to read at a glance; matches the 60-second refresh cadence (CREAM-vhhdhydn).
+
 ## [0.3.2] — 2026-05-30
 
 ### Fixed

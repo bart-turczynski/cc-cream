@@ -49,7 +49,7 @@ Feature: Percentage direction — consumed vs. remaining
     Given config {"percentage":"remaining","ttl":60}
     And the transcript mtime was 12 minutes ago
     When cc-cream runs
-    Then the ttl segment reads "ttl:00:48"
+    Then the ttl segment reads "ttl:48"
 
   Scenario: Thresholds stay consumed-basis — color from consumed, number from remaining
     Given config { "percentage": "remaining", "segments": { "5h": { "red": 90 } } }

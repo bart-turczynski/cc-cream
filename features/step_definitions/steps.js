@@ -216,7 +216,7 @@ Given('stdin with no transcript_path', function () {
 
 Then('the ttl segment reads {string} and is green', function (text) {
   assert.ok(this.plain.includes(text), `expected "${text}" in: ${this.plain}`);
-  assert.equal(colorOf(this.stdout, /ttl:\d+:\d+/), 'green');
+  assert.equal(colorOf(this.stdout, /ttl:\d+/), 'green');
 });
 
 Then('the ttl segment reads {string}', function (text) {
@@ -224,7 +224,7 @@ Then('the ttl segment reads {string}', function (text) {
 });
 
 Then('the ttl segment is colored {word}', function (color) {
-  assert.equal(colorOf(this.stdout, /ttl:\d+:\d+/), color);
+  assert.equal(colorOf(this.stdout, /ttl:\d+/), color);
 });
 
 Then('the ttl segment is not rendered', function () {
@@ -2077,7 +2077,7 @@ Then('it keeps the newest prior session and drops the oldest', function () {
 // 29 — golden render snapshot (CREAM-twlrcxdk): a fully-controlled, deterministic
 // full-bar render that locks holistic row assembly before the pure-render
 // refactor. Everything time-dependent is pinned: a fixed clock, an in-sandbox
-// transcript at age 0 (TTL anchor = now → ttl:01:00), and sub-day rate-limit
+// transcript at age 0 (TTL anchor = now → ttl:60), and sub-day rate-limit
 // resets (no timezone-dependent weekday/clock countdown).
 // ===========================================================================
 Given('a fully-specified subscriber session at a fixed time', function () {

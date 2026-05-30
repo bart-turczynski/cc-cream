@@ -63,7 +63,7 @@ function segTtl(cfg, ttlMin, now, anchorMs) {
   if (!isNum(anchorMs)) return null;
   const elapsedMin = Math.floor(Math.max(0, now - anchorMs) / 60000);
   const remainingMin = Math.max(0, ttlMin - elapsedMin);
-  const text = `ttl:${pad2(Math.floor(remainingMin / 60))}:${pad2(remainingMin % 60)}`;
+  const text = `ttl:${remainingMin}`;
   const s = cfg.segments.ttl;
   const pctTtl = ttlMin > 0 ? (elapsedMin / ttlMin) * 100 : 0;
   return { text, color: band(pctTtl, s.amber, s.red) };
