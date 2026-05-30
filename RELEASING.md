@@ -17,25 +17,41 @@ GitHub Release.
 
 ## Cutting a release
 
-1. **Be on a green `main`:**
-   ```bash
-   git checkout main && git pull
-   npm test            # 0 failures, 0 undefined/pending
-   ```
-2. **Update `CHANGELOG.md`** — add a section for the new version (move items out of
-   any "Unreleased" notes; update the compare/tag link at the bottom).
-3. **Bump the version** — this commits and tags in one step:
-   ```bash
-   npm version patch   # or minor / major (semver)
-   git push --follow-tags
-   ```
-   `npm version` writes `package.json`, commits `vX.Y.Z`, and tags the same commit,
-   so the published artifact's version always matches the tag.
-4. **Publish the GitHub Release** — this is what triggers the workflow:
-   ```bash
-   gh release create vX.Y.Z --generate-notes   # or --notes-from-tag
-   ```
-5. **Watch it publish:** the **Publish to npm** workflow runs on the release event,
+Day-to-day, write changelog entries under a `## [Unreleased]` heading as you work.
+At release time, **one command** bumps every version location in lockstep
+(`package.json`, `package-lock.json`, `.claude-plugin/plugin.json`), rolls the
+`[Unreleased]` section into a dated `## [x.y.z]` section (leaving a fresh empty
+`[Unreleased]`), gates on the full test suite, then commits + tags:
+
+```bash
+git checkout main && git pull
+npm run release minor        # or patch / major / an explicit X.Y.Z
+```
+
+`scripts/release.mjs` fails *before* touching anything unless you're on a clean
+`main` with content under `## [Unreleased]`, so it never leaves a half-bumped tree.
+It leaves the tagged release commit staged locally. Review it, then publish — the
+GitHub Release event is what triggers the OIDC npm workflow:
+
+```bash
+git push --follow-tags
+gh release create vX.Y.Z --generate-notes
+```
+
+Or, once you trust it, do the whole thing in one shot (the `--` forwards the flag
+through npm):
+
+```bash
+npm run release minor -- --publish    # bump + test + commit + tag + push + gh release create
+```
+
+> Why a script and not bare `npm version`: `npm version` only bumps `package.json`
+> + `package-lock.json`, leaving `plugin.json` and the CHANGELOG to hand-sync — which
+> the CI gate (`features/25`: version == latest CHANGELOG entry, and plugin.json ==
+> package.json) then fails on. The script keeps all four in lockstep so the gate
+> stays green across the bump.
+
+Then **watch it publish:** the **Publish to npm** workflow runs on the release event,
    runs the full `prepublishOnly` suite, then publishes via OIDC. Confirm:
    ```bash
    npm view cc-cream version            # new version is latest

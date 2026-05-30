@@ -15,6 +15,12 @@ Feature: Publish and submit to the community catalog (CREAM-vtjzppjr)
   Scenario: The release version matches the latest CHANGELOG entry
     Then package.json version matches the latest CHANGELOG entry
 
+  # Nothing used to enforce this, so plugin.json was hand-synced every release and
+  # could silently drift (CREAM-rkxwseym v5). `npm run release` keeps them in
+  # lockstep; this gate makes drift a CI failure instead of a stale manifest.
+  Scenario: The plugin manifest version matches package.json
+    Then .claude-plugin/plugin.json version matches package.json
+
   Scenario: The self-hosted marketplace install path is documented
     Then the README documents adding the marketplace with "/plugin marketplace add bart-turczynski/cc-cream"
     And then installing with "/plugin install cc-cream"

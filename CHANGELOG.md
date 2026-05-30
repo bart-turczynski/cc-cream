@@ -17,6 +17,9 @@ All notable changes to cc-cream are documented here. Format follows
 - **Setup/uninstall copy now matches how the bar actually appears.** The status line shows on the **next message** of a new session — no restart needed; a restart only matters for an already-open session. The installer note, the `SessionStart` hook message, and the uninstall receipt were reworded accordingly (dropping the misleading "Restart Claude Code" framing) (CREAM-wvtiftfw).
 - **`/cc-cream:uninstall` is now self-sufficient.** It auto-cleans the regenerable scratch (the copied runtime and `cc-cream-state.json`) with no prompt — the old interactive artifact prompt was dead code, since both the `!` bang runner and the slash commands run without a TTY. `--purge` additionally removes the user-authored `~/.claude/cc-cream.json`, and `commands/uninstall.md` now forwards `$ARGUMENTS` so `/cc-cream:uninstall --purge` actually reaches the script. The closing receipt enumerates the final state and the leftovers the host *doesn't* clean — the version cache (`rm -rf ~/.claude/plugins/cache/cc-cream`), `/plugin marketplace remove`, the slash commands that linger until restart, and the npm-free cache-path escape hatch (CREAM-lznfgrap, CREAM-wvtiftfw).
 
+### Internal
+- **One-command releases (`npm run release <patch|minor|major>`).** A new `scripts/release.mjs` bumps every version location in lockstep — `package.json`, `package-lock.json`, and `.claude-plugin/plugin.json` — and rolls the CHANGELOG's `[Unreleased]` section into a dated `## [x.y.z]` heading, gates on the test suite, then commits + tags (and pushes + creates the GitHub Release with `--publish`). It removes the hand-syncing every prior release required, where `npm version` touched only the first two and the version-match gate punished the drift. A new CI gate (`features/25`) now also asserts `plugin.json`'s version matches `package.json`, so that manifest can no longer go stale.
+
 ## [0.2.0] — 2026-05-30
 
 ### Added

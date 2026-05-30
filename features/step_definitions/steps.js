@@ -6,6 +6,7 @@ import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown, patchSessionState } from '../../src/cc-cream.js';
 import { plan, planUninstall, statusLineCommand, writeFileAtomic } from '../../src/install.js';
+import { nextVersion, rollChangelog } from '../../scripts/release.mjs';
 
 // Path to the state file inside a scenario's sandbox HOME.
 const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
@@ -1953,6 +1954,13 @@ Then('package.json version matches the latest CHANGELOG entry', function () {
     `package.json version (${pkg.version}) must match the latest CHANGELOG entry ([${match[1]}])`);
 });
 
+Then('.claude-plugin\\/plugin.json version matches package.json', function () {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
+  const plugin = JSON.parse(fs.readFileSync(path.join(REPO, '.claude-plugin', 'plugin.json'), 'utf8'));
+  assert.equal(plugin.version, pkg.version,
+    `plugin.json version (${plugin.version}) must match package.json (${pkg.version})`);
+});
+
 Then('the README documents adding the marketplace with {string}', function (command) {
   const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
   assert.ok(readme.includes(command),
@@ -2271,4 +2279,65 @@ Then('the report lists the session state, config, and manual runtime copy', func
 Then('the report flags the statusLine entrypoint as missing', function () {
   assert.ok(/statusLine wiring:.*MISSING/.test(this.statusOut),
     `expected a MISSING entrypoint flag, got:\n${this.statusOut}`);
+});
+
+// ===========================================================================
+// 34 — release tooling (scripts/release.mjs pure helpers)
+// ===========================================================================
+Given('the current package version is {string}', function (v) {
+  this.curVersion = v;
+});
+
+When('I compute the next version for {string}', function (bump) {
+  this.nextVersion = nextVersion(this.curVersion, bump);
+});
+
+Then('the next version is {string}', function (expected) {
+  assert.equal(this.nextVersion, expected);
+});
+
+Given('a CHANGELOG with entries under Unreleased:', function (doc) {
+  this.changelog = doc;
+});
+
+Given('a CHANGELOG with an empty Unreleased section:', function (doc) {
+  this.changelog = doc;
+});
+
+When('I roll the CHANGELOG to {string} dated {string}', function (version, date) {
+  this.rolled = rollChangelog(this.changelog, version, date);
+});
+
+When('I roll the CHANGELOG expecting it to fail', function () {
+  try {
+    rollChangelog(this.changelog, '0.3.0', '2026-06-01');
+    this.rollError = null;
+  } catch (err) {
+    this.rollError = err;
+  }
+});
+
+Then('the rolled CHANGELOG\'s first version heading is {string} dated {string}', function (version, date) {
+  const first = this.rolled.match(/^##\s*\[(\d+\.\d+\.\d+)\][^\n]*/m);
+  assert.ok(first, `expected a version heading, got:\n${this.rolled}`);
+  assert.equal(first[1], version, `first version heading must be ${version}, got ${first[1]}`);
+  assert.ok(first[0].includes(date), `first version heading must carry the date ${date}, got: ${first[0]}`);
+});
+
+Then('the rolled CHANGELOG keeps an empty Unreleased section on top', function () {
+  // The [Unreleased] heading must sit above the new version heading with no body.
+  const between = this.rolled.split('## [Unreleased]')[1].split(/\n## \[/)[0].trim();
+  assert.equal(between, '', `[Unreleased] must be empty after a roll, got: ${JSON.stringify(between)}`);
+  assert.ok(this.rolled.indexOf('## [Unreleased]') < this.rolled.search(/^##\s*\[\d/m),
+    '[Unreleased] must stay above the first version heading');
+});
+
+Then('the entry {string} now sits under the {word} heading', function (entry, version) {
+  const section = this.rolled.split(`## [${version}]`)[1].split(/\n## \[/)[0];
+  assert.ok(section.includes(entry), `"${entry}" must sit under [${version}], got:\n${section}`);
+});
+
+Then('it reports there is nothing to release', function () {
+  assert.ok(this.rollError, 'expected rollChangelog to throw on an empty Unreleased section');
+  assert.ok(/nothing/i.test(this.rollError.message), `error must mention nothing to release, got: ${this.rollError.message}`);
 });
