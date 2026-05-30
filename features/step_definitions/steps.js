@@ -482,7 +482,7 @@ Then('it shows the existing line and asks before replacing it', function () {
 
 Then('the messages do not echo the full statusLine command', function () {
   const joined = this.result.messages.join('\n');
-  assert.ok(!joined.includes('ls -1d'), `messages must not echo the cache-glob command: ${joined}`);
+  assert.ok(!joined.includes('exec '), `messages must not echo the statusLine command: ${joined}`);
   assert.ok(!/"type"\s*:\s*"command"/.test(joined), `messages must not echo the statusLine JSON: ${joined}`);
   assert.ok(!joined.includes('cc-cream.js'), `messages must not echo the entrypoint path: ${joined}`);
 });
