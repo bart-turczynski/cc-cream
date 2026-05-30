@@ -6,6 +6,8 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.3.3] — 2026-05-30
+
 ### Changed
 - **The post-publish `npx` smoke test now uses `--safe-chain-skip-minimum-package-age`** so the `@manual` "npm indexing" scenario works immediately after a release without waiting for the package-age guard to lift (CREAM-elrbkfot).
 - **TTL segment now displays minutes only** (`ttl:60`, `ttl:8`, `ttl:0`) instead of the previous `HH:MM` format (`ttl:01:00`). Simpler to read at a glance; matches the 60-second refresh cadence (CREAM-vhhdhydn).
