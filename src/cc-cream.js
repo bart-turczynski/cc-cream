@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { loadConfig, readConfigFile } from './config.js';
-import { render } from './render.js';
+import { buildSegments, render } from './render.js';
 import {
   getSessionState,
   nextSessionPatch,
@@ -71,8 +71,44 @@ function resolveTtlAnchor(data, prevSessionState, now) {
   }
 }
 
+// CC_CREAM_DEBUG is opt-in diagnostics. Claude Code SILENTLY DISCARDS statusLine
+// stderr (it's only surfaced under `claude --debug`, first invocation), so the
+// channel is a log FILE — never stdout, which would cost tokens / corrupt the
+// bar. CC_CREAM_DEBUG_LOG overrides the path (used by tests).
+const debugEnabled = (env) => {
+  const v = env.CC_CREAM_DEBUG;
+  return typeof v === 'string' && v !== '' && v !== '0' && v.toLowerCase() !== 'false';
+};
+
+function writeDebug(env, lines) {
+  const file = env.CC_CREAM_DEBUG_LOG || path.join(os.homedir(), '.claude', 'cc-cream-debug.log');
+  try {
+    fs.appendFileSync(file, `${lines.join('\n')}\n`);
+  } catch {
+    // diagnostics must never affect the render — swallow any write failure
+  }
+}
+
+// Record why the bar looks the way it does: which on-by-config segments rendered
+// and which were dropped (the usual reason a bar is shorter/emptier than
+// expected — a missing or malformed stdin field). Recomputes the segment map
+// through buildSegments() so it can never diverge from what render() drew.
+function logDebug(env, { data, cfg, now, prevSessionState, sessionId, rawLen, ttlAnchorMs, out }) {
+  const { ttlMin, segs } = buildSegments(data, cfg, env, now, prevSessionState, ttlAnchorMs);
+  const onIds = Object.keys(cfg.segments).filter((id) => cfg.segments[id].on);
+  const visible = onIds.filter((id) => segs[id]);
+  const hidden = onIds.filter((id) => !segs[id]);
+  writeDebug(env, [
+    `[${new Date(now).toISOString()}] session=${sessionId ?? 'none'} stdinBytes=${rawLen} ttlMin=${ttlMin} ttlAnchor=${ttlAnchorMs ?? 'none'}`,
+    `  output=${out ? JSON.stringify(out) : '<empty>'}`,
+    `  visible=[${visible.join(',')}]`,
+    `  hidden(on-but-absent)=[${hidden.join(',')}]`,
+  ]);
+}
+
 async function main() {
-  const data = parseSession(await readStdin());
+  const raw = await readStdin();
+  const data = parseSession(raw);
   const cfg = loadConfig(readConfigFile());
   const now = nowFromEnv(process.env);
 
@@ -84,6 +120,10 @@ async function main() {
   const ttlAnchorMs = resolveTtlAnchor(data, prevSessionState, now);
   const out = render(data, cfg, process.env, now, prevSessionState, ttlAnchorMs);
   if (out) process.stdout.write(`${out}\n`);
+
+  if (debugEnabled(process.env)) {
+    logDebug(process.env, { data, cfg, now, prevSessionState, sessionId, rawLen: raw.length, ttlAnchorMs, out });
+  }
 
   if (sessionId) {
     const patch = nextSessionPatch(data, prevSessionState, cfg, now);

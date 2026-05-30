@@ -2061,3 +2061,36 @@ Then('the config doctor reports a problem mentioning {string} and exits non-zero
   assert.notEqual(this.doctorExit, 0, `expected non-zero exit, got 0\n${this.doctorOut}`);
   assert.ok(this.doctorOut.includes(needle), `expected a problem mentioning "${needle}", got:\n${this.doctorOut}`);
 });
+
+// ===========================================================================
+// 31 — opt-in debug diagnostics (CREAM-wsfhfgsx): CC_CREAM_DEBUG
+// ===========================================================================
+Given('a session with only a model name', function () {
+  this.data = { session_id: 'dbg', model: { display_name: 'Opus 4.7' } };
+});
+
+Given('debug logging is enabled', function () {
+  this.debugLog = path.join(this.home, '.claude', 'cc-cream-debug.log');
+  this.env.CC_CREAM_DEBUG = '1';
+  this.env.CC_CREAM_DEBUG_LOG = this.debugLog;
+});
+
+Then('no debug log file is written', function () {
+  const p = path.join(this.home, '.claude', 'cc-cream-debug.log');
+  assert.ok(!fs.existsSync(p), 'no debug log must be created when CC_CREAM_DEBUG is unset');
+});
+
+Then('the bar still renders to stdout', function () {
+  assert.equal(this.plain.trim(), 'Opus 4.7', `expected the model bar on stdout, got: ${JSON.stringify(this.plain)}`);
+});
+
+Then('the debug log names {string} among the hidden segments', function (id) {
+  const log = fs.readFileSync(this.debugLog, 'utf8');
+  const hiddenLine = log.split('\n').find((l) => l.includes('hidden')) ?? '';
+  assert.ok(hiddenLine.includes(id), `expected "${id}" among hidden segments, got log:\n${log}`);
+});
+
+Then('the debug log does not change what is printed to stdout', function () {
+  assert.equal(this.plain.trim(), 'Opus 4.7', `stdout must be unchanged by debug logging, got: ${JSON.stringify(this.plain)}`);
+  assert.ok(!this.stdout.includes('hidden'), 'debug output must never leak into stdout');
+});
