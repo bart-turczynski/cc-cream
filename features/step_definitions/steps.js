@@ -6,7 +6,7 @@ import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown, patchSessionState } from '../../src/cc-cream.js';
 import { plan, planUninstall, statusLineCommand, writeFileAtomic } from '../../src/install.js';
-import { nextVersion, rollChangelog } from '../../scripts/release.mjs';
+import { nextVersion, rollChangelog, setJsonVersion } from '../../scripts/release.mjs';
 
 // Path to the state file inside a scenario's sandbox HOME.
 const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
@@ -2294,6 +2294,23 @@ When('I compute the next version for {string}', function (bump) {
 
 Then('the next version is {string}', function (expected) {
   assert.equal(this.nextVersion, expected);
+});
+
+Given('a plugin manifest:', function (doc) {
+  this.manifest = doc;
+});
+
+When('I set the manifest version to {string}', function (v) {
+  this.manifestOut = setJsonVersion(this.manifest, v);
+});
+
+Then('the manifest version is {string}', function (v) {
+  assert.ok(this.manifestOut.includes(`"version": "${v}"`), `manifest must carry version ${v}, got:\n${this.manifestOut}`);
+});
+
+Then('the one-line keywords array is left untouched', function () {
+  assert.ok(this.manifestOut.includes('"keywords": ["a", "b", "c"]'),
+    `keywords array formatting must be preserved, got:\n${this.manifestOut}`);
 });
 
 Given('a CHANGELOG with entries under Unreleased:', function (doc) {
