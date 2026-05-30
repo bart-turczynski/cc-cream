@@ -27,7 +27,7 @@ npm pack --dry-run                                   # verify published tarball 
 ```
 
 ## Source of truth (read before working)
-- `docs/PRD.md` and `docs/PRDv2.md` — full spec (v2 + **§14 decisions, which supersede any conflicting earlier prose**).
+- `docs/PRD.md` and `docs/PRDv2.md` — full spec (v2 + **§14 decisions, which supersede any conflicting earlier prose**). Kept **locally only** — `docs/` is gitignored (internal working material), so these won't be in a fresh clone.
 - `features/NN-*.feature` — Gherkin user stories, one per slice (00–31). The feature file IS the acceptance spec. Scenarios tagged `@manual` are not run in CI (use `npm run test:manual`). Scenarios that shell out to a host CLI (e.g. a live `claude`) **must** be tagged `@needs-cli` — they're excluded from the default profile so they can't break `npm publish` on a CLI-less runner; run them with `npm run test:cli`.
 - FP epic `CREAM-lwiwezhg` — the backlog. `fp tree` for deps / build order.
 
