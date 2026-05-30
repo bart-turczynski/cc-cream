@@ -33,7 +33,7 @@ Feature: Plugin manifest and marketplace metadata (CREAM-qjhgdpnk)
 
   Scenario: The marketplace manifest lists cc-cream as a self-hosted entry
     Then .claude-plugin/marketplace.json exists and is valid JSON
-    And the marketplace manifest has top-level name "cc-cream"
+    And the marketplace manifest has top-level name "bart-turczynski"
     And the marketplace manifest has a non-empty top-level description
     And it declares an owner with name "Bart Turczynski" and email "support@spoonkeyworks.com"
     And it lists a single plugin "cc-cream" with source "./"
