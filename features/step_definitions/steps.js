@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown, patchSessionState } from '../../src/cc-cream.js';
-import { autoUpdateCommand, plan, planUninstall, writeFileAtomic } from '../../src/install.js';
+import { plan, planUninstall, statusLineCommand, writeFileAtomic } from '../../src/install.js';
 
 // Path to the state file inside a scenario's sandbox HOME.
 const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
@@ -443,26 +443,26 @@ Given('settings.json sets statusLine.padding', function () {
 });
 
 Given('cc-cream is already installed', function () {
-  this.settings = { statusLine: { type: 'command', command: `node ${ENGINE}`, refreshInterval: 60 } };
+  this.settings = { statusLine: { type: 'command', command: statusLineCommand(ABS_NODE, ENGINE), refreshInterval: 60 } };
 });
 
 When('the installer runs and I consent', function () {
   this.before = JSON.parse(JSON.stringify(this.settings));
-  this.result = plan(this.settings, { entrypoint: ENGINE, consent: true });
+  this.result = plan(this.settings, { entrypoint: ENGINE, nodePath: ABS_NODE, consent: true });
 });
 
 When('the installer runs', function () {
   this.before = JSON.parse(JSON.stringify(this.settings));
-  this.result = plan(this.settings, { entrypoint: ENGINE, consent: false });
+  this.result = plan(this.settings, { entrypoint: ENGINE, nodePath: ABS_NODE, consent: false });
 });
 
 When('the installer runs again', function () {
   this.before = JSON.parse(JSON.stringify(this.settings));
-  this.result = plan(this.settings, { entrypoint: ENGINE, consent: true });
+  this.result = plan(this.settings, { entrypoint: ENGINE, nodePath: ABS_NODE, consent: true });
 });
 
 When('the installer completes', function () {
-  this.result = plan({}, { entrypoint: ENGINE, consent: true });
+  this.result = plan({}, { entrypoint: ENGINE, nodePath: ABS_NODE, consent: true });
 });
 
 Then('settings.json gains a statusLine of type {string} with refreshInterval {int}', function (type, ri) {
@@ -482,7 +482,7 @@ Then('it shows the existing line and asks before replacing it', function () {
 
 Then('the messages do not echo the full statusLine command', function () {
   const joined = this.result.messages.join('\n');
-  assert.ok(!joined.includes('ls -1d'), `messages must not echo the cache-glob command: ${joined}`);
+  assert.ok(!joined.includes('exec '), `messages must not echo the statusLine command: ${joined}`);
   assert.ok(!/"type"\s*:\s*"command"/.test(joined), `messages must not echo the statusLine JSON: ${joined}`);
   assert.ok(!joined.includes('cc-cream.js'), `messages must not echo the entrypoint path: ${joined}`);
 });
@@ -511,7 +511,7 @@ Given('settings.json has cc-cream installed alongside other keys', function () {
   this.settings = {
     model: 'opus',
     permissions: { allow: ['Bash(ls:*)'] },
-    statusLine: { type: 'command', command: `node ${ENGINE}`, refreshInterval: 60 },
+    statusLine: { type: 'command', command: statusLineCommand(ABS_NODE, ENGINE), refreshInterval: 60 },
   };
 });
 
@@ -1228,46 +1228,39 @@ Then('the allowlist excludes features, fixtures, docs, and archive', function ()
 // ===========================================================================
 // 22 — auto-updating setup command (plugin mode)
 // ===========================================================================
-// A representative absolute node path the plugin-mode plan() bakes in.
+// A representative absolute node path + plugin-cache entrypoint the plugin-mode
+// plan() bakes in. Under Option C the command is a plain absolute path (no glob);
+// the SessionStart hook re-pins it to the current version after /plugin update.
 const ABS_NODE = '/usr/local/bin/node';
+const ABS_ENTRYPOINT = '/home/u/.claude/plugins/cache/cc-cream/cc-cream/0.1.18/src/cc-cream.js';
 
 Given('the plugin is installed in the Claude Code plugin cache', function () {
-  // The cache layout is the plugin host's concern; plugin-mode plan() emits a
-  // command that resolves it at render time. Nothing to set up here.
+  // The cache layout is the plugin host's concern; plugin-mode plan() bakes the
+  // current version's absolute entrypoint. Nothing to set up here.
   this.settings = {};
 });
 
 When('the setup command runs in plugin mode and I consent', function () {
   this.before = JSON.parse(JSON.stringify(this.settings));
-  this.result = plan(this.settings, { plugin: true, nodePath: ABS_NODE, consent: true });
+  this.result = plan(this.settings, { entrypoint: ABS_ENTRYPOINT, nodePath: ABS_NODE, consent: true });
 });
 
-Then('the command globs the plugin cache for cc-cream and selects the highest version with {string}', function (sortFlag) {
+Then("the command runs the current version's cc-cream.js by its absolute path", function () {
   const cmd = this.result.settings.statusLine.command;
-  assert.ok(cmd.includes('/plugins/cache/'), `command must glob the plugin cache: ${cmd}`);
-  assert.ok(cmd.includes('cc-cream'), `command must target cc-cream: ${cmd}`);
-  assert.ok(cmd.includes('/*/'), `command must glob version dirs: ${cmd}`);
-  assert.ok(cmd.includes(`${sortFlag} | tail -1`), `command must select highest with "${sortFlag}": ${cmd}`);
+  assert.ok(path.isAbsolute(ABS_ENTRYPOINT), 'fixture entrypoint must be absolute');
+  assert.ok(cmd.includes(ABS_ENTRYPOINT), `command must run the absolute entrypoint: ${cmd}`);
 });
 
-Then('the command appends {string} to the resolved version directory', function (suffix) {
+Then('the command does not glob the plugin cache', function () {
   const cmd = this.result.settings.statusLine.command;
-  // The -d glob yields a trailing slash, captured in $d, so the entrypoint
-  // concatenates directly onto it.
-  assert.ok(cmd.includes('| sort -V | tail -1)"'),
-    `command must capture the highest version dir in $d: ${cmd}`);
-  assert.ok(cmd.includes(`"\${d}${suffix}"`),
-    `command must append "${suffix}" to the trailing-slash version dir: ${cmd}`);
+  assert.ok(!/\bls\b|sort -V|tail -1|grep -E|\*/.test(cmd),
+    `command must not resolve the version at render time (no glob): ${cmd}`);
 });
 
-Then('the command only considers semver-named version dirs', function () {
+Then('the command guards a missing entrypoint with a silent exit', function () {
   const cmd = this.result.settings.statusLine.command;
-  // A grep filter must run before sort -V, so a non-numeric (git-sha) cache dir
-  // can't sort last and pin the bar to the wrong version.
-  assert.ok(/grep -E '\/\[0-9\]\+\(\\\.\[0-9\]\+\)\+\/\$'/.test(cmd),
-    `command must filter to semver dirs before sort -V: ${cmd}`);
-  assert.ok(cmd.indexOf('grep -E') < cmd.indexOf('sort -V'),
-    `the semver filter must run before sort -V: ${cmd}`);
+  assert.ok(cmd.includes(`[ -f "${ABS_ENTRYPOINT}" ] || exit 0`),
+    `command must degrade to a silent exit when the entrypoint is gone: ${cmd}`);
 });
 
 Then('it invokes node by its absolute path, not a bare {string} on PATH', function (bare) {
@@ -1277,19 +1270,16 @@ Then('it invokes node by its absolute path, not a bare {string} on PATH', functi
     `command must not invoke a bare "${bare}": ${cmd}`);
 });
 
-Given('the statusLine uses the cache-glob command', function () {
-  this.cacheGlobCommand = autoUpdateCommand(ABS_NODE);
-  this.settings = { statusLine: { type: 'command', command: this.cacheGlobCommand, refreshInterval: 60 } };
+Given('the statusLine command points at a missing entrypoint', function () {
+  // The state left after `/plugin uninstall` deletes the cache without
+  // /cc-cream:uninstall first: a stale absolute path to a now-deleted entrypoint.
+  const gone = path.join(this.home, 'gone', 'src', 'cc-cream.js');
+  this.orphanCommand = statusLineCommand(process.execPath, gone);
 });
 
-When('the command runs with no cc-cream version in the plugin cache', function () {
-  // Point CLAUDE_CONFIG_DIR at an empty dir so the glob matches nothing — the
-  // exact state left after `/plugin uninstall` deletes the cache. The guard must
-  // short-circuit before `exec`, so the (non-existent) ABS_NODE is never reached.
-  const emptyDir = fs.mkdtempSync(path.join(this.home, 'no-cache-'));
-  this.orphanRun = spawnSync('sh', ['-c', this.cacheGlobCommand], {
-    cwd: emptyDir,
-    env: { ...process.env, CLAUDE_CONFIG_DIR: emptyDir },
+When('the orphaned status line command runs', function () {
+  this.orphanRun = spawnSync('sh', ['-c', this.orphanCommand], {
+    env: { ...process.env },
     input: '{"session_id":"x"}',
     encoding: 'utf8',
   });
@@ -1299,28 +1289,6 @@ Then('it prints nothing and exits zero', function () {
   assert.equal(this.orphanRun.status, 0, `expected exit 0, got ${this.orphanRun.status}: ${this.orphanRun.stderr}`);
   assert.equal(this.orphanRun.stdout, '', `expected no stdout, got: ${this.orphanRun.stdout}`);
   assert.equal(this.orphanRun.stderr, '', `expected no stderr, got: ${this.orphanRun.stderr}`);
-});
-
-Given('a newer cc-cream version directory appears in the plugin cache', function () {
-  // Simulated by the cache layout; the command is version-agnostic so nothing
-  // about settings.json changes. `sort -V | tail -1` will pick the new dir.
-  this.newerVersionAppeared = true;
-});
-
-When('Claude Code next renders the status line', function () {
-  // The render path reads the command verbatim from settings.json; we assert on
-  // the command's self-resolving shape rather than spawning a live host.
-  this.renderedCommand = this.settings.statusLine.command;
-});
-
-Then('it runs the newer version without any change to settings.json', function () {
-  assert.equal(this.renderedCommand, this.cacheGlobCommand,
-    'settings.json command must be unchanged');
-  // The command resolves the version at render time (no hardcoded version dir).
-  assert.ok(!/cache\/[^*]*cc-cream\/\d/.test(this.renderedCommand),
-    `command must not hardcode a version: ${this.renderedCommand}`);
-  assert.ok(this.renderedCommand.includes('sort -V | tail -1'),
-    'command must re-select the highest cached version on every render');
 });
 
 Then(/^commands\/setup\.md exists and registers as the (\/cc-cream:setup) command$/, function (cmdName) {
@@ -1356,9 +1324,9 @@ Then('it shows a brief one-line note, not a verbose body', function () {
 });
 
 When('the setup command runs', function () {
-  // Setup runs in plugin mode and finds an existing (different) statusLine.
+  // Setup runs in plugin mode and finds an existing (foreign) statusLine.
   this.before = JSON.parse(JSON.stringify(this.settings));
-  this.result = plan(this.settings, { plugin: true, nodePath: ABS_NODE, consent: false });
+  this.result = plan(this.settings, { entrypoint: ABS_ENTRYPOINT, nodePath: ABS_NODE, consent: false });
 });
 
 Given('a local checkout with no plugin cache', function () {
@@ -1590,9 +1558,20 @@ Then(/^src\/install\.js starts with a node shebang so the bin is executable$/, f
 // slash command (bang execution has no interactive TTY). Spawning a child with a
 // pipe for stdin reproduces that environment. A timeout guards against a
 // regression hanging the whole suite — a hang would fail the exit-code assertion.
-const PLUGIN_STATUSLINE = {
+// The entrypoint the hook/install resolve to in these sandbox tests (no
+// CLAUDE_PLUGIN_ROOT set → the engine's own location under the repo).
+const CURRENT_ENTRYPOINT = path.join(REPO, 'src', 'cc-cream.js');
+// A cc-cream line already pinned to the CURRENT entrypoint — keep-fresh leaves it.
+const CURRENT_STATUSLINE = {
   type: 'command',
-  command: 'node "$(ls -1d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | sort -V | tail -1)src/cc-cream.js"',
+  command: statusLineCommand(process.execPath, CURRENT_ENTRYPOINT),
+  refreshInterval: 60,
+};
+// A cc-cream line pinned to a DIFFERENT (older) version path — recognized as ours
+// (the command contains "cc-cream"), so it is replaced/re-pinned without consent.
+const OLD_CC_CREAM_STATUSLINE = {
+  type: 'command',
+  command: statusLineCommand('/usr/local/bin/node', '/old/plugins/cache/cc-cream/cc-cream/0.0.1/src/cc-cream.js'),
   refreshInterval: 60,
 };
 function writeSandboxSettings(world, settings) {
@@ -1607,7 +1586,7 @@ function readSandboxStatusLine(world) {
 }
 
 Given("settings.json on disk has cc-cream's statusLine and a state file", function () {
-  writeSandboxSettings(this, { statusLine: PLUGIN_STATUSLINE });
+  writeSandboxSettings(this, { statusLine: CURRENT_STATUSLINE });
   fs.writeFileSync(stateFilePath(this), JSON.stringify({ session: 'x' }));
 });
 
@@ -1617,9 +1596,9 @@ Given('settings.json on disk has a foreign statusLine', function () {
 });
 
 Given('settings.json on disk has an older cc-cream statusLine', function () {
-  // A cc-cream line in a *different* form than manual-mode setup will write, so it
-  // needs consent — and non-interactively that consent is auto-granted (it's ours).
-  writeSandboxSettings(this, { statusLine: PLUGIN_STATUSLINE });
+  // A cc-cream line pinned to a different (older) entrypoint than manual-mode
+  // setup will write; it's ours, so it's rewritten without a consent prompt.
+  writeSandboxSettings(this, { statusLine: OLD_CC_CREAM_STATUSLINE });
 });
 
 When('install.js --uninstall runs without a TTY', function () {
@@ -1723,9 +1702,26 @@ Then("it writes cc-cream's statusLine into settings.json", function () {
   const sl = readSandboxStatusLine(this);
   assert.ok(sl && typeof sl.command === 'string' && sl.command.includes('cc-cream'),
     `auto-wire must write a cc-cream statusLine, got: ${JSON.stringify(sl)}`);
-  assert.ok(/grep -E '\/\[0-9\]/.test(sl.command),
-    `auto-wired command must use the hardened semver glob, got: ${sl.command}`);
+  assert.ok(sl.command.includes(CURRENT_ENTRYPOINT),
+    `auto-wired command must bake the current entrypoint's absolute path, got: ${sl.command}`);
+  assert.ok(sl.command.startsWith('[ -f '),
+    `auto-wired command must guard a missing entrypoint, got: ${sl.command}`);
   assert.equal(sl.refreshInterval, 60, 'auto-wired statusLine must set refreshInterval 60');
+});
+
+Given('settings.json on disk has an out-of-date cc-cream statusLine', function () {
+  writeSandboxSettings(this, { statusLine: OLD_CC_CREAM_STATUSLINE });
+});
+
+Then('it re-pins the statusLine to the current entrypoint', function () {
+  const sl = readSandboxStatusLine(this);
+  assert.ok(sl && typeof sl.command === 'string' && sl.command.includes(CURRENT_ENTRYPOINT),
+    `keep-fresh must re-pin to the current entrypoint, got: ${JSON.stringify(sl)}`);
+  assert.equal(sl.refreshInterval, 60);
+});
+
+Then('it makes the change without announcing', function () {
+  assert.equal(this.reminderOut, '', `a routine re-pin must be silent, got: ${this.reminderOut}`);
 });
 
 Then('it announces that the status bar was enabled', function () {
@@ -1997,4 +1993,104 @@ Then('it keeps the newest prior session and drops the oldest', function () {
   assert.ok(Object.hasOwn(sessions, 'session-new'), 'the just-patched session was dropped');
   assert.ok(Object.hasOwn(sessions, `session-${this.seedCount - 1}`), 'the newest prior session was dropped');
   assert.ok(!Object.hasOwn(sessions, 'session-0'), 'the oldest session was not evicted');
+});
+
+// ===========================================================================
+// 29 — golden render snapshot (CREAM-twlrcxdk): a fully-controlled, deterministic
+// full-bar render that locks holistic row assembly before the pure-render
+// refactor. Everything time-dependent is pinned: a fixed clock, an in-sandbox
+// transcript at age 0 (TTL anchor = now → ttl:01:00), and sub-day rate-limit
+// resets (no timezone-dependent weekday/clock countdown).
+// ===========================================================================
+Given('a fully-specified subscriber session at a fixed time', function () {
+  this.now = 1748563200000; // off-peak in America/Los_Angeles (no "peak" segment)
+  this.data = {
+    session_id: 'snapshot',
+    model: { display_name: 'Sonnet 4.6' },
+    context_window: {
+      used_percentage: 15,
+      total_input_tokens: 31000,
+      current_usage: { cache_read_input_tokens: 38, cache_creation_input_tokens: 12, input_tokens: 50 },
+    },
+    cost: { total_cost_usd: 0.1 },
+    transcript_path: this.makeTranscript(0),
+    rate_limits: {
+      five_hour: { used_percentage: 22, resets_at: (this.now + 90 * 60000) / 1000 },
+      seven_day: { used_percentage: 36, resets_at: (this.now + 200 * 60000) / 1000 },
+    },
+  };
+});
+
+When('the engine runs', function () {
+  this.run();
+});
+
+Then('the rendered bar exactly matches the golden snapshot:', function (expected) {
+  assert.equal(this.plain.replace(/\n$/, ''), expected.replace(/\n$/, ''),
+    `rendered bar drifted from the golden snapshot.\n--- got ---\n${this.plain}\n--- want ---\n${expected}\n`);
+});
+
+// ===========================================================================
+// 30 — config doctor (CREAM-kkjlhexy): cc-cream-setup --check-config
+// ===========================================================================
+Given('a cc-cream config file:', function (body) {
+  fs.writeFileSync(path.join(this.home, '.claude', 'cc-cream.json'), body);
+});
+
+Given('no cc-cream config file', function () {
+  const p = path.join(this.home, '.claude', 'cc-cream.json');
+  if (fs.existsSync(p)) fs.rmSync(p);
+});
+
+When('the config doctor runs', function () {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'src', 'install.js'), '--check-config'], {
+    env: { ...process.env, HOME: this.home },
+    encoding: 'utf8',
+    timeout: 15000,
+  });
+  this.doctorExit = res.status;
+  this.doctorOut = (res.stdout ?? '') + (res.stderr ?? '');
+});
+
+Then('the config doctor reports no problems and exits zero', function () {
+  assert.equal(this.doctorExit, 0, `expected exit 0, got ${this.doctorExit}\n${this.doctorOut}`);
+  assert.ok(!/problem/i.test(this.doctorOut), `expected no problems, got:\n${this.doctorOut}`);
+});
+
+Then('the config doctor reports a problem mentioning {string} and exits non-zero', function (needle) {
+  assert.notEqual(this.doctorExit, 0, `expected non-zero exit, got 0\n${this.doctorOut}`);
+  assert.ok(this.doctorOut.includes(needle), `expected a problem mentioning "${needle}", got:\n${this.doctorOut}`);
+});
+
+// ===========================================================================
+// 31 — opt-in debug diagnostics (CREAM-wsfhfgsx): CC_CREAM_DEBUG
+// ===========================================================================
+Given('a session with only a model name', function () {
+  this.data = { session_id: 'dbg', model: { display_name: 'Opus 4.7' } };
+});
+
+Given('debug logging is enabled', function () {
+  this.debugLog = path.join(this.home, '.claude', 'cc-cream-debug.log');
+  this.env.CC_CREAM_DEBUG = '1';
+  this.env.CC_CREAM_DEBUG_LOG = this.debugLog;
+});
+
+Then('no debug log file is written', function () {
+  const p = path.join(this.home, '.claude', 'cc-cream-debug.log');
+  assert.ok(!fs.existsSync(p), 'no debug log must be created when CC_CREAM_DEBUG is unset');
+});
+
+Then('the bar still renders to stdout', function () {
+  assert.equal(this.plain.trim(), 'Opus 4.7', `expected the model bar on stdout, got: ${JSON.stringify(this.plain)}`);
+});
+
+Then('the debug log names {string} among the hidden segments', function (id) {
+  const log = fs.readFileSync(this.debugLog, 'utf8');
+  const hiddenLine = log.split('\n').find((l) => l.includes('hidden')) ?? '';
+  assert.ok(hiddenLine.includes(id), `expected "${id}" among hidden segments, got log:\n${log}`);
+});
+
+Then('the debug log does not change what is printed to stdout', function () {
+  assert.equal(this.plain.trim(), 'Opus 4.7', `stdout must be unchanged by debug logging, got: ${JSON.stringify(this.plain)}`);
+  assert.ok(!this.stdout.includes('hidden'), 'debug output must never leak into stdout');
 });

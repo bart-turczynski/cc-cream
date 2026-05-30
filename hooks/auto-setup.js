@@ -16,7 +16,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { isCcCreamStatusLine, plan, resolveNodePath, writeFileAtomic } from '../src/install.js';
+import { fileURLToPath } from 'node:url';
+import { isCcCreamStatusLine, plan, resolveNodePath } from '../src/install.js';
+import { isSafeToWrite, readSettings as readSettingsFile, writeFileAtomic } from '../src/settings.js';
 
 function configDir() {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
@@ -29,26 +31,26 @@ function markerPath() {
 function settingsPath() {
   return path.join(configDir(), 'settings.json');
 }
+// The absolute path to THIS plugin version's engine. ${CLAUDE_PLUGIN_ROOT} is
+// the path Claude Code blesses for the current version (set for hook processes);
+// fall back to this hook's own location (../src/cc-cream.js) when it's absent
+// (e.g. in tests). This is what we bake into the statusLine — re-pinned here on
+// every session, so a /plugin update moves the bar to the new version.
+function entrypoint() {
+  const root = process.env.CLAUDE_PLUGIN_ROOT;
+  if (root) return path.join(root, 'src', 'cc-cream.js');
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cc-cream.js');
+}
 
 function emit(systemMessage) {
   process.stdout.write(`${JSON.stringify({ systemMessage })}\n`);
 }
 
-// Missing file -> {} (fresh, slot free). Unreadable/malformed -> null (leave alone).
+// Missing/empty -> {} (fresh, slot free). Unreadable/malformed/non-object ->
+// null (leave it alone — never overwrite the user's other settings).
 function readSettings() {
-  let raw;
-  try {
-    raw = fs.readFileSync(settingsPath(), 'utf8');
-  } catch (err) {
-    return err.code === 'ENOENT' ? {} : null;
-  }
-  if (raw.trim() === '') return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
+  const { state, value } = readSettingsFile(settingsPath());
+  return isSafeToWrite(state) ? value : null;
 }
 
 function writeMarker() {
@@ -61,20 +63,26 @@ function writeMarker() {
 }
 
 function main() {
-  // Act at most once: after we've auto-wired (or deferred to setup) once, leave the
-  // user alone — never fight a statusLine they deliberately removed.
-  if (fs.existsSync(markerPath())) return;
-
   const settings = readSettings();
   if (settings === null) return; // malformed/unreadable — don't touch it
 
   const existing = settings.statusLine;
+  const ep = entrypoint();
 
-  // Already cc-cream's (under ANY install strategy) — nothing to do; stay silent.
+  // Keep-fresh: an EXISTING cc-cream line is maintained every session (NOT gated
+  // by the marker), so a /plugin update re-pins the baked path to the new
+  // version. We own the slot, so record the marker too.
   if (isCcCreamStatusLine(existing)) {
     writeMarker();
-    return;
+    // Already points at the current entrypoint → nothing to do, stay silent.
+    if (typeof existing.command === 'string' && existing.command.includes(ep)) return;
+    if (!writeStatusLine(settings, ep)) return;
+    return; // silent re-pin — a routine version bump needs no announcement
   }
+
+  // Creation is gated by the one-shot marker: after we've auto-wired (or deferred
+  // to setup) once, never re-create a bar the user deliberately removed.
+  if (fs.existsSync(markerPath())) return;
 
   // Some other statusLine is set — never clobber it; point to setup once.
   if (existing) {
@@ -86,23 +94,30 @@ function main() {
   }
 
   // The slot is free — wire cc-cream's statusLine for the user.
-  let result;
-  try {
-    result = plan(settings, { plugin: true, nodePath: resolveNodePath() });
-  } catch {
-    return;
-  }
-  if (!result.changed) return; // defensive — plan should always write here
-  try {
-    fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
-    writeFileAtomic(settingsPath(), `${JSON.stringify(result.settings, null, 2)}\n`);
-  } catch {
-    return; // couldn't write — say nothing, try again next session
-  }
+  if (!writeStatusLine(settings, ep)) return;
   writeMarker();
   emit(
     'cc-cream enabled your status bar. Restart or trust this workspace if it doesn’t appear. Run /cc-cream:uninstall to remove it.',
   );
+}
+
+// Plan + atomically write cc-cream's statusLine for `entrypoint`. Returns true on
+// a successful write, false if there was nothing to change or the write failed.
+function writeStatusLine(settings, ep) {
+  let result;
+  try {
+    result = plan(settings, { entrypoint: ep, nodePath: resolveNodePath() });
+  } catch {
+    return false;
+  }
+  if (!result.changed) return false;
+  try {
+    fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
+    writeFileAtomic(settingsPath(), `${JSON.stringify(result.settings, null, 2)}\n`);
+  } catch {
+    return false; // couldn't write — say nothing, try again next session
+  }
+  return true;
 }
 
 main();

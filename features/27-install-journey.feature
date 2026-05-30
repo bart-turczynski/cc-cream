@@ -21,13 +21,16 @@ Feature: Installation and uninstallation journey (CREAM-fxsusmgd)
     And settings.json gains cc-cream's statusLine
     And running the wired status line command renders the bar
 
-  Scenario: A newer cached version is picked up live by the wired command
+  # Option C: the wired command is a fixed absolute path, so a /plugin update is
+  # applied by the SessionStart hook re-pinning it to the new version next session.
+  Scenario: After /plugin update the SessionStart hook re-pins to the new version
     Given a fresh Claude config dir
     And the cc-cream plugin freshly installed in the cache at version "0.1.16"
     And the auto-setup hook has wired the bar
     When a newer version "0.2.0" appears in the plugin cache
+    And the SessionStart auto-setup hook runs
     Then the wired status line command resolves to version "0.2.0"
-    And settings.json still holds the same statusLine command
+    And running the wired status line command renders the bar
 
   Scenario: Uninstall in the documented order leaves no trace
     Given a fresh Claude config dir
@@ -108,13 +111,13 @@ Feature: Installation and uninstallation journey (CREAM-fxsusmgd)
     When the plugin is reinstalled in the cache at version "0.1.16"
     Then running the wired status line command renders the bar
 
-  # /plugin update leaves multiple versions cached; if the newest is later pruned
-  # the command must fall back to the next-highest, not break.
-  Scenario: Pruning the newest cached version falls back to the next-highest
+  # Option C has no render-time fallback: the wired command points at one fixed
+  # version. If that version is pruned before the SessionStart hook re-pins, the
+  # `[ -f … ] || exit 0` guard degrades to a silent empty bar; the next session
+  # (a fresh CLAUDE_PLUGIN_ROOT) heals it.
+  Scenario: A wired command degrades silently when its pinned version is pruned
     Given a fresh Claude config dir
     And the cc-cream plugin freshly installed in the cache at version "0.1.16"
     And the auto-setup hook has wired the bar
-    And a newer version "0.2.0" appears in the plugin cache
-    When version "0.2.0" is pruned from the cache
-    Then the wired status line command resolves to version "0.1.16"
-    And running the wired status line command renders the bar
+    When version "0.1.16" is pruned from the cache
+    Then running the wired status line command prints nothing and exits zero

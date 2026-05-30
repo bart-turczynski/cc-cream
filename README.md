@@ -173,6 +173,13 @@ or ask Claude to. It is strict JSON with no comments. **Every field falls back t
 its built-in default if missing or malformed** — a typo degrades one value rather
 than breaking the bar; a whole-file parse error falls back to all defaults.
 
+Because unknown or out-of-range fields are silently ignored, run the doctor after
+editing by hand to catch typos:
+
+```bash
+cc-cream-setup --check-config   # reports unknown keys / out-of-domain values; exits non-zero if any
+```
+
 ```json
 {
   "numbers": "compact",
@@ -284,6 +291,21 @@ Default: `amber: 75`, `red: 90` (absolute `used_percentage`).
 - `start` / `end`: hours in Pacific time (0–23, exclusive end) bounding
   Anthropic's faster-drain window. Defaults `5`–`11`. Weekday-only (Mon–Fri) and
   the `America/Los_Angeles` timezone are hardcoded policy facts, not config.
+
+## Troubleshooting
+
+cc-cream is built to degrade silently — if a stdin field is missing or malformed
+it just hides that segment rather than crashing. When the bar is unexpectedly
+empty or shorter than you expect, turn on diagnostics:
+
+```bash
+export CC_CREAM_DEBUG=1   # then trigger a render in Claude Code
+```
+
+Each render appends a line to `~/.claude/cc-cream-debug.log` (override the path
+with `CC_CREAM_DEBUG_LOG`) listing which segments rendered, which were dropped,
+the resolved TTL window, and the stdin size. It never writes to the status line
+itself, so it costs zero tokens. Unset the variable to turn it off.
 
 ## Development
 

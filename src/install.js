@@ -14,34 +14,42 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
+import { fileURLToPath } from 'node:url';
+import { checkConfig } from './config.js';
+import { isSafeToWrite, readSettings as readSettingsFile, writeFileAtomic } from './settings.js';
 import { isEntrypoint } from './utils.js';
+
+export { writeFileAtomic } from './settings.js';
 
 const TRUST_NOTE =
   'Claude Code must be trusted and possibly restarted for the status line to appear.';
 
-// The cache-glob auto-update command (docs/RELEASE_PLAN.md "Auto-update mechanism").
+// The statusLine command: a missing-file guard, then exec node on an ABSOLUTE
+// entrypoint. Both install modes use this one shape — only the entrypoint path
+// differs (plugin cache vs the copied home runtime).
+//
 // `nodePath` is the ABSOLUTE node binary, resolved once at setup time — the
 // statusLine subprocess may not inherit the user's PATH, so a bare `node` is
-// unsafe. The `-d .../*/` glob yields directory paths with a trailing slash, so
-// `src/cc-cream.js` concatenates directly. The `grep` keeps ONLY semver-named
-// dirs (e.g. `0.1.10/`) before `sort -V | tail -1` picks the highest — without
-// it, a non-numeric cache dir (a git-sha install like `c83650b6360f/`) sorts
-// last and pins the bar to whatever version that happens to be, defeating
-// auto-update. With it, `/plugin update` is applied live with no re-run of setup.
+// unsafe. `entrypoint` is the absolute path to cc-cream.js.
 //
-// The resolved dir is captured in `$d` and GUARDED with `[ -z "$d" ] && exit 0`:
-// when the glob matches nothing — the state left behind if a user runs
-// `/plugin uninstall cc-cream` WITHOUT first running `/cc-cream:uninstall`, so a
-// stale statusLine outlives the deleted cache — the command degrades to a silent
-// exit 0 instead of running a bare relative `src/cc-cream.js` that crashes with
+// Why no version resolution here: `${CLAUDE_PLUGIN_ROOT}` does NOT expand in the
+// statusLine command context (only in hook/MCP/command contexts — verified), so
+// the command can't discover the current plugin version at render time. Instead
+// the SessionStart hook — which DOES get `${CLAUDE_PLUGIN_ROOT}` — bakes the
+// current version's absolute path here and re-pins it after `/plugin update`.
+//
+// The `[ -f "<entrypoint>" ] || exit 0` guard degrades to a silent exit 0 when
+// the entrypoint is gone — the state left behind if a user runs `/plugin
+// uninstall cc-cream` WITHOUT first running `/cc-cream:uninstall`, so a stale
+// statusLine outlives the deleted cache. Without it, node would crash with
 // MODULE_NOT_FOUND on every render. "Degrade, never crash" (CLAUDE.md). `exec`
 // replaces the shell so stdin/stdout pass straight through to the renderer.
-export function autoUpdateCommand(nodePath) {
-  return `d="$(ls -1d "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/cc-cream/*/ 2>/dev/null | grep -E '/[0-9]+(\\.[0-9]+)+/$' | sort -V | tail -1)"; [ -z "$d" ] && exit 0; exec "${nodePath}" "\${d}src/cc-cream.js"`;
+export function statusLineCommand(nodePath, entrypoint) {
+  return `[ -f "${entrypoint}" ] || exit 0; exec "${nodePath}" "${entrypoint}"`;
 }
 
 // `desired` is considered already installed if it matches the planned command
-// verbatim (so switching strategy or node path re-plans), at refreshInterval 60.
+// verbatim (so a changed version path or node path re-plans), at refreshInterval 60.
 function isInstalled(existing, command) {
   return (
     !!existing &&
@@ -90,21 +98,19 @@ export function planUninstall(settings) {
 }
 
 // Decide what to do. Returns { settings, changed, messages, needsConsent }.
-// `consent` is the user's yes/no when an existing statusLine must be replaced.
+// `consent` is the user's yes/no when a FOREIGN statusLine must be replaced.
 //
-// Two command strategies:
-//   - manual (default): `node <entrypoint>` pointing at the copied-to-home runtime.
-//   - plugin: the cache-glob auto-update command, using the absolute `nodePath`.
-//     Pass `{ plugin: true, nodePath }` to select it; the plugin cache IS the
-//     install, so no files are copied to home in that mode.
-export function plan(settings, { entrypoint, consent, plugin = false, nodePath } = {}) {
+// Both install modes produce the same command shape (statusLineCommand); only
+// the entrypoint differs:
+//   - manual (default): the copied-to-home runtime (~/.claude/cc-cream/cc-cream.js).
+//   - plugin: the versioned plugin-cache entrypoint (install.js's sibling).
+// Pass `{ entrypoint, nodePath }` for either.
+export function plan(settings, { entrypoint, consent, nodePath } = {}) {
   const s = settings && typeof settings === 'object' ? settings : {};
   const existing = s.statusLine;
   const messages = [];
 
-  const command = plugin
-    ? autoUpdateCommand(nodePath)
-    : `node ${entrypoint}`;
+  const command = statusLineCommand(nodePath, entrypoint);
   const desired = { type: 'command', command, refreshInterval: 60 };
   // Preserve any user padding — it shrinks the 80-col budget (PRD §7).
   if (existing && typeof existing === 'object' && existing.padding !== undefined) {
@@ -116,9 +122,11 @@ export function plan(settings, { entrypoint, consent, plugin = false, nodePath }
     return { settings: s, changed: false, messages, needsConsent: false };
   }
 
-  // An existing (different) statusLine must be confirmed before replacing.
-  const hasExisting = existing && typeof existing === 'object';
-  if (hasExisting) {
+  // A FOREIGN statusLine must be confirmed before replacing. Replacing our OWN
+  // out-of-date line (e.g. re-pinning to a new version after /plugin update)
+  // needs no consent — it's ours to maintain.
+  const hasForeign = existing && typeof existing === 'object' && !isCcCreamStatusLine(existing);
+  if (hasForeign) {
     messages.push('An existing statusLine is configured.');
     messages.push('Replace it with cc-cream?');
     if (consent !== true) {
@@ -129,7 +137,7 @@ export function plan(settings, { entrypoint, consent, plugin = false, nodePath }
 
   messages.push('Setting the cc-cream statusLine.');
   messages.push(TRUST_NOTE);
-  return { settings: { ...s, statusLine: desired }, changed: true, messages, needsConsent: hasExisting };
+  return { settings: { ...s, statusLine: desired }, changed: true, messages, needsConsent: hasForeign };
 }
 
 // ---------------------------------------------------------------------------
@@ -143,46 +151,26 @@ function destinationPath() {
   return path.join(os.homedir(), '.claude', 'cc-cream', 'cc-cream.js');
 }
 
-// Write `contents` to `file` atomically: write a sibling temp file, then rename
-// over the target (rename is atomic within a filesystem). settings.json holds
-// the user's permissions/hooks/plugins/MCP config — a direct writeFileSync that
-// is interrupted (crash, ENOSPC) could truncate it and erase all of that. The
-// temp file shares the target's directory so the rename never crosses devices.
-export function writeFileAtomic(file, contents) {
-  const tmp = `${file}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, contents);
-  try {
-    fs.renameSync(tmp, file);
-  } catch (err) {
-    try { fs.rmSync(tmp, { force: true }); } catch {}
-    throw err;
-  }
-}
-
-// Read settings.json safely. A MISSING or empty file -> {} (fresh start, nothing
-// to lose). A file that exists with content but fails to parse, or parses to a
-// non-object, is REFUSED: we exit rather than overwrite and erase the user's
-// other settings (permissions, hooks, plugins...). This guards the one path
-// where a blind write would be destructive.
+// Read settings.json safely for the CLI. A MISSING or empty file -> {} (fresh
+// start, nothing to lose); a valid object is returned as-is. Any other state
+// (corrupt JSON, a non-object, or an unreadable file) is REFUSED: we exit rather
+// than overwrite and erase the user's other settings (permissions, hooks,
+// plugins...). This guards the one path where a blind write would be destructive.
 function readSettings(file) {
-  if (!fs.existsSync(file)) return {};
-  const raw = fs.readFileSync(file, 'utf8');
-  if (raw.trim() === '') return {};
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
+  const { state, value } = readSettingsFile(file);
+  if (isSafeToWrite(state)) return value;
+  if (state === 'corrupt') {
     console.error(`Error: ${file} is not valid JSON.`);
     console.error('Refusing to write it — that would erase your other settings.');
     console.error('Fix the JSON (or move the file aside) and re-run.');
-    process.exit(1);
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+  } else if (state === 'nonobject') {
     console.error(`Error: ${file} does not contain a JSON object.`);
     console.error('Refusing to overwrite it. Move it aside and re-run if intended.');
-    process.exit(1);
+  } else {
+    console.error(`Error: cannot read ${file}.`);
+    console.error('Refusing to overwrite it. Fix permissions (or move it aside) and re-run.');
   }
-  return parsed;
+  process.exit(1);
 }
 
 function runtimeFiles(sourceFile) {
@@ -276,8 +264,43 @@ async function uninstall({ purge }) {
   console.log('\nRestart Claude Code to drop the bar.');
 }
 
+// `cc-cream-setup --check-config`: lint ~/.claude/cc-cream.json against the
+// config schema, reporting unknown keys and out-of-domain values (which the
+// renderer silently ignores). Exits non-zero when problems are found.
+function checkConfigCli() {
+  const file = path.join(os.homedir(), '.claude', 'cc-cream.json');
+  if (!fs.existsSync(file)) {
+    console.log(`No config at ${file} — cc-cream uses its defaults. Nothing to check.`);
+    return;
+  }
+  const raw = fs.readFileSync(file, 'utf8');
+  if (raw.trim() === '') {
+    console.log(`${file} is empty — cc-cream uses its defaults. Nothing to check.`);
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    console.error(`Error: ${file} is not valid JSON — the whole file is ignored.`);
+    process.exit(1);
+  }
+  const problems = checkConfig(parsed);
+  if (problems.length === 0) {
+    console.log(`${file}: OK — config looks good.`);
+    return;
+  }
+  console.error(`${file}: ${problems.length} problem(s) — each falls back to the default:`);
+  for (const p of problems) console.error(`  - ${p}`);
+  process.exit(1);
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('--check-config')) {
+    checkConfigCli();
+    return;
+  }
   if (args.includes('--uninstall')) {
     await uninstall({ purge: args.includes('--purge') });
     return;
@@ -290,18 +313,21 @@ async function main() {
   const file = settingsPath();
   const settings = readSettings(file);
 
-  // planOpts holds whatever the chosen strategy needs to build its command.
+  // planOpts holds the entrypoint + node path the command bakes in.
   let planOpts;
   if (plugin) {
-    // Plugin mode: the plugin cache IS the install — do NOT copy to home. The
-    // command self-resolves the latest cached version on every render.
-    planOpts = { plugin: true, nodePath: resolveNodePath() };
+    // Plugin mode: the plugin cache IS the install — do NOT copy to home. Point
+    // the statusLine at this install.js's sibling cc-cream.js, i.e. the current
+    // version's absolute path in the plugin cache. The SessionStart hook re-pins
+    // it after a /plugin update (the command can't self-resolve the version).
+    const entrypoint = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'cc-cream.js');
+    planOpts = { entrypoint, nodePath: resolveNodePath() };
   } else {
     // Manual / GitHub mode: copy the runtime into ~/.claude/cc-cream and point
-    // the statusLine at that copied entrypoint.
+    // the statusLine at that copied (stable) entrypoint.
     const sourceFile = positional[0]
       ? path.resolve(positional[0])
-      : path.resolve(path.dirname(new URL(import.meta.url).pathname), 'cc-cream.js');
+      : path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'cc-cream.js');
 
     if (!fs.existsSync(sourceFile)) {
       console.error(`Error: cc-cream.js not found at ${sourceFile}`);
@@ -313,7 +339,7 @@ async function main() {
     if (copyRuntimeFiles(sourceFile, destDir)) {
       console.log(`Copied cc-cream runtime files to ${destDir}`);
     }
-    planOpts = { entrypoint: dest };
+    planOpts = { entrypoint: dest, nodePath: resolveNodePath() };
   }
 
   let result = plan(settings, planOpts);

@@ -4,6 +4,20 @@ All notable changes to cc-cream are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-05-30
+
+### Added
+- **`cc-cream-setup --check-config`** lints `~/.claude/cc-cream.json` and reports unknown keys and out-of-domain values — the fields the renderer silently falls back to defaults for. Exits non-zero when there's something to fix, so a typo'd key ("`ambre`", "`colour`") is no longer a silent no-op.
+- **`CC_CREAM_DEBUG=1` opt-in diagnostics.** When the bar is unexpectedly empty or short, set it to log — to `~/.claude/cc-cream-debug.log` (override with `CC_CREAM_DEBUG_LOG`) — which on-by-default segments rendered and which were dropped, plus the resolved TTL window and stdin size. Claude Code discards status-line stderr, so the channel is a file; **stdout stays untouched** (zero tokens). Off by default: no file, no overhead.
+
+### Changed
+- **The plugin status line no longer resolves its version with a shell glob.** The wired command was `ls … | grep -E … | sort -V | tail -1` over the plugin cache, run on every render — it depended on GNU `sort -V` (not guaranteed in the status-line subprocess, notably on macOS) and reverse-engineered Claude Code's undocumented cache layout. `${CLAUDE_PLUGIN_ROOT}` doesn't expand in the status-line command context, so the command can't discover the current version itself. Instead the command now bakes the current version's **absolute** `cc-cream.js` path, and the `SessionStart` hook — which *does* receive `${CLAUDE_PLUGIN_ROOT}` — re-pins it after a `/plugin update`. Both install modes now share one command shape (`[ -f "<entrypoint>" ] || exit 0; exec "<node>" "<entrypoint>"`); the `[ -f … ]` guard preserves the silent exit-0 when the plugin cache is deleted out from under a stale line.
+
+### Internal
+- **Settings.json read/parse/atomic-write logic is shared** between the installer and the `SessionStart` hook via a new `src/settings.js`, instead of a copy in each.
+- **Segment rendering is now pure.** The TTL anchor (including its `transcript_path` `statSync`) is resolved once in the I/O layer (`cc-cream.js`) and injected into `render()`, so `src/segments.js` no longer performs any filesystem access.
+- **Config normalization is now a single schema table** (`src/config.js`) instead of an ad-hoc per-field conditional ladder. The same table powers `--check-config`, so validation rules live in one place.
+
 ## [0.1.18] — 2026-05-29
 
 ### Security

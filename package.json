@@ -1,6 +1,6 @@
 {
   "name": "cc-cream",
-  "version": "0.1.18",
+  "version": "0.2.0",
   "description": "Claude Code cache/context/cost status-line tool",
   "directories": {
     "doc": "docs"

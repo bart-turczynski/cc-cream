@@ -83,16 +83,11 @@ export function runStatusLine(home, command, input = SESSION_JSON) {
   return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
 
-// Reuse the EXACT `d="$(...)"` resolution from a baked command, then print $d, to
-// assert which cached version the command would run (sort -V selection over a real
-// multi-version cache).
-export function resolveBakedDir(home, command) {
-  const resolution = command.split('; [ -z')[0];
-  const res = spawnSync('sh', ['-c', `${resolution}; printf %s "$d"`], {
-    env: baseEnv(home),
-    encoding: 'utf8',
-  });
-  return (res.stdout ?? '').trim();
+// Extract the absolute entrypoint baked into a statusLine command — the path in
+// the `[ -f "<path>" ]` guard — to assert which cached version it points at.
+export function bakedEntrypoint(command) {
+  const m = command.match(/\[ -f "([^"]+)"/);
+  return m ? m[1] : '';
 }
 
 export function readSettings(home) {

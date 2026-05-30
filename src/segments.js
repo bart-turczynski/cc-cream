@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import { band, countdown, flipPct, fmtNum, isNum, isPeak, numOr, pad2 } from './utils.js';
 import { hasWindow } from './ttl.js';
 
@@ -56,25 +55,12 @@ function segCache(data, cfg, prevCachePct, recovering) {
   return { text: `cache:${pct}%`, color };
 }
 
-function segTtl(data, cfg, ttlMin, now, prevSessionState) {
-  const prevTokens = prevSessionState?.total_input_tokens;
-  const curTokens = data?.context_window?.total_input_tokens;
-  const tokensGrew = isNum(curTokens) && isNum(prevTokens) && curTokens > prevTokens;
-
-  let anchorMs;
-  if (tokensGrew) {
-    anchorMs = now;
-  } else if (isNum(prevSessionState?.last_api_ts)) {
-    anchorMs = prevSessionState.last_api_ts;
-  } else {
-    const tp = data?.transcript_path;
-    if (typeof tp !== 'string' || tp === '') return null;
-    try {
-      anchorMs = fs.statSync(tp).mtimeMs;
-    } catch {
-      return null;
-    }
-  }
+// Pure: the TTL anchor (when the cache window last reset) is resolved upstream in
+// the I/O layer — see resolveTtlAnchor() in cc-cream.js — and injected as
+// `anchorMs`, so this segment does no filesystem access. A null anchor (no token
+// growth, no last_api_ts, no readable transcript) hides the segment.
+function segTtl(cfg, ttlMin, now, anchorMs) {
+  if (!isNum(anchorMs)) return null;
   const elapsedMin = Math.floor(Math.max(0, now - anchorMs) / 60000);
   const remainingMin = Math.max(0, ttlMin - elapsedMin);
   const text = `ttl:${pad2(Math.floor(remainingMin / 60))}:${pad2(remainingMin % 60)}`;
@@ -158,7 +144,7 @@ function segBurn(fiveHour, prev, now) {
   return { text: h >= 1 ? `~${h}h${pad2(m)}m` : `~${minEta}m`, color: null };
 }
 
-export function renderSegments(data, cfg, ttlMin, now, prevSessionState = null, tz = 'America/Los_Angeles') {
+export function renderSegments(data, cfg, ttlMin, now, prevSessionState = null, tz = 'America/Los_Angeles', ttlAnchorMs = null) {
   return {
     model: segModel(data),
     ctx: segCtx(data, cfg),
@@ -168,7 +154,7 @@ export function renderSegments(data, cfg, ttlMin, now, prevSessionState = null, 
       prevSessionState && isNum(prevSessionState.cache_pct) ? prevSessionState.cache_pct : undefined,
       prevSessionState?.recovering === true,
     ),
-    ttl: segTtl(data, cfg, ttlMin, now, prevSessionState),
+    ttl: segTtl(cfg, ttlMin, now, ttlAnchorMs),
     cost: segCost(data),
     '5h': segRate(data?.rate_limits?.five_hour, '5h', cfg, '5h', now),
     '7d': segRate(data?.rate_limits?.seven_day, '7d', cfg, '7d', now),

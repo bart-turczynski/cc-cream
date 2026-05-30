@@ -38,6 +38,17 @@ Feature: Auto-wire the status bar on first session (CREAM-nywsljfq)
     Then it changes nothing and prints nothing
     And the reminder exits zero
 
+  # Keep-fresh (Option C, CREAM-wfimkpqu): ${CLAUDE_PLUGIN_ROOT} can't expand in
+  # the statusLine command, so the hook bakes the current version's absolute path
+  # and re-pins it every session. After a /plugin update the old version path is
+  # rewritten to the new one — silently, since it's our own line, not a new bar.
+  Scenario: An out-of-date cc-cream status line is re-pinned to the current version
+    Given settings.json on disk has an out-of-date cc-cream statusLine
+    When the session-start hook runs
+    Then it re-pins the statusLine to the current entrypoint
+    And it makes the change without announcing
+    And the reminder exits zero
+
   Scenario: It never re-wires a bar the user has removed
     Given cc-cream has already auto-set-up once
     And there is no settings.json on disk

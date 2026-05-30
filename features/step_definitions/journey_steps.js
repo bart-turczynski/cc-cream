@@ -10,11 +10,11 @@ import path from 'node:path';
 import { REPO } from '../support/world.js';
 import {
   MODEL_NAME,
+  bakedEntrypoint,
   configDirOf,
   readSettings,
   removePluginCache,
   removeVersion,
-  resolveBakedDir,
   runAutoSetupHook,
   runInstall,
   runStatusLine,
@@ -72,7 +72,9 @@ When('the SessionStart auto-setup hook runs', function () {
 });
 
 When('a newer version {string} appears in the plugin cache', function (version) {
-  stageCache(this.journeyHome, version);
+  // Claude Code activates the newest install and sets CLAUDE_PLUGIN_ROOT to it on
+  // the next session, so the next hook run resolves against this version.
+  this.pluginRoot = stageCache(this.journeyHome, version);
   this.newerVersion = version;
 });
 
@@ -143,18 +145,16 @@ Then("settings.json gains cc-cream's statusLine", function () {
 });
 
 Then('running the wired status line command renders the bar', function () {
-  const res = runStatusLine(this.journeyHome, this.statusLineCmd);
+  // Read the CURRENT wired command (the hook may have re-pinned it to a new version).
+  const command = statusLineOf(this).command;
+  const res = runStatusLine(this.journeyHome, command);
   assert.equal(res.status, 0, `render exited ${res.status}: ${res.stderr}`);
   assert.ok(res.stdout.includes(MODEL_NAME), `expected the bar to render, got stdout: ${JSON.stringify(res.stdout)} stderr: ${res.stderr}`);
 });
 
 Then('the wired status line command resolves to version {string}', function (version) {
-  const dir = resolveBakedDir(this.journeyHome, this.statusLineCmd);
-  assert.ok(dir.includes(`/${version}/`), `expected resolution to pick ${version}, got: ${dir}`);
-});
-
-Then('settings.json still holds the same statusLine command', function () {
-  assert.equal(statusLineOf(this).command, this.statusLineCmd, 'statusLine command must be unchanged');
+  const ep = bakedEntrypoint(statusLineOf(this).command);
+  assert.ok(ep.includes(`/${version}/`), `expected the baked entrypoint to point at ${version}, got: ${ep}`);
 });
 
 Then('settings.json on disk no longer has a statusLine', function () {
