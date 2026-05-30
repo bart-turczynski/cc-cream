@@ -41,6 +41,19 @@ Feature: Release tooling keeps every version location in lockstep (CREAM-rkxwsey
     And the rolled CHANGELOG keeps an empty Unreleased section on top
     And the entry "A real fix." now sits under the 0.3.0 heading
 
+  Scenario: setJsonVersion changes only the version value, preserving formatting
+    Given a plugin manifest:
+      """
+      {
+        "name": "cc-cream",
+        "version": "0.2.0",
+        "keywords": ["a", "b", "c"]
+      }
+      """
+    When I set the manifest version to "0.3.0"
+    Then the manifest version is "0.3.0"
+    And the one-line keywords array is left untouched
+
   Scenario: rollChangelog refuses to release an empty Unreleased section
     Given a CHANGELOG with an empty Unreleased section:
       """

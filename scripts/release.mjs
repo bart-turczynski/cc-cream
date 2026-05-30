@@ -44,10 +44,13 @@ export function rollChangelog(text, version, date) {
   return text.replace(marker, `## [Unreleased]\n\n## [${version}] — ${date}`);
 }
 
-function setJsonVersion(file, version) {
-  const obj = JSON.parse(fs.readFileSync(file, 'utf8'));
-  obj.version = version;
-  fs.writeFileSync(file, `${JSON.stringify(obj, null, 2)}\n`);
+// Replace only the top-level "version" value, preserving the file's existing
+// formatting — a full JSON.parse/stringify round-trip would reformat unrelated
+// parts (e.g. expand a one-line keywords array), churning the release commit.
+export function setJsonVersion(text, version) {
+  const next = text.replace(/("version"\s*:\s*)"[^"]*"/, `$1"${version}"`);
+  if (next === text) throw new Error('No "version" field to update.');
+  return next;
 }
 
 function git(cmd) {
@@ -88,7 +91,8 @@ function main() {
 
   // Bump every version location in lockstep.
   run(`npm version ${version} --no-git-tag-version`); // package.json + package-lock.json
-  setJsonVersion(at('.claude-plugin', 'plugin.json'), version);
+  const pluginFile = at('.claude-plugin', 'plugin.json');
+  fs.writeFileSync(pluginFile, setJsonVersion(fs.readFileSync(pluginFile, 'utf8'), version));
   fs.writeFileSync(at('CHANGELOG.md'), rolled);
 
   // Gate, then commit + tag — staging ONLY the bump files, never a stray
