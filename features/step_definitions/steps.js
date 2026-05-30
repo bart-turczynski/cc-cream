@@ -1698,6 +1698,11 @@ Then('the output says the slash commands linger until restart', function () {
     `output must say the slash commands linger until restart, got:\n${this.installerOut}`);
 });
 
+Then('the receipt carries no angle-bracket placeholder', function () {
+  assert.ok(!/<[^>]+>/.test(this.installerOut),
+    `the uninstall receipt must not contain an angle-bracket placeholder (markdown strips it), got:\n${this.installerOut}`);
+});
+
 Then('it exits zero and leaves the foreign statusLine unchanged', function () {
   assert.equal(this.installerExit, 0, `install.js must exit 0, got ${this.installerExit}\n${this.installerOut}`);
   assert.deepEqual(readSandboxStatusLine(this), this.foreignStatusLine,

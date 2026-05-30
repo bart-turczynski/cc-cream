@@ -41,6 +41,17 @@ Feature: Installation and uninstallation journey (CREAM-fxsusmgd)
     When /plugin uninstall removes the plugin cache
     Then no orphaned statusLine remains
 
+  # CREAM-rhtrzwss: run from the cache (as the slash command does), the receipt's
+  # escape-hatch line must be the real, version-accurate cache path — copy-pasteable
+  # and free of the markdown-stripped `<version>` placeholder that broke it before.
+  Scenario: The uninstall receipt advertises the real cached install.js path
+    Given a fresh Claude config dir
+    And the cc-cream plugin freshly installed in the cache at version "0.1.16"
+    And the auto-setup hook has wired the bar
+    When the user runs /cc-cream:uninstall
+    Then the uninstall receipt points at the cached install.js for version "0.1.16"
+    And the uninstall receipt has no angle-bracket placeholder
+
   Scenario: Uninstall in the WRONG order degrades silently (v0.1.15 regression)
     Given a fresh Claude config dir
     And the cc-cream plugin freshly installed in the cache at version "0.1.16"

@@ -100,6 +100,9 @@ Feature: Consent-based installer for the statusLine command
     Then the output names the cache-path uninstall escape hatch
     And the output mentions removing the marketplace and the version cache
     And the output says the slash commands linger until restart
+    # CREAM-rhtrzwss: the receipt prints install.js's resolved path, never a
+    # `<version>` placeholder — markdown (the slash-command render) strips it.
+    And the receipt carries no angle-bracket placeholder
 
   Scenario: Non-interactive setup never clobbers a foreign statusLine
     Given settings.json on disk has a foreign statusLine

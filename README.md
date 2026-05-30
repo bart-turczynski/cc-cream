@@ -151,9 +151,12 @@ message — restart an already-open session to drop it immediately.
 > `statusLine` line still lingers in `settings.json`.
 >
 > To clear that leftover line once the plugin is gone, the **guaranteed** route is
-> the copy of the uninstaller still in the cache — npm-free and always present:
+> the copy of the uninstaller still in the cache — npm-free and always present.
+> `VERSION` is the single directory under that path (run the `ls` first to read it
+> off); `/cc-cream:uninstall` also prints the fully-resolved command:
 > ```bash
-> node ~/.claude/plugins/cache/cc-cream/cc-cream/<version>/src/install.js --uninstall
+> ls ~/.claude/plugins/cache/cc-cream/cc-cream/        # e.g. 0.3.1
+> node ~/.claude/plugins/cache/cc-cream/cc-cream/VERSION/src/install.js --uninstall
 > # add --purge to also remove your config
 > ```
 > The npm bin does the same job, but **not always**: a *freshly published* version

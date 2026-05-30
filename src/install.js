@@ -21,6 +21,12 @@ import { isEntrypoint } from './utils.js';
 
 export { writeFileAtomic } from './settings.js';
 
+// Absolute path of THIS install.js. When the /cc-cream:uninstall slash command
+// runs it, that's the versioned plugin-cache copy — the durable, npm-free
+// escape hatch we advertise in the uninstall receipt (resolved, not guessed, so
+// it carries the real version and no markdown-stripped placeholder).
+const SELF_PATH = fileURLToPath(import.meta.url);
+
 const TRUST_NOTE =
   'The bar appears on your next message — restart only an already-open session, and the workspace must be trusted.';
 
@@ -255,18 +261,32 @@ async function uninstall({ purge }) {
   printUninstallReceipt();
 }
 
+// Shorten an absolute path under $HOME to a `~/…` form for display. The shell
+// still expands `~`, so the result stays copy-pasteable.
+function tildeify(p) {
+  const home = os.homedir();
+  return p === home || p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p;
+}
+
 // The closing receipt. No Claude Code host removal path drops our statusLine OR
 // the version cache, so spell out what's gone, what the host leaves behind, and
 // the npm-free escape hatch (the lingering cache always has a working install.js).
 // See project memory cc-cream-plugin-lifecycle-findings.
+//
+// The escape-hatch line prints SELF_PATH — this install.js's real, resolved
+// location — NOT a `<version>` placeholder. The receipt reaches the user through
+// the slash command, whose output Claude Code renders as markdown; `<version>`
+// was silently stripped to an empty segment (cc-cream//src), breaking copy-paste
+// exactly when it's needed (CREAM-rhtrzwss). Via the slash command SELF_PATH IS
+// the versioned cache copy, so the path is both accurate and markdown-safe.
 function printUninstallReceipt() {
   console.log('\nDone — the bar disappears on your next message (restart an already-open session to drop it now).');
   console.log('The host leaves the rest behind; to fully remove cc-cream:');
   console.log('  • Plugin: /plugin uninstall cc-cream  then  /plugin marketplace remove cc-cream');
   console.log('  • Version cache (never auto-removed): rm -rf ~/.claude/plugins/cache/cc-cream');
   console.log('  • The /cc-cream:* slash commands linger in this session until you restart Claude Code.');
-  console.log('Already removed the plugin? This same uninstall lives in the cache:');
-  console.log('  node ~/.claude/plugins/cache/cc-cream/cc-cream/<version>/src/install.js --uninstall [--purge]');
+  console.log('Re-run this uninstall later (e.g. the plugin is gone but the bar lingers) — it lives at:');
+  console.log(`  node ${tildeify(SELF_PATH)} --uninstall [--purge]`);
 }
 
 // `cc-cream-setup --check-config`: lint ~/.claude/cc-cream.json against the

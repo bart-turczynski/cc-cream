@@ -137,6 +137,22 @@ When('the npm bin clears the wiring with the checked-out install.js', function (
   assert.equal(this.installResult.status, 0, `recovery uninstall exited ${this.installResult.status}: ${this.installResult.stderr}`);
 });
 
+// ---- Then: uninstall receipt (escape hatch) -------------------------------
+
+Then('the uninstall receipt points at the cached install.js for version {string}', function (version) {
+  // Match the version-specific suffix so the assertion holds whether the path is
+  // shown `~/…`-relative or absolute — the point is the REAL version (not an empty
+  // `<version>` segment) followed by a runnable `--uninstall`.
+  const want = `cache/cc-cream/cc-cream/${version}/src/install.js --uninstall`;
+  assert.ok(this.installResult.stdout.includes(want),
+    `receipt must advertise the resolved cache path "…/${want}", got:\n${this.installResult.stdout}`);
+});
+
+Then('the uninstall receipt has no angle-bracket placeholder', function () {
+  assert.ok(!/<[^>]+>/.test(this.installResult.stdout),
+    `the receipt must not contain a markdown-stripped placeholder, got:\n${this.installResult.stdout}`);
+});
+
 // ---- Then: assertions -----------------------------------------------------
 
 Then('it announces the bar was enabled', function () {
