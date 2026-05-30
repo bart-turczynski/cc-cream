@@ -14,7 +14,10 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
+import { isSafeToWrite, readSettings as readSettingsFile, writeFileAtomic } from './settings.js';
 import { isEntrypoint } from './utils.js';
+
+export { writeFileAtomic } from './settings.js';
 
 const TRUST_NOTE =
   'Claude Code must be trusted and possibly restarted for the status line to appear.';
@@ -143,46 +146,26 @@ function destinationPath() {
   return path.join(os.homedir(), '.claude', 'cc-cream', 'cc-cream.js');
 }
 
-// Write `contents` to `file` atomically: write a sibling temp file, then rename
-// over the target (rename is atomic within a filesystem). settings.json holds
-// the user's permissions/hooks/plugins/MCP config — a direct writeFileSync that
-// is interrupted (crash, ENOSPC) could truncate it and erase all of that. The
-// temp file shares the target's directory so the rename never crosses devices.
-export function writeFileAtomic(file, contents) {
-  const tmp = `${file}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, contents);
-  try {
-    fs.renameSync(tmp, file);
-  } catch (err) {
-    try { fs.rmSync(tmp, { force: true }); } catch {}
-    throw err;
-  }
-}
-
-// Read settings.json safely. A MISSING or empty file -> {} (fresh start, nothing
-// to lose). A file that exists with content but fails to parse, or parses to a
-// non-object, is REFUSED: we exit rather than overwrite and erase the user's
-// other settings (permissions, hooks, plugins...). This guards the one path
-// where a blind write would be destructive.
+// Read settings.json safely for the CLI. A MISSING or empty file -> {} (fresh
+// start, nothing to lose); a valid object is returned as-is. Any other state
+// (corrupt JSON, a non-object, or an unreadable file) is REFUSED: we exit rather
+// than overwrite and erase the user's other settings (permissions, hooks,
+// plugins...). This guards the one path where a blind write would be destructive.
 function readSettings(file) {
-  if (!fs.existsSync(file)) return {};
-  const raw = fs.readFileSync(file, 'utf8');
-  if (raw.trim() === '') return {};
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
+  const { state, value } = readSettingsFile(file);
+  if (isSafeToWrite(state)) return value;
+  if (state === 'corrupt') {
     console.error(`Error: ${file} is not valid JSON.`);
     console.error('Refusing to write it — that would erase your other settings.');
     console.error('Fix the JSON (or move the file aside) and re-run.');
-    process.exit(1);
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+  } else if (state === 'nonobject') {
     console.error(`Error: ${file} does not contain a JSON object.`);
     console.error('Refusing to overwrite it. Move it aside and re-run if intended.');
-    process.exit(1);
+  } else {
+    console.error(`Error: cannot read ${file}.`);
+    console.error('Refusing to overwrite it. Fix permissions (or move it aside) and re-run.');
   }
-  return parsed;
+  process.exit(1);
 }
 
 function runtimeFiles(sourceFile) {

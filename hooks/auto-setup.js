@@ -16,7 +16,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { isCcCreamStatusLine, plan, resolveNodePath, writeFileAtomic } from '../src/install.js';
+import { isCcCreamStatusLine, plan, resolveNodePath } from '../src/install.js';
+import { isSafeToWrite, readSettings as readSettingsFile, writeFileAtomic } from '../src/settings.js';
 
 function configDir() {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
@@ -34,21 +35,11 @@ function emit(systemMessage) {
   process.stdout.write(`${JSON.stringify({ systemMessage })}\n`);
 }
 
-// Missing file -> {} (fresh, slot free). Unreadable/malformed -> null (leave alone).
+// Missing/empty -> {} (fresh, slot free). Unreadable/malformed/non-object ->
+// null (leave it alone — never overwrite the user's other settings).
 function readSettings() {
-  let raw;
-  try {
-    raw = fs.readFileSync(settingsPath(), 'utf8');
-  } catch (err) {
-    return err.code === 'ENOENT' ? {} : null;
-  }
-  if (raw.trim() === '') return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
+  const { state, value } = readSettingsFile(settingsPath());
+  return isSafeToWrite(state) ? value : null;
 }
 
 function writeMarker() {
