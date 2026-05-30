@@ -10,6 +10,9 @@ All notable changes to cc-cream are documented here. Format follows
 - **The post-publish `npx` smoke test now uses `--safe-chain-skip-minimum-package-age`** so the `@manual` "npm indexing" scenario works immediately after a release without waiting for the package-age guard to lift (CREAM-elrbkfot).
 - **TTL segment now displays minutes only** (`ttl:60`, `ttl:8`, `ttl:0`) instead of the previous `HH:MM` format (`ttl:01:00`). Simpler to read at a glance; matches the 60-second refresh cadence (CREAM-vhhdhydn).
 
+### Documentation
+- **The `cache` segment's `drop` / `drop_recover` config keys are now documented.** They've been live since cache drop-detection shipped but never appeared in the README — the segment catalog listed `cache` as "neutral" with no mention that it turns red on a sharp hit-rate drop, nor that the trip/recover thresholds are configurable. Added a "`cache` drop detection" subsection, surfaced the keys in the example config, and corrected the catalog color note. This is the documentation outcome of CREAM-wwsdavum (configure-via-`/cc-cream:` command), which is otherwise declined as a dup of the deliberately-closed CREAM-udibxkch.
+
 ## [0.3.2] — 2026-05-30
 
 ### Fixed

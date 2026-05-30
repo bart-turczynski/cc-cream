@@ -160,8 +160,8 @@ message — restart an already-open session to drop it immediately.
 > # add --purge to also remove your config
 > ```
 > The npm bin does the same job, but **not always**: a *freshly published* version
-> is blocked by npm's min-package-age safe-chain guard (it reports "command not
-> found") until it ages in, so use it only if the cache route isn't handy:
+> is blocked by npm's min-package-age safe-chain guard (it reports "No versions
+> available") until it ages in, so use it only if the cache route isn't handy:
 > ```bash
 > npx -y -p cc-cream cc-cream-setup --uninstall
 > ```
@@ -210,7 +210,7 @@ cc-cream-setup --check-config   # reports unknown keys / out-of-domain values; e
   "percentage": "consumed",
   "segments": {
     "ctx":          { "on": true,  "row": 1, "order": 2, "amber": 30, "orange": 40, "red": 50, "basis": "window", "ceiling": 200000, "display": "basis" },
-    "cache":        { "on": true,  "row": 1, "order": 3 },
+    "cache":        { "on": true,  "row": 1, "order": 3, "drop": 20, "drop_recover": 80 },
     "write":        { "on": false, "row": 1, "order": 3.5 },
     "ttl":          { "on": true,  "row": 1, "order": 4, "amber": 50, "red": 80 },
     "cost":         { "on": true,  "row": 1, "order": 5 },
@@ -254,7 +254,7 @@ Colored segments additionally accept threshold keys. Thresholds mark the
 | Segment | Default | Example | Meaning | Color |
 |---|---|---|---|---|
 | `ctx` | on, row 1 | `ctx:19% [38k]` | context-window occupancy + input-token magnitude | `<30` green · `30–40` amber · `40–50` orange · `≥50` red |
-| `cache` | on, row 1 | `cache:95%` | last-turn cache hit rate (reads / total tokens) | neutral |
+| `cache` | on, row 1 | `cache:95%` | last-turn cache hit rate (reads / total tokens) | neutral; **red** on a sharp drop (see below) |
 | `write` | **off**, row 1 | `write:4%` | last-turn cache creation rate (new writes / total tokens) | neutral |
 | `ttl` | on, row 1 | `ttl:00:52` | time remaining before cache expires (counts down to 00:00) | `<50%` green · `50–80%` amber · `≥80%` red |
 | `cost` | on, row 1 | `~$4.50` | session cost incl. subagents; `~` = CC's estimate | neutral; hidden when zero |
@@ -300,6 +300,18 @@ default row via config must land in a zone to appear on row 1.
 ### `ctx` thresholds
 
 Default: `amber: 30`, `orange: 40`, `red: 50` (percent consumed).
+
+### `cache` drop detection
+
+The `cache` segment stays neutral while the hit rate is healthy, but turns **red**
+when it falls sharply from one turn to the next — a cue that the prompt cache was
+just invalidated (e.g. an edit far back in context forced a re-read). This relies
+on per-session state, so it only fires when `session_id` is present in stdin.
+
+- `drop`: percentage-point fall from the previous turn that trips red. Default `20`
+  (95% → 74% trips; 95% → 80% does not).
+- `drop_recover`: once tripped, the segment stays red until the hit rate climbs
+  back to at least this value. Default `80`.
 
 ### `ttl` thresholds
 
