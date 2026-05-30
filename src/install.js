@@ -300,8 +300,119 @@ function checkConfigCli() {
   process.exit(1);
 }
 
+function listDirs(dir) {
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+function readJsonSafe(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+// `cc-cream-setup --status`: a read-only report of cc-cream's entire on-disk
+// footprint. Because no Claude Code host removal path drops our statusLine or GCs
+// the version cache (project memory cc-cream-plugin-lifecycle-findings), users
+// can't otherwise tell whether cc-cream fully went away — this command answers
+// "clean slate?" in one shot, and points out what the host left behind.
+function statusCli() {
+  const home = path.join(os.homedir(), '.claude');
+  const plugins = path.join(home, 'plugins');
+  const items = [];
+  const add = (label, present, detail) => items.push({ label, present, detail });
+
+  // statusLine wiring
+  const { state, value } = readSettingsFile(settingsPath());
+  if (!isSafeToWrite(state)) {
+    add('statusLine wiring', false, `settings.json unreadable (${state}) — not inspected`);
+  } else if (isCcCreamStatusLine(value.statusLine)) {
+    const ep = (value.statusLine.command.match(/\[ -f "([^"]+)"/) || [])[1] || '';
+    const ok = ep && fs.existsSync(ep);
+    add('statusLine wiring', true, ok
+      ? `belongs to cc-cream, pinned to ${ep}`
+      : `belongs to cc-cream, pinned to ${ep || '(unknown)'} — entrypoint MISSING (stale/ghost wiring)`);
+  } else if (value.statusLine) {
+    add('statusLine wiring', false, 'present but not cc-cream’s (left untouched)');
+  } else {
+    add('statusLine wiring', false, 'none');
+  }
+
+  // plugin cache versions (the host never GCs these)
+  const versions = listDirs(path.join(plugins, 'cache', 'cc-cream', 'cc-cream'));
+  add('plugin cache', versions.length > 0, versions.length
+    ? `${versions.length} version(s) [${versions.join(', ')}] — host never GCs these; rm to reclaim`
+    : 'none');
+
+  // marketplace clone
+  const clone = path.join(plugins, 'marketplaces', 'cc-cream');
+  add('marketplace clone', fs.existsSync(clone), fs.existsSync(clone) ? clone : 'none');
+
+  // registrations
+  const installed = readJsonSafe(path.join(plugins, 'installed_plugins.json'));
+  const isRegistered = !!installed?.plugins && typeof installed.plugins === 'object'
+    && Object.keys(installed.plugins).some((k) => k.startsWith('cc-cream@'));
+  add('plugin registration', isRegistered, isRegistered
+    ? 'listed in installed_plugins.json'
+    : 'not listed in installed_plugins.json');
+
+  const known = readJsonSafe(path.join(plugins, 'known_marketplaces.json'));
+  const knownMkt = !!known && typeof known === 'object' && Object.hasOwn(known, 'cc-cream');
+  add('marketplace registration', knownMkt, knownMkt
+    ? 'listed in known_marketplaces.json'
+    : 'not listed in known_marketplaces.json');
+
+  // auto-wire marker (plugin data dir, falling back to the config dir)
+  const markerDir = process.env.CLAUDE_PLUGIN_DATA || path.join(plugins, 'data', 'cc-cream-cc-cream');
+  const marker = [path.join(markerDir, 'cc-cream-autowire-done'), path.join(home, 'cc-cream-autowire-done')]
+    .find((p) => fs.existsSync(p));
+  add('auto-wire marker', !!marker, marker || 'none');
+
+  // session state
+  const stateFile = path.join(home, 'cc-cream-state.json');
+  if (fs.existsSync(stateFile)) {
+    const obj = readJsonSafe(stateFile);
+    const n = obj && typeof obj === 'object' ? Object.keys(obj).length : '?';
+    add('session state', true, `${n} session(s) in cc-cream-state.json`);
+  } else {
+    add('session state', false, 'none');
+  }
+
+  // config
+  const configFile = path.join(home, 'cc-cream.json');
+  add('config', fs.existsSync(configFile), fs.existsSync(configFile) ? configFile : 'none (using defaults)');
+
+  // manual runtime copy
+  const runtimeDir = path.join(home, 'cc-cream');
+  add('manual runtime copy', fs.existsSync(runtimeDir), fs.existsSync(runtimeDir) ? runtimeDir : 'none');
+
+  console.log('cc-cream footprint:');
+  for (const it of items) console.log(`  [${it.present ? 'x' : ' '}] ${it.label}: ${it.detail}`);
+
+  if (items.every((i) => !i.present)) {
+    console.log('\nClean slate — no cc-cream footprint found.');
+    return;
+  }
+  console.log(`\n${items.filter((i) => i.present).length} component(s) present. To remove everything:`);
+  console.log('  /cc-cream:uninstall (or the cache-path install.js --uninstall) clears the statusLine + scratch;');
+  console.log('  then /plugin uninstall cc-cream + /plugin marketplace remove cc-cream;');
+  console.log('  then rm -rf ~/.claude/plugins/cache/cc-cream (the host never removes it).');
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('--status')) {
+    statusCli();
+    return;
+  }
   if (args.includes('--check-config')) {
     checkConfigCli();
     return;

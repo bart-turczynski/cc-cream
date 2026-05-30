@@ -180,6 +180,12 @@ Likewise, `cc-cream-setup` run non-interactively will overwrite an existing
 *cc-cream* statusLine but never a foreign one — pass `--force` to replace
 regardless.
 
+Not sure what's left behind? `cc-cream-setup --status` prints a read-only
+footprint report — the statusLine wiring, every cached plugin version (the host
+never garbage-collects these), the marketplace clone + registration, the auto-wire
+marker, session state, config, and the manual runtime copy — so you can confirm a
+clean slate or see exactly what to remove.
+
 ## Configuration
 
 Every display decision is read from `~/.claude/cc-cream.json`. Edit it by hand
