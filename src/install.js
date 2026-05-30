@@ -22,7 +22,7 @@ import { isEntrypoint } from './utils.js';
 export { writeFileAtomic } from './settings.js';
 
 const TRUST_NOTE =
-  'Claude Code must be trusted and possibly restarted for the status line to appear.';
+  'The bar appears on your next message — restart only an already-open session, and the workspace must be trusted.';
 
 // The statusLine command: a missing-file guard, then exec node on an ABSOLUTE
 // entrypoint. Both install modes use this one shape — only the entrypoint path
@@ -217,8 +217,13 @@ function ask(question) {
   }));
 }
 
-// Remove the cc-cream wiring (and, with consent, its install artifacts). Keeps
-// the user's config (~/.claude/cc-cream.json) unless `--purge` is passed.
+// Remove the cc-cream wiring and its throwaway scratch. The copied runtime
+// (~/.claude/cc-cream) and session state (~/.claude/cc-cream-state.json) are
+// regenerable — reinstalling recreates them — so they're always cleaned, no
+// prompt. (The old interactive artifact prompt was dead code: both the `!` bang
+// runner and the slash commands run non-TTY — CREAM-lznfgrap.) `--purge`
+// additionally removes the one file worth keeping by default: the user-authored
+// config (~/.claude/cc-cream.json).
 async function uninstall({ purge }) {
   const file = settingsPath();
   const settings = readSettings(file);
@@ -226,42 +231,42 @@ async function uninstall({ purge }) {
   for (const m of result.messages) console.log(m);
   if (result.changed) {
     writeFileAtomic(file, `${JSON.stringify(result.settings, null, 2)}\n`);
-    console.log(`\nUpdated ${file}.`);
+    console.log(`Updated ${file}.`);
   }
 
   const home = path.join(os.homedir(), '.claude');
-  const runtimeDir = path.join(home, 'cc-cream');
-  const stateFile = path.join(home, 'cc-cream-state.json');
   const configFile = path.join(home, 'cc-cream.json');
 
-  const artifacts = [runtimeDir, stateFile].filter((p) => fs.existsSync(p));
-  if (artifacts.length) {
-    let remove = purge;
-    if (!remove && process.stdin.isTTY) {
-      remove = await ask(`Also delete the copied runtime and session state?\n  ${artifacts.join('\n  ')}`);
-    }
-    if (remove) {
-      for (const p of artifacts) fs.rmSync(p, { recursive: true, force: true });
-      console.log('Removed runtime and state files.');
-    } else if (process.stdin.isTTY) {
-      console.log('Left runtime and state files in place.');
+  // Auto-clean regenerable scratch (not user data — no prompt).
+  const scratch = [path.join(home, 'cc-cream'), path.join(home, 'cc-cream-state.json')]
+    .filter((p) => fs.existsSync(p));
+  for (const p of scratch) fs.rmSync(p, { recursive: true, force: true });
+  if (scratch.length) console.log('Removed the copied runtime and session state.');
+
+  if (fs.existsSync(configFile)) {
+    if (purge) {
+      fs.rmSync(configFile, { force: true });
+      console.log(`Removed your config ${configFile}.`);
     } else {
-      // Non-interactive (e.g. run via the /cc-cream:uninstall slash command, which
-      // has no TTY): never block on a prompt. The statusLine — the thing that
-      // matters — is already removed; keep the artifacts (deletion is destructive)
-      // and say how to remove them.
-      console.log(`Left runtime and session state in place — no terminal to confirm deletion:\n  ${artifacts.join('\n  ')}`);
-      console.log('Re-run in a terminal, or pass --purge, to remove them.');
+      console.log(`Kept your config ${configFile} (pass --purge to remove it too).`);
     }
-  }
-  if (purge && fs.existsSync(configFile)) {
-    fs.rmSync(configFile, { force: true });
-    console.log(`Removed config ${configFile}.`);
-  } else if (fs.existsSync(configFile)) {
-    console.log(`Kept your config ${configFile} (pass --purge to remove it too).`);
   }
 
-  console.log('\nRestart Claude Code to drop the bar.');
+  printUninstallReceipt();
+}
+
+// The closing receipt. No Claude Code host removal path drops our statusLine OR
+// the version cache, so spell out what's gone, what the host leaves behind, and
+// the npm-free escape hatch (the lingering cache always has a working install.js).
+// See project memory cc-cream-plugin-lifecycle-findings.
+function printUninstallReceipt() {
+  console.log('\nDone — the bar disappears on your next message (restart an already-open session to drop it now).');
+  console.log('The host leaves the rest behind; to fully remove cc-cream:');
+  console.log('  • Plugin: /plugin uninstall cc-cream  then  /plugin marketplace remove cc-cream');
+  console.log('  • Version cache (never auto-removed): rm -rf ~/.claude/plugins/cache/cc-cream');
+  console.log('  • The /cc-cream:* slash commands linger in this session until you restart Claude Code.');
+  console.log('Already removed the plugin? This same uninstall lives in the cache:');
+  console.log('  node ~/.claude/plugins/cache/cc-cream/cc-cream/<version>/src/install.js --uninstall [--purge]');
 }
 
 // `cc-cream-setup --check-config`: lint ~/.claude/cc-cream.json against the

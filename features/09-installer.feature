@@ -36,9 +36,11 @@ Feature: Consent-based installer for the statusLine command
     When the installer runs again
     Then settings.json is unchanged
 
-  Scenario: The trust and restart requirement is surfaced
+  # CREAM-wvtiftfw: the bar appears on the next message of a new session (no
+  # restart) — restart only matters for an already-open session.
+  Scenario: Setup explains when the bar appears
     When the installer completes
-    Then it states that Claude Code must be trusted and possibly restarted for the bar to appear
+    Then it explains the bar appears on the next message, noting trust and restarting an open session
 
   Scenario: Uninstall removes only a cc-cream statusLine
     Given cc-cream is already installed
@@ -70,13 +72,34 @@ Feature: Consent-based installer for the statusLine command
 
   # The installer's y/N prompts use readline, which has no TTY when install.js is
   # run via the /cc-cream:setup and /cc-cream:uninstall slash commands (bang
-  # execution). Without a guard the prompt blocks forever. install.js must detect
-  # the missing TTY and resolve every prompt non-interactively instead of hanging.
-  Scenario: Uninstall does not block on a prompt when run without a TTY
+  # execution). Without a guard the prompt blocks forever. Uninstall now auto-cleans
+  # the regenerable scratch (runtime copy + session state) instead of prompting —
+  # the dead non-TTY prompt branch is gone (CREAM-lznfgrap).
+  Scenario: Uninstall auto-cleans scratch without blocking on a prompt
     Given settings.json on disk has cc-cream's statusLine and a state file
     When install.js --uninstall runs without a TTY
     Then it exits zero and removes the statusLine
-    And it keeps the state file and prints how to remove it with --purge
+    And it auto-removes the session state file
+
+  # --purge additionally removes the user-authored config. It must reach the script
+  # through the slash command ($ARGUMENTS passthrough, tested separately).
+  Scenario: Uninstall --purge also removes the user config
+    Given settings.json on disk has cc-cream's statusLine and a state file
+    And a cc-cream config file on disk
+    When install.js --uninstall --purge runs without a TTY
+    Then it exits zero and removes the statusLine
+    And it auto-removes the session state file
+    And it removes the user config
+
+  # CREAM-wvtiftfw (c): the uninstall receipt must name the host leftovers the user
+  # has to clear by hand — the version cache, /plugin marketplace remove, the
+  # lingering slash commands, and the cache-path escape hatch.
+  Scenario: Uninstall enumerates the host leftovers and the cache escape hatch
+    Given settings.json on disk has cc-cream's statusLine and a state file
+    When install.js --uninstall runs without a TTY
+    Then the output names the cache-path uninstall escape hatch
+    And the output mentions removing the marketplace and the version cache
+    And the output says the slash commands linger until restart
 
   Scenario: Non-interactive setup never clobbers a foreign statusLine
     Given settings.json on disk has a foreign statusLine

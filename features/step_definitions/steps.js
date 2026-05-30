@@ -9,6 +9,7 @@ import { plan, planUninstall, statusLineCommand, writeFileAtomic } from '../../s
 
 // Path to the state file inside a scenario's sandbox HOME.
 const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
+const configFilePath = (world) => path.join(world.home, '.claude', 'cc-cream.json');
 
 // ---- helpers --------------------------------------------------------------
 const get = (obj, dotted) => dotted.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
@@ -501,9 +502,10 @@ Then('settings.json is unchanged', function () {
   assert.deepEqual(this.result.settings, this.before);
 });
 
-Then('it states that Claude Code must be trusted and possibly restarted for the bar to appear', function () {
+Then('it explains the bar appears on the next message, noting trust and restarting an open session', function () {
   const joined = this.result.messages.join('\n').toLowerCase();
-  assert.ok(joined.includes('trusted'));
+  assert.ok(joined.includes('next message'), `setup note must lead with "next message", got: ${joined}`);
+  assert.ok(joined.includes('trust'));
   assert.ok(joined.includes('restart'));
 });
 
@@ -1642,9 +1644,43 @@ Then('it exits zero and removes the statusLine', function () {
     `statusLine must be removed, got: ${JSON.stringify(readSandboxStatusLine(this))}`);
 });
 
-Then('it keeps the state file and prints how to remove it with --purge', function () {
-  assert.ok(fs.existsSync(stateFilePath(this)), 'state file must be kept in non-interactive uninstall');
-  assert.ok(/--purge/.test(this.installerOut), `output must mention --purge, got:\n${this.installerOut}`);
+Then('it auto-removes the session state file', function () {
+  assert.ok(!fs.existsSync(stateFilePath(this)),
+    `uninstall must auto-clean the regenerable session state, but it remains: ${stateFilePath(this)}`);
+});
+
+Given('a cc-cream config file on disk', function () {
+  fs.writeFileSync(configFilePath(this), JSON.stringify({ segments: { ctx: { on: true } } }, null, 2));
+});
+
+When('install.js --uninstall --purge runs without a TTY', function () {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'src', 'install.js'), '--uninstall', '--purge'], {
+    env: { ...process.env, HOME: this.home },
+    encoding: 'utf8',
+    timeout: 15000,
+  });
+  this.installerExit = res.status;
+  this.installerOut = (res.stdout ?? '') + (res.stderr ?? '');
+});
+
+Then('it removes the user config', function () {
+  assert.ok(!fs.existsSync(configFilePath(this)),
+    `--purge must remove the user config, but it remains: ${configFilePath(this)}`);
+});
+
+Then('the output names the cache-path uninstall escape hatch', function () {
+  assert.ok(/plugins\/cache\/cc-cream\b[\s\S]*install\.js --uninstall/.test(this.installerOut),
+    `output must name the cache-path install.js --uninstall escape hatch, got:\n${this.installerOut}`);
+});
+
+Then('the output mentions removing the marketplace and the version cache', function () {
+  assert.ok(/marketplace remove/.test(this.installerOut), `output must mention /plugin marketplace remove, got:\n${this.installerOut}`);
+  assert.ok(/plugins\/cache\/cc-cream/.test(this.installerOut), `output must name the version cache path, got:\n${this.installerOut}`);
+});
+
+Then('the output says the slash commands linger until restart', function () {
+  assert.ok(/linger[\s\S]*restart/i.test(this.installerOut),
+    `output must say the slash commands linger until restart, got:\n${this.installerOut}`);
 });
 
 Then('it exits zero and leaves the foreign statusLine unchanged', function () {

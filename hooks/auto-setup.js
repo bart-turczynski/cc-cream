@@ -97,7 +97,7 @@ function main() {
   if (!writeStatusLine(settings, ep)) return;
   writeMarker();
   emit(
-    'cc-cream enabled your status bar. Restart or trust this workspace if it doesn’t appear. Run /cc-cream:uninstall to remove it.',
+    'cc-cream enabled your status bar — send a message to see it, or start a new session. Run /cc-cream:uninstall to remove it.',
   );
 }
 

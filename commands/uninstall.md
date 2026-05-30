@@ -5,4 +5,4 @@ allowed-tools: Bash(node:*)
 
 Removing cc-cream's status-bar wiring from `~/.claude/settings.json`. Run `/plugin uninstall cc-cream` afterwards to drop the plugin — if you already removed the plugin, run `npx -y -p cc-cream cc-cream-setup --uninstall` to clear the leftover wiring.
 
-!`node ${CLAUDE_PLUGIN_ROOT}/src/install.js --uninstall`
+!`node ${CLAUDE_PLUGIN_ROOT}/src/install.js --uninstall $ARGUMENTS`
