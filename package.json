@@ -1,7 +1,7 @@
 {
   "name": "cc-cream",
   "version": "0.3.3",
-  "description": "Claude Code cache/context/cost status-line tool",
+  "description": "See cache health, context fill, token burn, rate limits, and peak hours in Claude Code CLI. The status line for tokenminning - cache rules everything around me - dolla, dolla bill, y'all.",
   "directories": {
     "doc": "docs"
   },
@@ -33,12 +33,16 @@
     "CHANGELOG.md"
   ],
   "keywords": [
+    "claude",
     "claude-code",
     "status-line",
     "cache",
+    "tokens",
     "context",
-    "cost",
-    "developer-tools"
+    "engineering",
+    "monitoring",
+    "costs",
+    "tokenmaxxing"
   ],
   "author": "Bart Turczynski <support@spoonkeyworks.com>",
   "license": "MIT",

@@ -3,349 +3,140 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/bart-turczynski/cc-cream/ci.yml?branch=main&label=CI)](https://github.com/bart-turczynski/cc-cream/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/cc-cream)](https://www.npmjs.com/package/cc-cream)
 [![Socket Badge](https://socket.dev/api/badge/npm/package/cc-cream)](https://socket.dev/npm/package/cc-cream)
+[![Snyk security](https://snyk.io/test/npm/cc-cream/badge.svg)](https://security.snyk.io/package/npm/cc-cream)
 [![install size](https://img.shields.io/bundlephobia/minzip/cc-cream)](https://bundlephobia.com/package/cc-cream)
 [![License: MIT](https://img.shields.io/npm/l/cc-cream)](https://github.com/bart-turczynski/cc-cream/blob/main/LICENSE)
 
-**C.R.E.A.M. — Cache Rules Everything Around Me.**
+**The status bar Claude Code should have shipped with.**
 
-A lightweight status-line tool for [Claude Code](https://claude.com/claude-code)
-that turns the JSON Claude Code pipes to its status line into a glanceable,
-colored ≤3-row bar. The model **never sees the output** — it costs **zero tokens**.
+*C.R.E.A.M. — Claude Code · Cache Rules Everything Around Me*
 
-## What it shows
+![cc-cream status bar](assets/screenshot.png)
+
+Keeps your cache health, context fill, rate-limit budgets, and session cost visible at all times — in a colored ≤3-row bar the model never sees. Zero tokens.
+
+With all segments enabled:
 
 ```
-ctx:3% [30k] | cache:55% | ~$0.10
-5h:22% ↺ 0m | 7d:36% ↺ Sat 21:00
-Opus 4.7 (1M context) | example session
+ctx:21% [43k] | cache:99% | write:2% | ttl:60 | effort:high | think:on | ∿ api:74% | ~$0.23
+5h:13% ↺2h57m | ~3h12m | 7d:6% ↺Sat 21:00 | peak
+Sonnet 4.6 | My project session
 ```
 
-> Rendered from a live Claude Code subscriber session (fixtures/subscriber.golden.json).
-> A proper screenshot or asciinema recording will appear here after public release.
+**Row 1 — this session:** context-window fill, cache hit rate, TTL countdown, session cost. Optional: cache write rate, effort level, thinking mode, API time ratio.
 
-- **Row 1** — this session: context-window occupancy, cache hit rate, session cost
-- **Row 2** — rate-limit budget windows: 5h and 7d usage + reset countdown (subscribers only; API users get one row)
-- **Row 3** — identity: model name and optional session name
+**Row 2 — rate-limit budgets:** 5h and 7d window usage with reset countdowns and a burn-rate projection. Hidden for API users.
 
-The bar helps you avoid rate limits, keep the cache warm, and catch context fill
-before the model degrades — with cache economics as the organizing story.
+**Row 3 — identity:** model name and session name.
 
-## Trust and data posture
+## Features
 
-- **No network calls.** The engine is a pure stdin → stdout transformer. It never
-  opens a socket, fetches a URL, or calls home.
-- **No telemetry.** Nothing is collected, reported, or logged anywhere.
-- **No runtime dependencies.** Node built-ins only. `npm install` is for dev tools
-  (Cucumber, Biome) — nothing that runs at render time.
-- **Zero tokens.** Claude Code reads the bar output to display it; the model never
-  receives it.
+**Cache health.** `cache` shows your hit rate each turn and turns red when it drops sharply — the only signal you'll get that a compaction, a far-back edit, or a large tool result just invalidated your cache prefix. `ttl` counts down to when the cache goes cold, turning amber then red as the window closes. Supports both 5-minute (API) and 60-minute (subscriber) TTLs, auto-detected.
 
-The only I/O is reading the JSON blob Claude Code pipes on stdin and writing one
-session-state file to `~/.claude/cc-cream-state.json` (keyed by session ID,
-contains cost and rate-limit samples used for the burn projection).
+**Rate-limit budgets.** `5h` and `7d` show how much of your rolling usage is gone and when each window resets. `burn` adds a live projection based on your current pace — useful before committing to a long agent run.
+
+**Peak hours.** Anthropic's rate-limit drain accelerates Mon–Fri during Pacific business hours. The `peak` segment lights up when you're in that window so you can pace yourself accordingly. No other Claude Code status tool surfaces this.
+
+**Context window.** `ctx` shows occupancy and input-token magnitude. On large-context models where "50% of window" still means 500k tokens, you can set a fixed-token ceiling instead — warnings fire at the same absolute count regardless of window size.
+
+**Session cost.** Cumulative spend including subagents, as estimated by Claude Code. Hidden when zero.
+
+## Trust
+
+No network calls, no telemetry, no runtime dependencies — Node built-ins only. The only output is a string written to stdout; the model never receives it. The only file written is `~/.claude/cc-cream-state.json` (session samples for the burn projection and drop detection). See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 
 ## Requirements
 
 - **Node.js** — already present; Claude Code is a Node app.
-- **Claude Code ≥ 2.1.132** (released 2026-05-06). The cache figure requires
-  `context_window.current_usage`, which landed in that release.
-- The `effort` and `thinking` segments additionally require **Claude Code ≥ 2.1.145**;
-  they stay hidden below that version.
+- **Claude Code ≥ 2.1.132** (released 2026-05-06). The cache figure requires `context_window.current_usage`, which landed in that release.
+- `effort` and `thinking` segments additionally require **Claude Code ≥ 2.1.145**; they stay hidden on older versions.
 
 ## Platform support
 
-v1 supports **macOS and Linux**. Windows support is a planned fast-follow; the
-engine is pure Node and the only blocker is the statusLine shell-command wiring.
+macOS and Linux. Windows is a planned fast-follow.
 
 ## Install
 
-### Option 1 — Claude Code plugin (community catalog / self-hosted marketplace)
+### Option 1 — Claude Code plugin (recommended)
 
-If cc-cream is listed in the community catalog:
-```bash
-/plugin install cc-cream
-```
-
-To use the self-hosted marketplace directly:
 ```bash
 /plugin marketplace add bart-turczynski/cc-cream
 /plugin install cc-cream
 ```
 
-That's usually all you need: on the first session after install, cc-cream
-**auto-wires** its `statusLine` into `~/.claude/settings.json` (you may need to
-restart or trust the workspace for the bar to appear). It only does this when no
-status line is configured — it never overwrites one you set for something else,
-and it never re-adds the bar after you remove it.
+On the first session after install cc-cream auto-wires its `statusLine` into `~/.claude/settings.json`. It only does this when the slot is free — it never overwrites a statusLine you set for something else, and it never re-adds the bar after you remove it.
 
-If you already have a status line and want to replace it with cc-cream's, run:
+If you already have a statusLine and want to replace it with cc-cream's:
 ```
 /cc-cream:setup
 ```
 
-The `/cc-cream:setup` command runs the consent installer, which writes the
-`statusLine` block to `~/.claude/settings.json`. Updates are automatic: when
-`/plugin update` drops a new version into the cache, the next render picks it up
-without any further action.
+Updates are automatic: `/plugin update` drops a new version into the cache; the next render picks it up.
 
 ### Option 2 — npm
 
 ```bash
 npm install -g cc-cream
-```
-
-Then wire it into Claude Code with the bundled CLI:
-```bash
 cc-cream-setup
 ```
 
-`cc-cream-setup` runs the consent installer (`src/install.js`). Without a global
-install you can run it through npx:
+Or without a global install:
 ```bash
 npx -y -p cc-cream cc-cream-setup
 ```
 
-### Option 3 — Manual GitHub clone
+### Option 3 — Manual
 
-Download and install by cloning the repository, then run the consent installer:
 ```bash
 git clone https://github.com/bart-turczynski/cc-cream.git
 node cc-cream/src/install.js
 ```
 
-The installer:
-- Detects an existing `statusLine` and **asks before replacing it**
-- **Preserves any `padding`** you have set
-- Is **idempotent** — re-running when cc-cream is already installed changes nothing
-- States the trust and restart requirement
+The installer detects an existing `statusLine` and asks before replacing it, preserves any `padding` you have set, and is idempotent.
 
-After install, Claude Code must be **trusted** for the directory (if prompted),
-and you may need to **restart** it for the bar to appear.
+After install, Claude Code must be **trusted** for the directory (if prompted) and you may need to **restart** for the bar to appear.
 
-> **Pick one install method.** If you wire cc-cream via npm/manual (Options 2–3)
-> and *then* install the plugin, the plugin won't take over the existing wiring —
-> it points at your home copy, so `/plugin update` won't auto-update the bar. To
-> switch to the auto-updating plugin, run `/cc-cream:setup` (or `cc-cream-setup
-> --uninstall` first). Nothing breaks either way; it just stays on whichever
-> method wired it.
+> **Pick one install method.** If you wire cc-cream via npm/manual and then install the plugin, run `/cc-cream:setup` to switch to the auto-updating plugin path. Nothing breaks either way — it just stays on whichever method wired it.
 
-### Uninstall
+## Uninstall
 
-Plugin users — two steps, **in this order** (Claude Code can't clean
-`settings.json` when a plugin is removed, so the wiring is cleared separately
-from the cache):
+Plugin users — run in this order:
 ```
-/cc-cream:uninstall          # 1. removes the statusLine wiring (run this FIRST)
-/plugin uninstall cc-cream   # 2. drops the plugin
+/cc-cream:uninstall
+/plugin uninstall cc-cream
 ```
-`/cc-cream:uninstall` also auto-cleans cc-cream's regenerable scratch (the copied
-runtime and session-state file); add `--purge` (`/cc-cream:uninstall --purge`) to
-also delete your `~/.claude/cc-cream.json` config. The bar disappears on your next
-message — restart an already-open session to drop it immediately.
-
-> **Order matters — but you're covered if you get it wrong.** `/cc-cream:uninstall`
-> lives inside the plugin, so once you run `/plugin uninstall` it's gone. Neither
-> host command clears the `statusLine` block *or* the version cache. The renderer
-> notices when it's running from a cache the host no longer lists as installed and
-> **self-suppresses**, so the bar stops on the next session even though the inert
-> `statusLine` line still lingers in `settings.json`.
->
-> To clear that leftover line once the plugin is gone, the **guaranteed** route is
-> the copy of the uninstaller still in the cache — npm-free and always present.
-> `VERSION` is the single directory under that path (run the `ls` first to read it
-> off); `/cc-cream:uninstall` also prints the fully-resolved command:
-> ```bash
-> ls ~/.claude/plugins/cache/cc-cream/cc-cream/        # e.g. 0.3.1
-> node ~/.claude/plugins/cache/cc-cream/cc-cream/VERSION/src/install.js --uninstall
-> # add --purge to also remove your config
-> ```
-> The npm bin does the same job, but **not always**: a *freshly published* version
-> is blocked by npm's min-package-age safe-chain guard (it reports "No versions
-> available") until it ages in, so use it only if the cache route isn't handy:
-> ```bash
-> npx -y -p cc-cream cc-cream-setup --uninstall
-> ```
-> You can always remove the `statusLine` key from `~/.claude/settings.json` by hand.
 
 npm / manual users:
 ```bash
-cc-cream-setup --uninstall                 # npm (add --purge to also remove the config)
-node cc-cream/src/install.js --uninstall   # manual clone
+cc-cream-setup --uninstall
 ```
 
-Uninstall removes the `statusLine` block **only if it is cc-cream's** — a
-statusLine you wired for something else is left untouched. It always cleans the
-regenerable scratch (the copied runtime and session state, both recreated on a
-reinstall); `--purge` additionally removes your `~/.claude/cc-cream.json` config.
-The bar clears on your next message (restart an already-open session to drop it now).
-
-Likewise, `cc-cream-setup` run non-interactively will overwrite an existing
-*cc-cream* statusLine but never a foreign one — pass `--force` to replace
-regardless.
-
-Not sure what's left behind? `cc-cream-setup --status` prints a read-only
-footprint report — the statusLine wiring, every cached plugin version (the host
-never garbage-collects these), the marketplace clone + registration, the auto-wire
-marker, session state, config, and the manual runtime copy — so you can confirm a
-clean slate or see exactly what to remove.
+Add `--purge` to either to also remove your `~/.claude/cc-cream.json` config. See [UNINSTALL.md](UNINSTALL.md) for edge cases and manual cleanup.
 
 ## Configuration
 
-Every display decision is read from `~/.claude/cc-cream.json`. Edit it by hand
-or ask Claude to. It is strict JSON with no comments. **Every field falls back to
-its built-in default if missing or malformed** — a typo degrades one value rather
-than breaking the bar; a whole-file parse error falls back to all defaults.
+Every display decision is driven by `~/.claude/cc-cream.json`. You don't have to edit it by hand — just ask Claude to toggle segments, flip how percentages are counted, or adjust thresholds. The defaults are based on what the data and community experience suggest are reasonable starting points.
 
-Because unknown or out-of-range fields are silently ignored, run the doctor after
-editing by hand to catch typos:
-
+If you do edit by hand, run the doctor afterward to catch typos:
 ```bash
-cc-cream-setup --check-config   # reports unknown keys / out-of-domain values; exits non-zero if any
+cc-cream-setup --check-config
 ```
 
-```json
-{
-  "numbers": "compact",
-  "ttl": "auto",
-  "percentage": "consumed",
-  "segments": {
-    "ctx":          { "on": true,  "row": 1, "order": 2, "amber": 30, "orange": 40, "red": 50, "basis": "window", "ceiling": 200000, "display": "basis" },
-    "cache":        { "on": true,  "row": 1, "order": 3, "drop": 20, "drop_recover": 80 },
-    "write":        { "on": false, "row": 1, "order": 3.5 },
-    "ttl":          { "on": true,  "row": 1, "order": 4, "amber": 50, "red": 80 },
-    "cost":         { "on": true,  "row": 1, "order": 5 },
-    "effort":       { "on": false, "row": 1, "order": 6 },
-    "thinking":     { "on": false, "row": 1, "order": 7 },
-    "api_ratio":    { "on": false, "row": 1, "order": 8 },
-    "5h":           { "on": true,  "row": 2, "order": 1, "amber": 75, "red": 90 },
-    "burn":         { "on": true,  "row": 2, "order": 1.5 },
-    "7d":           { "on": true,  "row": 2, "order": 2, "amber": 75, "red": 90 },
-    "peak":         { "on": true,  "row": 2, "order": 3, "start": 5, "end": 11 },
-    "model":        { "on": true,  "row": 3, "order": 0.5 },
-    "session_name": { "on": false, "row": 3, "order": 1 }
-  }
-}
-```
-
-### Global keys
-
-- `numbers`: `compact` (e.g. `38k`) or `exact` (`38000`) for token magnitudes.
-- `ttl`: cache time-to-live used to color the `ttl` segment — `auto` (recommended),
-  `60`, or `5` minutes. `auto` infers from rate-limit data when available.
-- `percentage`: `consumed` (default) counts up — `ctx:19%` means 19% of the window
-  is used, `5h:67%` means 67% of the 5h budget is gone. `remaining` flips the
-  budget/occupancy segments to count down (`ctx:81%`, `5h:33%`). Only `ctx`, `5h`
-  and `7d` flip; `cache%` (a hit-rate, not a budget) and `ttl` (a countdown) are
-  unaffected. **Thresholds are always expressed in consumed terms regardless of
-  this setting.**
-
-### Per-segment keys
-
-Every segment accepts:
-- `on` (boolean) — whether to show the segment
-- `row` (1, 2, or 3) — which row to place it on
-- `order` (any number) — lower = further left within the row
-
-Colored segments additionally accept threshold keys. Thresholds mark the
-**lower bound** where that color begins.
-
-### Segment catalog
-
-| Segment | Default | Example | Meaning | Color |
-|---|---|---|---|---|
-| `ctx` | on, row 1 | `ctx:19% [38k]` | context-window occupancy + input-token magnitude | `<30` green · `30–40` amber · `40–50` orange · `≥50` red |
-| `cache` | on, row 1 | `cache:95%` | last-turn cache hit rate (reads / total tokens) | neutral; **red** on a sharp drop (see below) |
-| `write` | **off**, row 1 | `write:4%` | last-turn cache creation rate (new writes / total tokens) | neutral |
-| `ttl` | on, row 1 | `ttl:00:52` | time remaining before cache expires (counts down to 00:00) | `<50%` green · `50–80%` amber · `≥80%` red |
-| `cost` | on, row 1 | `~$4.50` | session cost incl. subagents; `~` = CC's estimate | neutral; hidden when zero |
-| `effort` | **off**, row 1 | `effort:high` | reasoning effort level (requires CC ≥ 2.1.145) | neutral |
-| `thinking` | **off**, row 1 | `think:on` | thinking mode indicator (requires CC ≥ 2.1.145) | neutral |
-| `api_ratio` | **off**, row 1 | `∿ api:74%` | fraction of wall time spent on API calls | neutral |
-| `5h` | on, row 2 | `5h:23% ↺ 2h14m` | 5-hour rate-limit window + reset countdown | `≥75` amber · `≥90` red |
-| `burn` | on, row 2 | `~38m` | estimated minutes until 5h cap at current pace | neutral; hidden when ETA > 5h or no prior sample |
-| `7d` | on, row 2 | `7d:41% ↺ 4d` | weekly rate-limit window + reset countdown | same as 5h |
-| `peak` | on, row 2 | `peak` | weekday Pacific-time window where 5h drains faster | amber; hidden outside window |
-| `model` | on, row 3 | `Sonnet 4.6` | current model name | none |
-| `session_name` | **off**, row 3 | `My project session` | conversation name from CC | none |
-
-Any segment hides cleanly when its source field is absent — API users have no
-`rate_limits`; `current_usage` is null right after `/compact`; etc.
-
-Row 2 is hidden entirely for API users (no `rate_limits` in stdin).
-Row 3 suppresses itself when all its segments are hidden.
-
-### Row 1 layout
-
-Row 1 has two zones separated by ` | `:
-
-```
-[ctx · cache · write · ttl · effort · thinking · api_ratio] | [cost]
-```
-
-Segments within zone 1 are also separated by ` | `. Segments moved off their
-default row via config must land in a zone to appear on row 1.
-
-### `ctx`-specific keys
-
-- `basis`: `window` (default) colors based on `used_percentage` of the real context
-  window. `ceiling` colors based on `total_input_tokens / ceiling`, so the warning
-  fires at the same absolute token count on any window size. On a 1M-context model
-  the window basis stays green well past where quality degrades — set `ceiling` if
-  you want an early warning that doesn't scale with the window.
-- `ceiling`: token count the `ceiling` basis measures against. Default `200000`.
-- `display`: with `basis: "ceiling"`, `basis` (default) shows the % toward the
-  ceiling so number and color agree; `window` pins it to CC's window figure but
-  still colors by the ceiling. No effect under `basis: "window"`.
-
-### `ctx` thresholds
-
-Default: `amber: 30`, `orange: 40`, `red: 50` (percent consumed).
-
-### `cache` drop detection
-
-The `cache` segment stays neutral while the hit rate is healthy, but turns **red**
-when it falls sharply from one turn to the next — a cue that the prompt cache was
-just invalidated (e.g. an edit far back in context forced a re-read). This relies
-on per-session state, so it only fires when `session_id` is present in stdin.
-
-- `drop`: percentage-point fall from the previous turn that trips red. Default `20`
-  (95% → 74% trips; 95% → 80% does not).
-- `drop_recover`: once tripped, the segment stays red until the hit rate climbs
-  back to at least this value. Default `80`.
-
-### `ttl` thresholds
-
-Default: `amber: 50`, `red: 80` (percent of the resolved TTL consumed).
-
-### `5h` / `7d` thresholds
-
-Default: `amber: 75`, `red: 90` (absolute `used_percentage`).
-
-### `peak`-specific keys
-
-- `start` / `end`: hours in Pacific time (0–23, exclusive end) bounding
-  Anthropic's faster-drain window. Defaults `5`–`11`. Weekday-only (Mon–Fri) and
-  the `America/Los_Angeles` timezone are hardcoded policy facts, not config.
+Full reference: [CONFIGURATION.md](CONFIGURATION.md).
 
 ## Troubleshooting
 
-cc-cream is built to degrade silently — if a stdin field is missing or malformed
-it just hides that segment rather than crashing. When the bar is unexpectedly
-empty or shorter than you expect, turn on diagnostics:
+cc-cream degrades silently — missing or malformed data hides the segment rather than crashing. When the bar is unexpectedly empty or shorter than expected:
 
 ```bash
 export CC_CREAM_DEBUG=1   # then trigger a render in Claude Code
 ```
 
-Each render appends a line to `~/.claude/cc-cream-debug.log` (override the path
-with `CC_CREAM_DEBUG_LOG`) listing which segments rendered, which were dropped,
-the resolved TTL window, and the stdin size. It never writes to the status line
-itself, so it costs zero tokens. Unset the variable to turn it off.
+Each render appends a diagnostic line to `~/.claude/cc-cream-debug.log` (override with `CC_CREAM_DEBUG_LOG`) listing which segments rendered, which were dropped, the resolved TTL, and stdin size. Unset to turn off.
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to run the tests. The runtime
-uses only Node built-ins — no runtime dependencies.
+See [CONTRIBUTING.md](CONTRIBUTING.md). The runtime uses only Node built-ins — no runtime dependencies.
 
 ## License
 

@@ -22,8 +22,8 @@ intentionally minimal:
 
 ## Supported versions
 
-Only the latest published version is supported. cc-cream is pre-1.0 (currently
-`0.1.0`); the project does not backport fixes.
+Only the latest published version is supported. cc-cream is pre-1.0; the project
+does not backport fixes.
 
 ## Reporting a vulnerability
 

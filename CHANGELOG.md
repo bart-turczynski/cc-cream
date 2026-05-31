@@ -8,6 +8,15 @@ All notable changes to cc-cream are documented here. Format follows
 
 ### Changed
 - **Renamed the self-hosted marketplace from `cc-cream` to `bart-turczynski`.** The marketplace and the plugin previously shared the name `cc-cream`, producing the doubled reference `cc-cream@cc-cream`. Naming the marketplace after its owner makes it a suite container for future plugins and reads naturally as `cc-cream@bart-turczynski`. Only the marketplace's identity changes — the plugin name, the GitHub repo slug (`bart-turczynski/cc-cream`, still used in `/plugin marketplace add`), and the unqualified `/plugin install cc-cream` are unaffected. Existing installs must remove and re-add the marketplace to pick up the new identity.
+- **Updated npm/plugin description and keywords** to reflect the actual feature set and improve discoverability. New description: "See cache health, context fill, token burn, rate limits, and peak hours in Claude Code CLI." Keywords updated across `package.json`, `plugin.json`, and `marketplace.json`.
+
+### Documentation
+- **Rewrote README** as a benefits-led, user-facing page. Added a real screenshot, an all-segments-on ASCII example, and short feature sections. Trimmed from ~350 lines to ~115 by extracting the full config reference and uninstall edge cases into dedicated files.
+- **Added `CONFIGURATION.md`** — the complete configuration reference (JSON block, all segment docs, threshold keys, per-segment options) moved from the README.
+- **Added `UNINSTALL.md`** — uninstall edge cases moved from the README: wrong-order recovery, cache-path fallback, npm safe-chain guard, `--status` footprint report.
+- **Added `assets/screenshot.png`** — live screenshot of the default status bar.
+- **Fixed stale version reference in `SECURITY.md`** — removed hardcoded `0.1.0` version pin from the supported-versions section.
+- **Fixed `v1 supports` platform note in `README.md`** — replaced forward-looking "v1 supports macOS and Linux" with the present-tense "cc-cream supports macOS and Linux".
 
 ## [0.3.3] — 2026-05-30
 

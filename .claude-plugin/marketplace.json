@@ -8,11 +8,11 @@
   "plugins": [
     {
       "name": "cc-cream",
-      "description": "Colored ≤3-row status bar for Claude Code: context usage, cache hit rate, cost, rate limits, and more. Zero tokens — the model never sees the output.",
+      "description": "See cache health, context fill, token burn, rate limits, and peak hours in Claude Code CLI. The status line for tokenminning - cache rules everything around me - dolla, dolla bill, y'all.",
       "homepage": "https://github.com/bart-turczynski/cc-cream",
       "source": "./",
       "category": "monitoring",
-      "tags": ["status-line", "cache", "cost", "context", "rate-limits", "monitoring"]
+      "tags": ["claude", "claude-code", "status-line", "cache", "tokens", "context", "engineering", "monitoring", "costs", "tokenmaxxing"]
     }
   ]
 }
