@@ -87,6 +87,8 @@ npx -y -p cc-cream cc-cream-setup
 
 ### Option 3 — Manual
 
+Download or clone the repository, then run the consent installer:
+
 ```bash
 git clone https://github.com/bart-turczynski/cc-cream.git
 node cc-cream/src/install.js

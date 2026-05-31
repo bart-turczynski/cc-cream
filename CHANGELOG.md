@@ -6,6 +6,8 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.3.4] — 2026-05-31
+
 ### Changed
 - **Renamed the self-hosted marketplace from `cc-cream` to `bart-turczynski`.** The marketplace and the plugin previously shared the name `cc-cream`, producing the doubled reference `cc-cream@cc-cream`. Naming the marketplace after its owner makes it a suite container for future plugins and reads naturally as `cc-cream@bart-turczynski`. Only the marketplace's identity changes — the plugin name, the GitHub repo slug (`bart-turczynski/cc-cream`, still used in `/plugin marketplace add`), and the unqualified `/plugin install cc-cream` are unaffected. Existing installs must remove and re-add the marketplace to pick up the new identity.
 - **Updated npm/plugin description and keywords** to reflect the actual feature set and improve discoverability. New description: "See cache health, context fill, token burn, rate limits, and peak hours in Claude Code CLI." Keywords updated across `package.json`, `plugin.json`, and `marketplace.json`.
