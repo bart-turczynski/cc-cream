@@ -19,7 +19,7 @@ With all segments enabled:
 
 ```
 ctx:21% [43k] | cache:99% | write:2% | ttl:60 | effort:high | think:on | ∿ api:74% | ~$0.23
-5h:13% ↺2h57m | ~3h12m | 7d:6% ↺Sat 21:00 | peak
+5h:13% ↺2h57m | ~3h12m | 7d:6% ↺Sat 21:00 | peak until 11:00
 Sonnet 4.6 | My project session
 ```
 
@@ -35,7 +35,7 @@ Sonnet 4.6 | My project session
 
 **Rate-limit budgets.** `5h` and `7d` show how much of your rolling usage is gone and when each window resets. `burn` adds a live projection based on your current pace — useful before committing to a long agent run.
 
-**Peak hours.** Anthropic's rate-limit drain accelerates Mon–Fri during Pacific business hours. The `peak` segment lights up when you're in that window so you can pace yourself accordingly. No other Claude Code status tool surfaces this.
+**Peak hours.** Anthropic's rate-limit drain accelerates Mon–Fri during Pacific business hours. The `peak` segment tells you when the current window closes (`peak until 11:00`, in your local time) while you're in it, and counts down to the next one (`peak in 47m`) in the hour before it opens — so you can pace yourself or wait it out. No other Claude Code status tool surfaces this.
 
 **Context window.** `ctx` shows occupancy and input-token magnitude. On large-context models where "50% of window" still means 500k tokens, you can set a fixed-token ceiling instead — warnings fire at the same absolute count regardless of window size.
 

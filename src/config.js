@@ -48,6 +48,7 @@ const SEGMENT_FIELDS = {
   display: ctxDisplayOr,
   start: hourOr,
   end: hourOr,
+  lead: posOr,
 };
 
 function mergeConfig(parsed) {

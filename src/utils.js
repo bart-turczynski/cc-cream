@@ -75,23 +75,47 @@ export const flipPct = (consumedShown, cfg) => (
   cfg.percentage === 'remaining' ? 100 - consumedShown : consumedShown
 );
 
-// True during Anthropic's faster-drain "peak" window (PRDv2 §2): a weekday
-// (Mon–Fri) within [start, end) Pacific-time hours.
-export function isPeak(now, cfg, tz = 'America/Los_Angeles') {
+// Resolve the "peak" window (PRDv2 §2) relative to `now`. Anthropic drains the
+// 5h budget faster on weekdays (Mon–Fri) within [start, end) Pacific-time hours.
+// Returns one of:
+//   { state: 'in',          endsAtMs }    — inside [start, end); endsAtMs is the
+//                                           window close as an epoch (format local)
+//   { state: 'approaching', startsInMin } — inside [start-lead, start)
+//   null                                  — off-window, weekend, or Intl failure
+// `lead` (minutes, default 60) is how early the approaching countdown appears.
+export function peakStatus(now, cfg, tz = 'America/Los_Angeles') {
   const s = cfg?.segments?.peak ?? {};
   const start = isNum(s.start) ? s.start : 5;
   const end = isNum(s.end) ? s.end : 11;
+  const lead = isNum(s.lead) && s.lead > 0 ? s.lead : 60;
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz, hour: 'numeric', hour12: false, weekday: 'short',
+      timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false, weekday: 'short',
     }).formatToParts(new Date(now));
     const p = Object.fromEntries(parts.map((x) => [x.type, x.value]));
-    const hour = Number(p.hour) % 24; // some ICU builds emit "24" for midnight
-    return !['Sat', 'Sun'].includes(p.weekday) && hour >= start && hour < end;
+    if (['Sat', 'Sun'].includes(p.weekday)) return null;
+    const ptMin = (Number(p.hour) % 24) * 60 + Number(p.minute); // some ICU builds emit "24" for midnight
+    const startMin = start * 60;
+    const endMin = end * 60;
+    if (ptMin >= startMin && ptMin < endMin) {
+      return { state: 'in', endsAtMs: now + (endMin - ptMin) * 60000 };
+    }
+    if (ptMin >= startMin - lead && ptMin < startMin) {
+      return { state: 'approaching', startsInMin: startMin - ptMin };
+    }
+    return null;
   } catch {
-    return false;
+    return null;
   }
 }
+
+// Back-compat predicate: true only inside the window itself (not while approaching).
+export const isPeak = (now, cfg, tz = 'America/Los_Angeles') => peakStatus(now, cfg, tz)?.state === 'in';
+
+// Wall-clock HH:MM in the host's local timezone (TZ-driven, like countdown's day branch).
+export const localHM = (ms) => new Date(ms).toLocaleTimeString(undefined, {
+  hour: '2-digit', minute: '2-digit', hour12: false,
+});
 
 // resets_at - now, on the §4.4 format ladder: >=1d -> "Fri 23:45", >=1h -> HhMMm, else MMm.
 export function countdown(resetsAt, now) {

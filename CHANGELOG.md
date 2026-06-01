@@ -6,6 +6,9 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+- **The `peak` segment now shows when the window closes and when the next one opens (CREAM-scwwzbxh).** Inside the faster-drain window it reads `peak until HH:MM` — the close time in your **local** timezone, not PT — so you can see how long the elevated drain lasts. In the hour before the window opens it counts down `peak in Nm`. The new `peak.lead` config key sets how many minutes ahead the countdown appears (default `60`). Previously the segment showed only the bare word `peak` while in-window and nothing otherwise.
+
 ## [0.3.4] — 2026-05-31
 
 ### Changed

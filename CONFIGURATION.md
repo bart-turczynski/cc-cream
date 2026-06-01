@@ -26,7 +26,7 @@ cc-cream-setup --check-config
     "5h":           { "on": true,  "row": 2, "order": 1, "amber": 75, "red": 90 },
     "burn":         { "on": true,  "row": 2, "order": 1.5 },
     "7d":           { "on": true,  "row": 2, "order": 2, "amber": 75, "red": 90 },
-    "peak":         { "on": true,  "row": 2, "order": 3, "start": 5, "end": 11 },
+    "peak":         { "on": true,  "row": 2, "order": 3, "start": 5, "end": 11, "lead": 60 },
     "model":        { "on": true,  "row": 3, "order": 0.5 },
     "session_name": { "on": false, "row": 3, "order": 1 }
   }
@@ -63,7 +63,7 @@ Colored segments additionally accept threshold keys. Thresholds mark the **lower
 | `5h` | on, row 2 | `5h:23% ↺ 2h14m` | 5-hour rate-limit window + reset countdown | `≥75` amber · `≥90` red |
 | `burn` | on, row 2 | `~38m` | estimated minutes until 5h cap at current pace | neutral; hidden when ETA > 5h or no prior sample |
 | `7d` | on, row 2 | `7d:41% ↺ 4d` | weekly rate-limit window + reset countdown | same as 5h |
-| `peak` | on, row 2 | `peak` | weekday Pacific-time window where 5h drains faster | amber; hidden outside window |
+| `peak` | on, row 2 | `peak until 11:00` · `peak in 47m` | weekday Pacific-time window where 5h drains faster | amber; hidden outside window |
 | `model` | on, row 3 | `Sonnet 4.6` | current model name | none |
 | `session_name` | **off**, row 3 | `My project session` | conversation name from CC | none |
 
@@ -107,3 +107,4 @@ Default: `amber: 75`, `red: 90` (absolute `used_percentage`).
 ## `peak` — specific keys
 
 - `start` / `end`: hours in Pacific time (0–23, exclusive end) bounding Anthropic's faster-drain window. Defaults `5`–`11`. Weekday-only (Mon–Fri) and the `America/Los_Angeles` timezone are hardcoded policy facts, not config.
+- `lead`: minutes before `start` that the approaching countdown appears. Default `60`. Inside the window the segment reads `peak until HH:MM` (the window's close in **your local timezone**); in the `lead` minutes before it opens, it counts down `peak in Nm`.

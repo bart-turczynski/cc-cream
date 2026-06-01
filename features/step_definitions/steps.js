@@ -758,6 +758,12 @@ Given(/^the America\/Los_Angeles timezone is unavailable$/, function () {
   this.env.CC_CREAM_TZ = 'Definitely/NotAZone'; // forces Intl.DateTimeFormat to throw
 });
 
+// Pin the host's LOCAL timezone (TZ env) so the "peak until HH:MM" close time —
+// formatted in local time — is deterministic regardless of the CI machine's zone.
+Given('the local timezone is {string}', function (tz) {
+  this.env.TZ = tz;
+});
+
 Then('row 2 ends with {string}', function (text) {
   const line = this.plain.split('\n').find((l) => /5h:|7d:|peak/.test(l));
   assert.ok(line, `no row 2 in: ${this.plain}`);

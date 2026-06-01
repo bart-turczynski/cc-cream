@@ -1,4 +1,4 @@
-import { band, countdown, flipPct, fmtNum, isNum, isPeak, numOr, pad2 } from './utils.js';
+import { band, countdown, flipPct, fmtNum, isNum, localHM, numOr, pad2, peakStatus } from './utils.js';
 import { hasWindow } from './ttl.js';
 
 function magnitudeTokens(cw) {
@@ -125,8 +125,12 @@ function segCacheWrite(data) {
 function segPeak(data, cfg, now, tz) {
   // peak rides the account-budget row, so it shows only when that row has windows.
   if (!hasWindow(data?.rate_limits)) return null;
-  if (!isPeak(now, cfg, tz)) return null;
-  return { text: 'peak', color: 'amber' };
+  const st = peakStatus(now, cfg, tz);
+  if (!st) return null;
+  const text = st.state === 'approaching'
+    ? `peak in ${st.startsInMin}m`        // counting down to the window opening
+    : `peak until ${localHM(st.endsAtMs)}`; // inside it: local clock time it closes
+  return { text, color: 'amber' };
 }
 
 function segBurn(fiveHour, prev, now) {

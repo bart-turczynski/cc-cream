@@ -19,10 +19,12 @@ export const DEFAULTS = {
     cost:     { on: true,  row: 1, order: 5 },
     '5h':     { on: true,  row: 2, order: 1, amber: 75, red: 90 },
     '7d':     { on: true,  row: 2, order: 2, amber: 75, red: 90 },
-    // peak: amber "peak" word during Anthropic's faster-drain window (PRDv2 §2).
-    // start/end are Pacific-time hours (0–23, exclusive end); weekday (Mon–Fri)
-    // and the America/Los_Angeles timezone are hardcoded policy facts, not config.
-    peak:     { on: true,  row: 2, order: 3, start: 5, end: 11 },
+    // peak: amber peak-window indicator (PRDv2 §2). start/end are Pacific-time
+    // hours (0–23, exclusive end); weekday (Mon–Fri) and the America/Los_Angeles
+    // timezone are hardcoded policy facts, not config. Inside the window it reads
+    // "peak until HH:MM" (local close time); the `lead` minutes before it opens it
+    // counts down "peak in Nm".
+    peak:     { on: true,  row: 2, order: 3, start: 5, end: 11, lead: 60 },
     burn:         { on: true,  row: 2, order: 1.5 },
     effort:       { on: false, row: 1, order: 6 },
     thinking:     { on: false, row: 1, order: 7 },
