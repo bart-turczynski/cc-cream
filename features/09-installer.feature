@@ -67,8 +67,8 @@ Feature: Consent-based installer for the statusLine command
   # (cc-cream-setup / cc-cream-setup --uninstall) instead of running install.js
   # by its full node_modules path.
   Scenario: The npm package exposes a cc-cream-setup CLI for the installer
-    Then package.json bin maps "cc-cream-setup" to "src/install.js"
-    And src/install.js starts with a node shebang so the bin is executable
+    Then package.json bin maps "cc-cream-setup" to "plugin/src/install.js"
+    And plugin/src/install.js starts with a node shebang so the bin is executable
 
   # The installer's y/N prompts use readline, which has no TTY when install.js is
   # run via the /cc-cream:setup and /cc-cream:uninstall slash commands (bang

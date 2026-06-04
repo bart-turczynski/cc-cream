@@ -6,9 +6,9 @@
     "doc": "docs"
   },
   "scripts": {
-    "lint": "biome lint src/ hooks/",
+    "lint": "biome lint plugin/src/ plugin/hooks/",
     "knip": "knip",
-    "validate": "command -v claude >/dev/null 2>&1 && claude plugin validate . || echo 'cc-cream: claude CLI not found — skipping plugin validation'",
+    "validate": "command -v claude >/dev/null 2>&1 && claude plugin validate plugin || echo 'cc-cream: claude CLI not found — skipping plugin validation'",
     "pretest": "npm run lint && npm run knip && npm run validate",
     "test": "cucumber-js",
     "test:manual": "cucumber-js --profile manual",
@@ -23,11 +23,11 @@
     "pre-push": "npm run coverage"
   },
   "bin": {
-    "cc-cream": "src/cc-cream.js",
-    "cc-cream-setup": "src/install.js"
+    "cc-cream": "plugin/src/cc-cream.js",
+    "cc-cream-setup": "plugin/src/install.js"
   },
   "files": [
-    "src/",
+    "plugin/src/",
     "LICENSE",
     "README.md",
     "CHANGELOG.md"

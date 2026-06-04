@@ -11,7 +11,7 @@ Feature: Plugin validation gate (CREAM-ldigvksg)
   # benign unrecognized-field warnings, so it is not the blocking everyday gate.
 
   Scenario: Validation runs in pretest as part of the everyday gate
-    Then the pretest flow invokes a "validate" script running "claude plugin validate ."
+    Then the pretest flow invokes a "validate" script running "claude plugin validate plugin"
 
   Scenario: The gate skips gracefully when the claude CLI is unavailable
     Given the "claude" CLI is not installed

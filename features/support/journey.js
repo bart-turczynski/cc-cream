@@ -37,11 +37,13 @@ function baseEnv(home) {
 }
 
 // Copy the plugin's runtime tree into <config>/plugins/cache/<mkt>/<plugin>/<version>/,
-// mirroring how `/plugin install` clones it. Returns the plugin root (CLAUDE_PLUGIN_ROOT).
+// mirroring how `/plugin install` clones it: only the plugin/ source subdirectory
+// is copied (its src/, hooks/, .claude-plugin/), so the cache root equals
+// CLAUDE_PLUGIN_ROOT. package.json stays out of this tree by construction.
 export function stageCache(home, version) {
   const root = path.join(cacheRoot(home), version);
   for (const dir of ['src', 'hooks', '.claude-plugin']) {
-    fs.cpSync(path.join(REPO, dir), path.join(root, dir), { recursive: true });
+    fs.cpSync(path.join(REPO, 'plugin', dir), path.join(root, dir), { recursive: true });
   }
   registerPlugin(home, version, root);
   return root;
@@ -107,7 +109,7 @@ export function runAutoSetupHook(home, pluginRoot, pluginData) {
 // (non-interactive: piped stdin, no TTY). `installJs` lets the recovery scenario
 // run the checked-out copy after the plugin cache is gone.
 export function runInstall(home, args, { installJs } = {}) {
-  const entry = installJs || path.join(REPO, 'src', 'install.js');
+  const entry = installJs || path.join(REPO, 'plugin', 'src', 'install.js');
   const res = spawnSync(process.execPath, [entry, ...args], {
     env: baseEnv(home),
     input: '',

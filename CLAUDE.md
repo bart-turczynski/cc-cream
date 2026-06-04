@@ -16,7 +16,7 @@ npm run hooks                                        # one-time: register the pr
 npm test                                             # lint + knip + plugin validate + all Cucumber specs
 npm run coverage                                     # same but wrapped in c8 (coverage table)
 npm run watch                                        # re-run specs on file change (TDD)
-npm run lint                                         # Biome lint on src/ only
+npm run lint                                         # Biome lint on plugin/src/ + plugin/hooks/
 npm run knip                                         # dead-code / unused-export audit
 npm run validate                                     # claude plugin validate . (skips if claude CLI absent)
 npm run test:manual                                  # run @manual scenarios (release runbook, --strict validation)
@@ -33,29 +33,31 @@ npm pack --dry-run                                   # verify published tarball 
 
 ## Architecture
 
-Data flow: Claude Code pipes a JSON blob to stdin → `src/cc-cream.js` reads it, loads config, reads/writes session state, calls `render()`, writes ANSI-colored output to stdout.
+**Repo layout:** the plugin payload lives in a `plugin/` subdirectory (`plugin/src/`, `plugin/commands/`, `plugin/hooks/`, `plugin/.claude-plugin/plugin.json`); `package.json`, `package-lock.json`, dev configs, `features/`, and `.claude-plugin/marketplace.json` stay at the repo root. This split is deliberate: Claude Code's plugin installer runs `npm install` whenever it finds a `package.json` in the cached plugin tree, which pulled ~114 MB of devDependencies into `~/.claude/plugins/cache/`. Since the marketplace `source` is `"./plugin"`, only `plugin/`'s contents are copied to the cache — and there's no `package.json` there, so no install runs. The npm package (`bin`/`files`) points at `plugin/src/`.
 
-Key source modules (all Node built-ins only, ESM, no runtime deps):
-- `src/cc-cream.js` — entrypoint: stdin → parse → render → stdout; also orchestrates session state I/O. Re-exports the public API of the other modules.
-- `src/defaults.js` — `DEFAULTS` object, `ROW1_ZONES` zone layout, `ANSI` color codes.
-- `src/config.js` — loads and merges `~/.claude/cc-cream.json` onto `DEFAULTS` via a **schema-table** of per-field normalizers; the same table backs `checkConfig()` (the `--check-config` doctor).
-- `src/render.js` — assembles enabled/visible segments into ≤3 rows. `buildSegments()` returns the raw segment map (shared with the debug path).
-- `src/segments.js` — per-segment rendering logic (returns `{ text, color }` or `null`). **Pure** — no filesystem access; the TTL anchor is injected (resolved in `cc-cream.js`).
-- `src/ttl.js` — TTL resolution (`resolveTtl()`, `hasWindow()`).
-- `src/utils.js` — `paint()`, `band()`, `countdown()`, `isPeak()`, `fmtNum()`, etc.
-- `src/state.js` — session state: `readState()` / `writeState()` to `~/.claude/cc-cream-state.json`, keyed by `session_id`.
-- `src/settings.js` — shared `settings.json` I/O: a `readSettings()` classifier (`{ state, value }`), `isSafeToWrite()`, and atomic `writeFileAtomic()`. Used by both the installer and the SessionStart hook so the destructive-write guard lives once.
-- `src/install.js` — consent-based installer; pure `plan()` function plus thin I/O shell. Writes a `statusLine` block into `~/.claude/settings.json`. Exposed to npm users as the `cc-cream-setup` bin (`cc-cream-setup` / `--uninstall` / `--purge` / `--check-config`); the `cc-cream` bin is the renderer (`src/cc-cream.js`).
+Data flow: Claude Code pipes a JSON blob to stdin → `plugin/src/cc-cream.js` reads it, loads config, reads/writes session state, calls `render()`, writes ANSI-colored output to stdout.
+
+Key source modules (under `plugin/src/`; all Node built-ins only, ESM, no runtime deps):
+- `plugin/src/cc-cream.js` — entrypoint: stdin → parse → render → stdout; also orchestrates session state I/O. Re-exports the public API of the other modules.
+- `plugin/src/defaults.js` — `DEFAULTS` object, `ROW1_ZONES` zone layout, `ANSI` color codes.
+- `plugin/src/config.js` — loads and merges `~/.claude/cc-cream.json` onto `DEFAULTS` via a **schema-table** of per-field normalizers; the same table backs `checkConfig()` (the `--check-config` doctor).
+- `plugin/src/render.js` — assembles enabled/visible segments into ≤3 rows. `buildSegments()` returns the raw segment map (shared with the debug path).
+- `plugin/src/segments.js` — per-segment rendering logic (returns `{ text, color }` or `null`). **Pure** — no filesystem access; the TTL anchor is injected (resolved in `cc-cream.js`).
+- `plugin/src/ttl.js` — TTL resolution (`resolveTtl()`, `hasWindow()`).
+- `plugin/src/utils.js` — `paint()`, `band()`, `countdown()`, `isPeak()`, `fmtNum()`, etc.
+- `plugin/src/state.js` — session state: `readState()` / `writeState()` to `~/.claude/cc-cream-state.json`, keyed by `session_id`.
+- `plugin/src/settings.js` — shared `settings.json` I/O: a `readSettings()` classifier (`{ state, value }`), `isSafeToWrite()`, and atomic `writeFileAtomic()`. Used by both the installer and the SessionStart hook so the destructive-write guard lives once.
+- `plugin/src/install.js` — consent-based installer; pure `plan()` function plus thin I/O shell. Writes a `statusLine` block into `~/.claude/settings.json`. Exposed to npm users as the `cc-cream-setup` bin (`cc-cream-setup` / `--uninstall` / `--purge` / `--check-config`); the `cc-cream` bin is the renderer (`plugin/src/cc-cream.js`).
 
 Diagnostics: `CC_CREAM_DEBUG=1` makes the engine append a per-render diagnostic (which on-by-config segments rendered vs were dropped, ttl window, stdin size) to `~/.claude/cc-cream-debug.log` (override: `CC_CREAM_DEBUG_LOG`). **stdout is never touched** — Claude Code discards status-line stderr, so a file is the only viable channel. Off by default.
 
-Plugin distribution layer:
-- `.claude-plugin/plugin.json` — Claude Code plugin manifest (name, version, author). **Does not** declare `commands`.
-- `.claude-plugin/marketplace.json` — self-hosted marketplace listing.
-- `commands/setup.md` — registers `/cc-cream:setup`; invokes `src/install.js` in plugin mode. The wired `statusLine` command is a plain absolute path to the current version's `cc-cream.js` (`[ -f "<ep>" ] || exit 0; exec "<node>" "<ep>"`) — **not** a cache-glob. `${CLAUDE_PLUGIN_ROOT}` doesn't expand in the statusLine context, so the version can't be resolved at render time; the SessionStart hook (which *does* get it) re-pins the path after `/plugin update`.
-- `commands/uninstall.md` — registers `/cc-cream:uninstall`.
-- `hooks/hooks.json` + `hooks/auto-setup.js` — a `SessionStart` hook (auto-discovered, no `hooks` key in `plugin.json`, like `ralph-loop`) that does two jobs. (1) **Creation:** auto-wires cc-cream's `statusLine` on the first session after install, but **only when the slot is free** — never clobbers a foreign line (that routes through interactive `/cc-cream:setup`). A one-shot marker (`$CLAUDE_PLUGIN_DATA/cc-cream-autowire-done`, falling back to the config dir) gates creation so it never re-wires a bar the user removed. (2) **Keep-fresh:** an *existing* cc-cream line is re-pinned to the current version's path every session (NOT marker-gated), so `/plugin update` is applied silently. It reuses `install.js`'s `plan()` and resolves the entrypoint from `${CLAUDE_PLUGIN_ROOT}`. Foreign-statusLine case → a `systemMessage` pointing to `/cc-cream:setup`. Output is a single `systemMessage` — user-facing, **zero model tokens**. Plugin-native statusLine isn't possible (only `agent`/`subagentStatusLine` are plugin-settable), which is why this hook exists. Plugin-only; npm/manual users run `cc-cream-setup`.
-- Command files **must** live in a top-level `commands/` directory (plugin root, sibling of `.claude-plugin/`), and the `commands` key in `plugin.json` **must be omitted** so Claude Code auto-discovers them. The install-time schema rejects an array of file paths (`commands: Invalid input`) even though `claude plugin validate` — which is more lenient — accepts it. This matches the official `ralph-loop` plugin layout. Command files reference `${CLAUDE_PLUGIN_ROOT}/src/...`, so their own location is otherwise irrelevant.
+Plugin distribution layer (payload under `plugin/`, marketplace manifest at repo root):
+- `plugin/.claude-plugin/plugin.json` — Claude Code plugin manifest (name, version, author). **Does not** declare `commands`.
+- `.claude-plugin/marketplace.json` — self-hosted marketplace listing at the **repo root** (so the marketplace is discoverable); its plugin entry's `source` is `"./plugin"`.
+- `plugin/commands/setup.md` — registers `/cc-cream:setup`; invokes `src/install.js` in plugin mode. The wired `statusLine` command is a plain absolute path to the current version's `cc-cream.js` (`[ -f "<ep>" ] || exit 0; exec "<node>" "<ep>"`) — **not** a cache-glob. `${CLAUDE_PLUGIN_ROOT}` doesn't expand in the statusLine context, so the version can't be resolved at render time; the SessionStart hook (which *does* get it) re-pins the path after `/plugin update`.
+- `plugin/commands/uninstall.md` — registers `/cc-cream:uninstall`.
+- `plugin/hooks/hooks.json` + `plugin/hooks/auto-setup.js` — a `SessionStart` hook (auto-discovered, no `hooks` key in `plugin.json`, like `ralph-loop`) that does two jobs. (1) **Creation:** auto-wires cc-cream's `statusLine` on the first session after install, but **only when the slot is free** — never clobbers a foreign line (that routes through interactive `/cc-cream:setup`). A one-shot marker (`$CLAUDE_PLUGIN_DATA/cc-cream-autowire-done`, falling back to the config dir) gates creation so it never re-wires a bar the user removed. (2) **Keep-fresh:** an *existing* cc-cream line is re-pinned to the current version's path every session (NOT marker-gated), so `/plugin update` is applied silently. It reuses `install.js`'s `plan()` and resolves the entrypoint from `${CLAUDE_PLUGIN_ROOT}`. Foreign-statusLine case → a `systemMessage` pointing to `/cc-cream:setup`. Output is a single `systemMessage` — user-facing, **zero model tokens**. Plugin-native statusLine isn't possible (only `agent`/`subagentStatusLine` are plugin-settable), which is why this hook exists. Plugin-only; npm/manual users run `cc-cream-setup`.
+- Command files **must** live in a `commands/` directory at the plugin root — i.e. `plugin/commands/`, sibling of `plugin/.claude-plugin/` — and the `commands` key in `plugin.json` **must be omitted** so Claude Code auto-discovers them. The install-time schema rejects an array of file paths (`commands: Invalid input`) even though `claude plugin validate` — which is more lenient — accepts it. This matches the official `ralph-loop` plugin layout. Command files reference `${CLAUDE_PLUGIN_ROOT}/src/...`, so their own location is otherwise irrelevant.
 
 Test infrastructure:
 - `features/step_definitions/steps.js` — all Cucumber step definitions.
@@ -69,10 +71,10 @@ Fourteen segments (all configurable via `~/.claude/cc-cream.json`):
 
 ## Per-slice workflow (extends @FP_CLAUDE.md)
 - features ↔ FP issues are **1:1**; pick a slice, implement against its `.feature`.
-- Engine code in `src/`, step defs in `features/step_definitions/`. Gate "done" on `npm test` (cucumber-js) green.
+- Engine code in `plugin/src/`, step defs in `features/step_definitions/`. Gate "done" on `npm test` (cucumber-js) green.
 
 ## Dev tooling
-- **Biome** — lints `src/` and `hooks/` on every `npm test` (pretest hook). Rules: `noCommonJs` + `noUndeclaredDependencies` as errors, recommended rules as warnings.
+- **Biome** — lints `plugin/src/` and `plugin/hooks/` on every `npm test` (pretest hook). Rules: `noCommonJs` + `noUndeclaredDependencies` as errors, recommended rules as warnings.
 - **knip** — dead-code / unused-export audit, also runs in pretest. Config: `knip.json`.
 - **validate** — `claude plugin validate .` runs in pretest; skips gracefully when the `claude` CLI is absent. `--strict` (warnings-as-errors) is reserved for `npm run test:manual` pre-submission only.
 - **CI** — `.github/workflows/ci.yml` runs the exact publish gate (`npm test`) on every PR + push to `main`, on a runner with **no `claude` CLI** (it asserts the CLI is absent, mirroring the npm-publish environment). This is the guard for CREAM-xzhidmjt: any `@needs-cli`-untagged scenario that shells out to a missing CLI fails here, at review time, instead of silently breaking `npm publish`. The default cucumber profile is `not @manual and not @needs-cli`, so the gate is CI-safe by construction.

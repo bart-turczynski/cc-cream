@@ -11,4 +11,4 @@ Feature: Distribution as an npm package (CREAM-cvmhzchg)
     Then package.json has a bin entry for "cc-cream" pointing to the engine
 
   Scenario: The engine file starts with the node shebang for direct execution
-    Then src/cc-cream.js starts with "#!/usr/bin/env node"
+    Then plugin/src/cc-cream.js starts with "#!/usr/bin/env node"

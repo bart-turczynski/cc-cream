@@ -6,6 +6,9 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+- **Plugin install no longer balloons the cache to ~114 MB.** Claude Code's plugin installer runs `npm install` whenever it finds a `package.json` in the cached plugin tree, which pulled the entire devDependency tree (Biome, Cucumber, knip, c8, …) into `~/.claude/plugins/cache/cc-cream/`. The plugin payload now lives in a `plugin/` subdirectory and the marketplace `source` points to `"./plugin"`, so only `plugin/`'s contents (`src/`, `commands/`, `hooks/`, `.claude-plugin/plugin.json`) are copied to the cache — with no `package.json` there, the installer has nothing to install. `package.json`, dev configs, and `marketplace.json` stay at the repo root; npm `bin`/`files` now point at `plugin/src/`. No behavior change to the rendered bar.
+
 ### Added
 - **The `peak` segment now shows when the window closes and when the next one opens (CREAM-scwwzbxh).** Inside the faster-drain window it reads `peak until HH:MM` — the close time in your **local** timezone, not PT — so you can see how long the elevated drain lasts. In the hour before the window opens it counts down `peak in Nm`. The new `peak.lead` config key sets how many minutes ahead the countdown appears (default `60`). Previously the segment showed only the bare word `peak` while in-window and nothing otherwise.
 

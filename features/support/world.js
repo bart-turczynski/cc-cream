@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '..', '..');
-export const ENGINE = path.join(REPO, 'src', 'cc-cream.js');
+export const ENGINE = path.join(REPO, 'plugin', 'src', 'cc-cream.js');
 
 export const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
 

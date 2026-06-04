@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
-import { loadConfig, resolveTtl, countdown, patchSessionState } from '../../src/cc-cream.js';
-import { plan, planUninstall, statusLineCommand, writeFileAtomic } from '../../src/install.js';
+import { loadConfig, resolveTtl, countdown, patchSessionState } from '../../plugin/src/cc-cream.js';
+import { plan, planUninstall, statusLineCommand, writeFileAtomic } from '../../plugin/src/install.js';
 import { nextVersion, rollChangelog, setJsonVersion } from '../../scripts/release.mjs';
 
 // Path to the state file inside a scenario's sandbox HOME.
@@ -544,8 +544,8 @@ Given('settings.json on disk is not valid JSON', function () {
 });
 
 When('install.js runs against it', function () {
-  const installer = path.join(REPO, 'src', 'install.js');
-  const source = path.join(REPO, 'src', 'cc-cream.js');
+  const installer = path.join(REPO, 'plugin', 'src', 'install.js');
+  const source = path.join(REPO, 'plugin', 'src', 'cc-cream.js');
   const res = spawnSync(process.execPath, [installer, source], {
     input: 'y\n',
     env: { ...process.env, HOME: this.home },
@@ -565,9 +565,9 @@ Then('it exits non-zero and leaves the file byte-for-byte unchanged', function (
 // ===========================================================================
 Then('the published runtime uses only Node built-ins and local modules', function () {
   assert.ok(fs.existsSync(ENGINE), 'src/cc-cream.js must exist');
-  const runtimeFiles = fs.readdirSync(path.join(REPO, 'src')).filter((name) => name.endsWith('.js'));
+  const runtimeFiles = fs.readdirSync(path.join(REPO, 'plugin', 'src')).filter((name) => name.endsWith('.js'));
   for (const file of runtimeFiles) {
-    const filePath = path.join(REPO, 'src', file);
+    const filePath = path.join(REPO, 'plugin', 'src', file);
     const src = fs.readFileSync(filePath, 'utf8');
     const specifiers = [...src.matchAll(/import\s+[^'"]*from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
     for (const spec of specifiers) {
@@ -1008,7 +1008,7 @@ Then('package.json has a bin entry for {string} pointing to the engine', functio
     `bin["${name}"] should point to cc-cream.js, got: ${entry}`);
 });
 
-Then(/^src\/cc-cream\.js starts with "([^"]+)"$/, function (shebang) {
+Then(/^plugin\/src\/cc-cream\.js starts with "([^"]+)"$/, function (shebang) {
   const src = fs.readFileSync(ENGINE, 'utf8');
   assert.ok(src.startsWith(shebang), `Engine does not start with "${shebang}"`);
 });
@@ -1016,13 +1016,18 @@ Then(/^src\/cc-cream\.js starts with "([^"]+)"$/, function (shebang) {
 // ===========================================================================
 // 20 — plugin manifest and marketplace metadata
 // ===========================================================================
-const pluginDir = path.join(REPO, '.claude-plugin');
+// Split layout: marketplace.json lives at the repo-root .claude-plugin/ (so the
+// marketplace is discoverable), while plugin.json lives at the plugin source
+// root plugin/.claude-plugin/ — keeping package.json out of the plugin's cached
+// tree so the installer never runs `npm install` (CREAM plugin-cache-bloat fix).
+const marketplaceDir = path.join(REPO, '.claude-plugin');
+const pluginManifestDir = path.join(REPO, 'plugin', '.claude-plugin');
 let _pluginJson = null;
 let _marketplaceJson = null;
 
 function readPluginJson() {
   if (!_pluginJson) {
-    const raw = fs.readFileSync(path.join(pluginDir, 'plugin.json'), 'utf8');
+    const raw = fs.readFileSync(path.join(pluginManifestDir, 'plugin.json'), 'utf8');
     _pluginJson = JSON.parse(raw);
   }
   return _pluginJson;
@@ -1030,15 +1035,15 @@ function readPluginJson() {
 
 function readMarketplaceJson() {
   if (!_marketplaceJson) {
-    const raw = fs.readFileSync(path.join(pluginDir, 'marketplace.json'), 'utf8');
+    const raw = fs.readFileSync(path.join(marketplaceDir, 'marketplace.json'), 'utf8');
     _marketplaceJson = JSON.parse(raw);
   }
   return _marketplaceJson;
 }
 
-Then(/^\.claude-plugin\/plugin\.json exists and is valid JSON$/, function () {
-  const p = path.join(pluginDir, 'plugin.json');
-  assert.ok(fs.existsSync(p), '.claude-plugin/plugin.json does not exist');
+Then(/^plugin\/\.claude-plugin\/plugin\.json exists and is valid JSON$/, function () {
+  const p = path.join(pluginManifestDir, 'plugin.json');
+  assert.ok(fs.existsSync(p), 'plugin/.claude-plugin/plugin.json does not exist');
   assert.doesNotThrow(() => readPluginJson(), 'plugin.json is not valid JSON');
 });
 
@@ -1074,7 +1079,7 @@ Then('it does not declare a commands key so commands auto-discover from the top-
   const commands = readPluginJson().commands;
   assert.equal(commands, undefined,
     `plugin.json must not declare a "commands" key (install-time schema rejects it); got: ${JSON.stringify(commands)}`);
-  const cmdDir = path.join(REPO, 'commands');
+  const cmdDir = path.join(REPO, 'plugin', 'commands');
   assert.ok(fs.existsSync(cmdDir) && fs.statSync(cmdDir).isDirectory(),
     'a top-level commands/ directory must exist for auto-discovery');
   assert.ok(fs.existsSync(path.join(cmdDir, 'setup.md')),
@@ -1087,30 +1092,29 @@ Then(/^plugin\.json description references "([^"]+)"$/, function (phrase) {
     `description must include "${phrase}", got: ${desc}`);
 });
 
-Then(/^\.claude-plugin contains exactly plugin\.json and marketplace\.json$/, function () {
-  const entries = fs.readdirSync(pluginDir).sort();
-  assert.deepEqual(entries, ['marketplace.json', 'plugin.json'],
-    `.claude-plugin must contain only plugin.json and marketplace.json, got: ${entries}`);
+Then(/^\.claude-plugin contains exactly marketplace\.json$/, function () {
+  const entries = fs.readdirSync(marketplaceDir).sort();
+  assert.deepEqual(entries, ['marketplace.json'],
+    `repo-root .claude-plugin must contain only marketplace.json, got: ${entries}`);
+});
+
+Then(/^plugin\/\.claude-plugin contains exactly plugin\.json$/, function () {
+  const entries = fs.readdirSync(pluginManifestDir).sort();
+  assert.deepEqual(entries, ['plugin.json'],
+    `plugin/.claude-plugin must contain only plugin.json, got: ${entries}`);
 });
 
 Then(/^the command files live in a top-level commands directory$/, function () {
-  const cmdDir = path.join(REPO, 'commands');
+  const cmdDir = path.join(REPO, 'plugin', 'commands');
   assert.ok(fs.existsSync(cmdDir) && fs.statSync(cmdDir).isDirectory(),
-    'a top-level commands/ directory must exist');
+    "the plugin's commands/ directory must exist");
   const entries = fs.readdirSync(cmdDir).sort();
   assert.deepEqual(entries, ['setup.md', 'uninstall.md'],
     `commands/ must contain setup.md and uninstall.md, got: ${entries}`);
 });
 
-Then(/^no source modules, agents, or hooks live directly inside \.claude-plugin$/, function () {
-  const entries = fs.readdirSync(pluginDir);
-  const allowed = new Set(['plugin.json', 'marketplace.json']);
-  const unexpected = entries.filter((e) => !allowed.has(e));
-  assert.deepEqual(unexpected, [], `unexpected entries inside .claude-plugin: ${unexpected}`);
-});
-
 Then(/^\.claude-plugin\/marketplace\.json exists and is valid JSON$/, function () {
-  const p = path.join(pluginDir, 'marketplace.json');
+  const p = path.join(marketplaceDir, 'marketplace.json');
   assert.ok(fs.existsSync(p), '.claude-plugin/marketplace.json does not exist');
   assert.doesNotThrow(() => readMarketplaceJson(), 'marketplace.json is not valid JSON');
 });
@@ -1220,7 +1224,7 @@ Then('package.json restricts published files to the runtime via a files allowlis
 Then('the allowlist includes src and LICENSE and README.md', function () {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
   const files = pkg.files ?? [];
-  assert.ok(files.some((f) => f === 'src' || f === 'src/'), 'files allowlist must include src/');
+  assert.ok(files.some((f) => f === 'plugin/src' || f === 'plugin/src/'), 'files allowlist must include plugin/src/');
   assert.ok(files.includes('LICENSE'), 'files allowlist must include LICENSE');
   assert.ok(files.includes('README.md'), 'files allowlist must include README.md');
 });
@@ -1301,7 +1305,7 @@ Then('it prints nothing and exits zero', function () {
 });
 
 Then(/^commands\/setup\.md exists and registers as the (\/cc-cream:setup) command$/, function (cmdName) {
-  const p = path.join(REPO, 'commands', 'setup.md');
+  const p = path.join(REPO, 'plugin', 'commands', 'setup.md');
   assert.ok(fs.existsSync(p), 'commands/setup.md must exist');
   const src = fs.readFileSync(p, 'utf8');
   assert.match(src, /^---\s*\n[\s\S]*?description:[\s\S]*?\n---/, 'setup.md must have frontmatter with a description');
@@ -1310,14 +1314,14 @@ Then(/^commands\/setup\.md exists and registers as the (\/cc-cream:setup) comman
 });
 
 Then(/^it invokes src\/install\.js in plugin mode rather than writing settings\.json itself$/, function () {
-  const src = this.setupMd ?? fs.readFileSync(path.join(REPO, 'commands', 'setup.md'), 'utf8');
+  const src = this.setupMd ?? fs.readFileSync(path.join(REPO, 'plugin', 'commands', 'setup.md'), 'utf8');
   assert.ok(src.includes('install.js --plugin'), 'setup.md must shell out to install.js --plugin');
   assert.ok(!/JSON\.parse|writeFileSync|JSON\.stringify/.test(src),
     'setup.md must not itself write settings.json');
 });
 
 const instructsToShowOutput = (file) => {
-  const src = fs.readFileSync(path.join(REPO, 'commands', file), 'utf8');
+  const src = fs.readFileSync(path.join(REPO, 'plugin', 'commands', file), 'utf8');
   assert.ok(/\b(show|display)\b/i.test(src) && /\boutput\b/i.test(src) && /\bverbatim\b/i.test(src),
     `${file} must instruct the model to show the command output verbatim, got:\n${src}`);
 };
@@ -1331,7 +1335,7 @@ Then('commands\\/uninstall.md instructs the model to show the command output ver
 });
 
 Then('it shows a brief one-line note, not a verbose body', function () {
-  const src = this.setupMd ?? fs.readFileSync(path.join(REPO, 'commands', 'setup.md'), 'utf8');
+  const src = this.setupMd ?? fs.readFileSync(path.join(REPO, 'plugin', 'commands', 'setup.md'), 'utf8');
   const body = src.replace(/^---\n[\s\S]*?\n---\n/, ''); // strip frontmatter
   const proseLines = body
     .split('\n')
@@ -1359,8 +1363,8 @@ Given('a local checkout with no plugin cache', function () {
 });
 
 When('install.js runs without plugin mode and I consent', function () {
-  const installer = path.join(REPO, 'src', 'install.js');
-  const source = path.join(REPO, 'src', 'cc-cream.js');
+  const installer = path.join(REPO, 'plugin', 'src', 'install.js');
+  const source = path.join(REPO, 'plugin', 'src', 'cc-cream.js');
   const res = spawnSync(process.execPath, [installer, source], {
     input: 'y\n',
     env: { ...process.env, HOME: this.home },
@@ -1393,9 +1397,9 @@ Then('it prints the formatted bar to stdout without any network access', functio
   // The engine source imports no net/http/dns module (asserted statically), and
   // piping stdin still produces output.
   assert.ok(this.plain.length > 0, 'expected non-empty output');
-  const runtimeFiles = fs.readdirSync(path.join(REPO, 'src')).filter((name) => name.endsWith('.js'));
+  const runtimeFiles = fs.readdirSync(path.join(REPO, 'plugin', 'src')).filter((name) => name.endsWith('.js'));
   for (const file of runtimeFiles) {
-    const src = fs.readFileSync(path.join(REPO, 'src', file), 'utf8');
+    const src = fs.readFileSync(path.join(REPO, 'plugin', 'src', file), 'utf8');
     for (const m of src.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
       const spec = m[1];
       assert.ok(!/^node:(net|http|https|dns|tls|dgram)$/.test(spec) && spec !== 'node:http2',
@@ -1470,7 +1474,7 @@ Given('a plugin.json with an invalid field type', function () {
   // field type. `claude plugin validate` validates the marketplace manifest schema;
   // setting the top-level `name` to an integer triggers a type error.
   const tmpDir = fs.mkdtempSync(path.join(this.home, 'validate-tmp-'));
-  const pluginJsonSrc = path.join(REPO, '.claude-plugin', 'plugin.json');
+  const pluginJsonSrc = path.join(REPO, 'plugin', '.claude-plugin', 'plugin.json');
   const marketplaceSrc = path.join(REPO, '.claude-plugin', 'marketplace.json');
   const pluginDir2 = path.join(tmpDir, '.claude-plugin');
   fs.mkdirSync(pluginDir2, { recursive: true });
@@ -1506,7 +1510,7 @@ Then('it exits non-zero so the gate blocks the change', function () {
 });
 
 Given('the plugin and marketplace manifests', function () {
-  const pluginPath = path.join(REPO, '.claude-plugin', 'plugin.json');
+  const pluginPath = path.join(REPO, 'plugin', '.claude-plugin', 'plugin.json');
   const marketplacePath = path.join(REPO, '.claude-plugin', 'marketplace.json');
   assert.ok(fs.existsSync(pluginPath), '.claude-plugin/plugin.json must exist');
   assert.ok(fs.existsSync(marketplacePath), '.claude-plugin/marketplace.json must exist');
@@ -1572,9 +1576,9 @@ Then('package.json bin maps {string} to {string}', function (binName, target) {
     `bin["${binName}"] must be "${target}", got: ${JSON.stringify(pkg.bin[binName])}`);
 });
 
-Then(/^src\/install\.js starts with a node shebang so the bin is executable$/, function () {
-  const src = fs.readFileSync(path.join(REPO, 'src', 'install.js'), 'utf8');
-  assert.match(src, /^#!\/usr\/bin\/env node\n/, 'src/install.js must begin with a node shebang');
+Then(/^plugin\/src\/install\.js starts with a node shebang so the bin is executable$/, function () {
+  const src = fs.readFileSync(path.join(REPO, 'plugin', 'src', 'install.js'), 'utf8');
+  assert.match(src, /^#!\/usr\/bin\/env node\n/, 'plugin/src/install.js must begin with a node shebang');
 });
 
 // --- Non-TTY safety: install.js must never block on a y/N prompt when run via a
@@ -1583,7 +1587,7 @@ Then(/^src\/install\.js starts with a node shebang so the bin is executable$/, f
 // regression hanging the whole suite — a hang would fail the exit-code assertion.
 // The entrypoint the hook/install resolve to in these sandbox tests (no
 // CLAUDE_PLUGIN_ROOT set → the engine's own location under the repo).
-const CURRENT_ENTRYPOINT = path.join(REPO, 'src', 'cc-cream.js');
+const CURRENT_ENTRYPOINT = path.join(REPO, 'plugin', 'src', 'cc-cream.js');
 // A cc-cream line already pinned to the CURRENT entrypoint — keep-fresh leaves it.
 const CURRENT_STATUSLINE = {
   type: 'command',
@@ -1625,7 +1629,7 @@ Given('settings.json on disk has an older cc-cream statusLine', function () {
 });
 
 When('install.js --uninstall runs without a TTY', function () {
-  const res = spawnSync(process.execPath, [path.join(REPO, 'src', 'install.js'), '--uninstall'], {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'plugin', 'src', 'install.js'), '--uninstall'], {
     env: { ...process.env, HOME: this.home },
     encoding: 'utf8',
     timeout: 15000,
@@ -1635,7 +1639,7 @@ When('install.js --uninstall runs without a TTY', function () {
 });
 
 When('install.js runs without a TTY', function () {
-  const res = spawnSync(process.execPath, [path.join(REPO, 'src', 'install.js'), path.join(REPO, 'src', 'cc-cream.js')], {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'plugin', 'src', 'install.js'), path.join(REPO, 'plugin', 'src', 'cc-cream.js')], {
     env: { ...process.env, HOME: this.home },
     encoding: 'utf8',
     timeout: 15000,
@@ -1645,7 +1649,7 @@ When('install.js runs without a TTY', function () {
 });
 
 When('install.js runs without a TTY but with --force', function () {
-  const res = spawnSync(process.execPath, [path.join(REPO, 'src', 'install.js'), path.join(REPO, 'src', 'cc-cream.js'), '--force'], {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'plugin', 'src', 'install.js'), path.join(REPO, 'plugin', 'src', 'cc-cream.js'), '--force'], {
     env: { ...process.env, HOME: this.home },
     encoding: 'utf8',
     timeout: 15000,
@@ -1675,7 +1679,7 @@ Given('a cc-cream config file on disk', function () {
 });
 
 When('install.js --uninstall --purge runs without a TTY', function () {
-  const res = spawnSync(process.execPath, [path.join(REPO, 'src', 'install.js'), '--uninstall', '--purge'], {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'plugin', 'src', 'install.js'), '--uninstall', '--purge'], {
     env: { ...process.env, HOME: this.home },
     encoding: 'utf8',
     timeout: 15000,
@@ -1728,7 +1732,7 @@ Then("it exits zero and rewrites the statusLine to cc-cream's", function () {
 // 26 — setup reminder SessionStart hook
 // ===========================================================================
 Then(/^hooks\/hooks\.json exists and registers a SessionStart command hook$/, function () {
-  const file = path.join(REPO, 'hooks', 'hooks.json');
+  const file = path.join(REPO, 'plugin', 'hooks', 'hooks.json');
   assert.ok(fs.existsSync(file), 'hooks/hooks.json must exist');
   this.hooksJson = JSON.parse(fs.readFileSync(file, 'utf8'));
   const entries = this.hooksJson.hooks?.SessionStart;
@@ -1744,7 +1748,7 @@ Then(/^the hook command runs hooks\/auto-setup\.js via \$\{CLAUDE_PLUGIN_ROOT\}$
   assert.ok(this.hookCommand.includes('hooks/auto-setup.js'),
     `hook command must run hooks/auto-setup.js, got: ${this.hookCommand}`);
   // And that script must actually exist in the plugin.
-  assert.ok(fs.existsSync(path.join(REPO, 'hooks', 'auto-setup.js')),
+  assert.ok(fs.existsSync(path.join(REPO, 'plugin', 'hooks', 'auto-setup.js')),
     'hooks/auto-setup.js must exist');
 });
 
@@ -1766,7 +1770,7 @@ When('the session-start hook runs', function () {
   this.settingsBefore = fs.existsSync(settingsFile) ? fs.readFileSync(settingsFile, 'utf8') : null;
   const env = { ...process.env, HOME: this.home, CLAUDE_PLUGIN_DATA: pluginDataDir(this) };
   delete env.CLAUDE_CONFIG_DIR; // force the hook to resolve ~/.claude under the sandbox HOME
-  const res = spawnSync(process.execPath, [path.join(REPO, 'hooks', 'auto-setup.js')], {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'plugin', 'hooks', 'auto-setup.js')], {
     env,
     encoding: 'utf8',
     timeout: 15000,
@@ -1981,7 +1985,7 @@ Then('package.json version matches the latest CHANGELOG entry', function () {
 
 Then('.claude-plugin\\/plugin.json version matches package.json', function () {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
-  const plugin = JSON.parse(fs.readFileSync(path.join(REPO, '.claude-plugin', 'plugin.json'), 'utf8'));
+  const plugin = JSON.parse(fs.readFileSync(path.join(REPO, 'plugin', '.claude-plugin', 'plugin.json'), 'utf8'));
   assert.equal(plugin.version, pkg.version,
     `plugin.json version (${plugin.version}) must match package.json (${pkg.version})`);
 });
@@ -2127,7 +2131,7 @@ Given('no cc-cream config file', function () {
 });
 
 When('the config doctor runs', function () {
-  const res = spawnSync(process.execPath, [path.join(REPO, 'src', 'install.js'), '--check-config'], {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'plugin', 'src', 'install.js'), '--check-config'], {
     env: { ...process.env, HOME: this.home },
     encoding: 'utf8',
     timeout: 15000,
@@ -2196,8 +2200,8 @@ Given(/^the engine is installed in the plugin cache as version "([^"]+)"$/, func
   const versionDir = path.join(this.home, '.claude', 'plugins', 'cache', 'cc-cream', 'cc-cream', version);
   const destSrc = path.join(versionDir, 'src');
   fs.mkdirSync(destSrc, { recursive: true });
-  for (const name of fs.readdirSync(path.join(REPO, 'src'))) {
-    if (name.endsWith('.js')) fs.copyFileSync(path.join(REPO, 'src', name), path.join(destSrc, name));
+  for (const name of fs.readdirSync(path.join(REPO, 'plugin', 'src'))) {
+    if (name.endsWith('.js')) fs.copyFileSync(path.join(REPO, 'plugin', 'src', name), path.join(destSrc, name));
   }
   this.engineOverride = path.join(destSrc, 'cc-cream.js');
   this.pluginCacheVersionDir = versionDir;
@@ -2264,7 +2268,7 @@ Given('a cc-cream statusLine pinned to a missing entrypoint', function () {
 });
 
 When('cc-cream-setup --status runs', function () {
-  const res = spawnSync(process.execPath, [path.join(REPO, 'src', 'install.js'), '--status'], {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'plugin', 'src', 'install.js'), '--status'], {
     env: { ...process.env, HOME: this.home, CLAUDE_PLUGIN_DATA: '' },
     encoding: 'utf8',
     timeout: 15000,

@@ -1,4 +1,4 @@
 {
-  "project": ["src/**/*.js"],
+  "project": ["plugin/src/**/*.js"],
   "ignoreBinaries": ["claude"]
 }

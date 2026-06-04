@@ -10,7 +10,7 @@
       "name": "cc-cream",
       "description": "See cache health, context fill, token burn, rate limits, and peak hours in Claude Code CLI. The status line for tokenminning - cache rules everything around me - dolla, dolla bill, y'all.",
       "homepage": "https://github.com/bart-turczynski/cc-cream",
-      "source": "./",
+      "source": "./plugin",
       "category": "monitoring",
       "tags": ["claude", "claude-code", "status-line", "cache", "tokens", "context", "engineering", "monitoring", "costs", "tokenmaxxing"]
     }

@@ -132,7 +132,7 @@ Given('\\/plugin uninstall removed the plugin cache', function () {
 When('the npm bin clears the wiring with the checked-out install.js', function () {
   // The plugin (and its install.js) is gone; the npm bin runs the checked-out copy.
   this.installResult = runInstall(this.journeyHome, ['--uninstall'], {
-    installJs: path.join(REPO, 'src', 'install.js'),
+    installJs: path.join(REPO, 'plugin', 'src', 'install.js'),
   });
   assert.equal(this.installResult.status, 0, `recovery uninstall exited ${this.installResult.status}: ${this.installResult.stderr}`);
 });
