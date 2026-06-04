@@ -26,17 +26,19 @@ export const DEFAULTS = {
     // counts down "peak in Nm".
     peak:     { on: true,  row: 2, order: 3, start: 5, end: 11, lead: 60 },
     burn:         { on: true,  row: 2, order: 1.5 },
-    effort:       { on: true, row: 1, order: 6 },
-    thinking:     { on: true, row: 1, order: 7 },
-    api_ratio:    { on: true, row: 1, order: 8 },
+    effort:       { on: true, row: 3, order: 0.7 },
+    thinking:     { on: true, row: 3, order: 0.6 },
+    api_ratio:    { on: true, row: 1, order: 6 },
     session_name: { on: true, row: 3, order: 1 },
     write:        { on: true, row: 1, order: 3.5 },
+    tokens_in:    { on: true, row: 1, order: 7 },
+    tokens_out:   { on: true, row: 1, order: 8 },
   },
 };
 
 // Row 1 renders as visual zones separated by " | " (PRD §4.3).
 // Empty zones drop out, so a model-only bar is just the name with no separators.
-export const ROW1_ZONES = [['ctx', 'cache', 'write', 'ttl', 'effort', 'thinking', 'api_ratio'], ['cost']];
+export const ROW1_ZONES = [['ctx', 'cache', 'write', 'ttl', 'api_ratio', 'tokens_in', 'tokens_out'], ['cost']];
 
 export const ANSI = {
   red: '\x1b[31m',

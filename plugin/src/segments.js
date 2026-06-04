@@ -122,6 +122,20 @@ function segCacheWrite(data) {
   return { text: `write:${Math.round((creation / denom) * 100)}%`, color: null };
 }
 
+function segTokensIn(data, cfg) {
+  const cw = data?.context_window;
+  if (!cw || typeof cw !== 'object') return null;
+  const total = magnitudeTokens(cw);
+  if (!isNum(total)) return null;
+  return { text: `in:${fmtNum(total, cfg.numbers)}`, color: null };
+}
+
+function segTokensOut(data, cfg) {
+  const n = data?.context_window?.current_usage?.output_tokens;
+  if (!isNum(n)) return null;
+  return { text: `out:${fmtNum(n, cfg.numbers)}`, color: null };
+}
+
 function segPeak(data, cfg, now, tz) {
   // peak rides the account-budget row, so it shows only when that row has windows.
   if (!hasWindow(data?.rate_limits)) return null;
@@ -169,5 +183,7 @@ export function renderSegments(data, cfg, ttlMin, now, prevSessionState = null, 
     api_ratio: segApiRatio(data),
     session_name: segSessionName(data),
     write: segCacheWrite(data),
+    tokens_in: segTokensIn(data, cfg),
+    tokens_out: segTokensOut(data, cfg),
   };
 }

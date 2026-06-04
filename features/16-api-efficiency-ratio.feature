@@ -56,9 +56,10 @@ Feature: API efficiency ratio segment (CREAM-ubhwyadt)
     When cc-cream runs
     Then the api_ratio segment reads "∿ api:100%"
 
-  Scenario: api_ratio appears in row 1 zone 2 after thinking when both are on
+  Scenario: api_ratio appears in row 1 and thinking appears in row 3 when both are on
     Given config {"segments":{"api_ratio":{"on":true},"thinking":{"on":true}}}
     And stdin with total_api_duration_ms 2000 and total_duration_ms 4000
     And stdin with thinking.enabled true
     When cc-cream runs
-    Then row 1 includes "think:on" before "∿ api:50%"
+    Then row 1 includes "∿ api:50%"
+    And row 3 includes "think:on"
