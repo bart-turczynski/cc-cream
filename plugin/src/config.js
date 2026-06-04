@@ -1,7 +1,6 @@
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { DEFAULTS } from './defaults.js';
+import { PATHS } from './paths.js';
 import { clone, isNum, numOr } from './utils.js';
 
 // Each normalizer is `(value, fallback) => value | fallback`: it returns the
@@ -184,7 +183,7 @@ export function normalizeConfigField(dotPath, rawValue) {
 
 export function readConfigFile() {
   try {
-    return fs.readFileSync(path.join(os.homedir(), '.claude', 'cc-cream.json'), 'utf8');
+    return fs.readFileSync(PATHS.configFile(), 'utf8');
   } catch {
     return null;
   }
