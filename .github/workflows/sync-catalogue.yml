@@ -1,0 +1,34 @@
+name: Sync catalogue
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout catalogue repo
+        uses: actions/checkout@v4
+        with:
+          repository: bart-turczynski/claude-plugins
+          token: ${{ secrets.CATALOGUE_PAT }}
+          path: catalogue
+
+      - name: Sync plugin/ → cc-cream/
+        run: |
+          rm -rf catalogue/cc-cream
+          cp -r plugin/. catalogue/cc-cream
+
+      - name: Commit and push
+        run: |
+          cd catalogue
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes to sync" && exit 0
+          VERSION="${{ github.event.release.tag_name }}"
+          git commit -m "Sync cc-cream ${VERSION}"
+          git push
