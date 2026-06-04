@@ -134,6 +134,52 @@ version* — see §2.)
 
 ---
 
+## 5. Applying plugin changes without restarting the session
+
+Claude Code builds its plugin registry — slash commands, skills, agents, hooks, MCP/LSP
+servers — **once, at session start**. Installing / updating / removing a plugin mid-session
+changes files on disk and `settings.json` but does **not** rebuild the live registry.
+Everything below follows from that one fact:
+
+| Event | Rebuilds command/skill registry | Keeps your conversation | Fires `SessionStart` hooks |
+|-------|:---:|:---:|:---:|
+| `plugin install` / `update` (mid-session) | ❌ | ✅ | ❌ |
+| `/reload-plugins` | ✅ | ✅ | ❌ |
+| `/clear` | ✅ (re-init) | ❌ **wipes context** | ✅ |
+| relaunch, then `claude -c` / `--resume` | ✅ | ✅ | ✅ |
+
+Consequences:
+- After a fresh install/update, your `/<plugin>:*` commands won't appear until
+  **`/reload-plugins`** — which rebuilds the registry *and keeps your conversation*.
+- A `SessionStart`-wired feature (e.g. cc-cream's statusLine, set by `hooks/auto-setup.js`)
+  needs an actual session start — `/reload-plugins` will **not** fire it. Start a new
+  session, or run the plugin's own setup command (`/cc-cream:setup`) to wire it now.
+- **Don't reach for `/clear` to "refresh" plugins** — it does rebuild the registry and fire
+  `SessionStart`, but it **discards your current conversation**. Use `/reload-plugins`.
+
+(The mirror image on uninstall: a removed plugin's slash commands *linger* in the picker
+until the session restarts.)
+
+## 6. Migrating users off a pre-plugin "standalone" install
+
+If your tool had an earlier life as a hand-wired install — e.g. a `statusLine` command
+pointed directly at a file you copied into `~/.claude/…` — that wiring **wins and persists**
+even after the user installs the plugin, so they keep running the old engine. There is no
+auto-migration; detect and clean *before* installing:
+
+1. Inspect what `~/.claude/settings.json`'s `statusLine` actually points at. A hand-wired
+   absolute path (`node /Users/<you>/.claude/cc-cream/cc-cream.js`) is stale; a guarded
+   `[ -f "…/plugins/cache/<mkt>/<plugin>/<ver>/src/cc-cream.js" ] || exit 0; exec …` command
+   is the plugin-managed one.
+2. Remove the hand-wired `statusLine` block (back up `settings.json` first) and delete any
+   standalone copy + scratch state (`rm -rf ~/.claude/cc-cream ~/.claude/cc-cream-state.json`).
+3. Install via the marketplace — **add first, then install**, and mind the `plugin@marketplace`
+   order: `plugin marketplace add <repo>` → `plugin install <plugin>@<marketplace>`.
+   (`plugin install <repo>` fails with "Marketplace not found".)
+4. Activate without a restart per §5: `/reload-plugins` for the commands; a new session or
+   the setup command for a `SessionStart`-wired bar. With the `statusLine` slot now empty,
+   cc-cream's hook auto-wires the bar on the next session start.
+
 ## Release checklist (cc-cream)
 
 - [ ] Update `CHANGELOG.md` (roll `[Unreleased]` → the new version).
