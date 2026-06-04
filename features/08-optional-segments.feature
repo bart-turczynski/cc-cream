@@ -3,15 +3,16 @@ Feature: Optional segments — effort and thinking
   I want effort and thinking indicators I can switch on
   So that I can watch settings that affect burn and cache
 
-  # PRD §4.2. Off by default (on:false) because they can push Row 1 past 80 cols.
-  # Null-checked: absent on models/CC versions that don't provide them (effort/thinking
-  # additionally need CC 2.1.145), so they stay hidden even when enabled.
+  # PRD §4.2. On by default. Null-checked: absent on models/CC versions that don't
+  # provide them (effort/thinking additionally need CC 2.1.145), so they stay hidden
+  # even when enabled.
 
-  Scenario: Off by default
+  Scenario: On by default
     Given default config
     And stdin with effort.level "high" and thinking.enabled true
     When cc-cream runs
-    Then neither the effort nor the thinking segment is rendered
+    Then the effort segment shows "high"
+    And the thinking segment indicates thinking is on
 
   Scenario: Effort renders its level when enabled
     Given config { "segments": { "effort": { "on": true } } }

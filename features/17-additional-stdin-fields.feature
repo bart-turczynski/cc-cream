@@ -3,7 +3,7 @@ Feature: Additional stdin fields — session_name and cache write (CREAM-nchmlpm
   I want to see the session name and cache-creation percentage
   So that I can identify sessions at a glance and monitor cache write activity
 
-  # Both segments are off by default.
+  # Both segments are on by default.
 
   Background:
     Given stdin with no rate_limits
@@ -12,11 +12,11 @@ Feature: Additional stdin fields — session_name and cache write (CREAM-nchmlpm
   # session_name segment
   # ---------------------------------------------------------------------------
 
-  Scenario: session_name segment is off by default
+  Scenario: session_name segment renders by default when present in stdin
     Given default config
     And stdin with session_name "my-project-session"
     When cc-cream runs
-    Then the session_name segment is not rendered
+    Then the session_name segment reads "my-project-session"
 
   Scenario: session_name shows the conversation name when enabled
     Given config {"segments":{"session_name":{"on":true}}}
@@ -56,11 +56,11 @@ Feature: Additional stdin fields — session_name and cache write (CREAM-nchmlpm
   # write (cache creation %) segment
   # ---------------------------------------------------------------------------
 
-  Scenario: write segment is off by default
+  Scenario: write segment renders by default when cache data is available
     Given default config
     And stdin current_usage with cache_read 100, cache_creation 50 and input 50
     When cc-cream runs
-    Then the write segment is not rendered
+    Then the write segment reads "write:25%"
 
   Scenario: write segment shows cache_creation as percent of total tokens
     Given config {"segments":{"write":{"on":true}}}

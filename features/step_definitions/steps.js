@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown, patchSessionState } from '../../plugin/src/cc-cream.js';
-import { plan, planUninstall, statusLineCommand, writeFileAtomic } from '../../plugin/src/install.js';
+import { plan, planUninstall, planConfigure, planSet, statusLineCommand, writeFileAtomic } from '../../plugin/src/install.js';
 import { nextVersion, rollChangelog, setJsonVersion } from '../../scripts/release.mjs';
 
 // Path to the state file inside a scenario's sandbox HOME.
@@ -2360,4 +2360,117 @@ Then('{string} resolves and runs the engine', function (cmd) {
   const res = spawnSync('npx', args, { encoding: 'utf8', timeout: 30000 });
   assert.equal(res.status, 0, `npx exited ${res.status}:\n${res.stderr}`);
   assert.ok(res.stdout.trim().length > 0, 'expected engine to print output');
+});
+
+// ===========================================================================
+// 35 — segment visibility via --show / --hide (planConfigure)
+// ===========================================================================
+
+// Dot-path accessor for nested assertions: "segments.5h.on"
+function getPath(obj, dotPath) {
+  return dotPath.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+}
+
+Given('no configure config raw', function () {
+  this.configureRaw = null;
+});
+
+Given(/^configure config raw: (.+)$/, function (json) {
+  this.configureRaw = json;
+});
+
+When('configure is planned to hide {string}', function (ids) {
+  this.configureResult = planConfigure(this.configureRaw, { hide: ids.split(',').map((s) => s.trim()) });
+});
+
+When('configure is planned to show {string}', function (ids) {
+  this.configureResult = planConfigure(this.configureRaw, { show: ids.split(',').map((s) => s.trim()) });
+});
+
+When('configure is planned with show {string} and hide {string}', function (showIds, hideIds) {
+  this.configureResult = planConfigure(this.configureRaw, {
+    show: showIds.split(',').map((s) => s.trim()),
+    hide: hideIds.split(',').map((s) => s.trim()),
+  });
+});
+
+Then('the configure result is changed', function () {
+  assert.equal(this.configureResult.changed, true, 'expected changed = true');
+});
+
+Then('the configure result is not changed', function () {
+  assert.equal(this.configureResult.changed, false, 'expected changed = false');
+});
+
+Then('the configure result has a problem mentioning {string}', function (needle) {
+  const found = this.configureResult.problems.some((p) => p.includes(needle));
+  assert.ok(found, `expected a problem mentioning "${needle}", got: ${JSON.stringify(this.configureResult.problems)}`);
+});
+
+// Generic dot-path assertion: "the resulting config has segments.5h.on = false"
+// Works for boolean literals, integers, and JSON-quoted strings (e.g. = "exact").
+Then(/^the resulting config has (.+?) = (".*?"|true|false|-?\d+)$/, function (dotPath, rawVal) {
+  const val = getPath(this.configureResult.config, dotPath);
+  const expected = JSON.parse(rawVal);
+  assert.deepEqual(val, expected, `${dotPath}: expected ${rawVal}, got ${JSON.stringify(val)}`);
+});
+
+// CLI (disk I/O) scenarios
+When('the configure CLI runs with args {string}', function (argStr) {
+  const installer = path.join(REPO, 'plugin', 'src', 'install.js');
+  const extraArgs = argStr.trim().split(/\s+/);
+  const res = spawnSync(process.execPath, [installer, ...extraArgs], {
+    env: { ...process.env, HOME: this.home },
+    encoding: 'utf8',
+    timeout: 15000,
+  });
+  this.configureCliExit = res.status;
+  this.configureCliOut = (res.stdout ?? '') + (res.stderr ?? '');
+});
+
+Then('it exits zero', function () {
+  assert.equal(this.configureCliExit, 0, `expected exit 0, got ${this.configureCliExit}\n${this.configureCliOut}`);
+});
+
+Then('it exits non-zero', function () {
+  assert.notEqual(this.configureCliExit, 0, `expected non-zero exit, got 0\n${this.configureCliOut}`);
+});
+
+// Generic dot-path assertion against the on-disk config file.
+Then(/^the cc-cream config file has (.+?) = (".*?"|true|false|-?\d+)$/, function (dotPath, rawVal) {
+  const raw = fs.readFileSync(configFilePath(this), 'utf8');
+  const cfg = JSON.parse(raw);
+  const val = getPath(cfg, dotPath);
+  const expected = JSON.parse(rawVal);
+  assert.deepEqual(val, expected, `config file ${dotPath}: expected ${rawVal}, got ${JSON.stringify(val)}`);
+});
+
+Then('the configure CLI output mentions {string}', function (needle) {
+  assert.ok(this.configureCliOut.includes(needle),
+    `expected output to mention "${needle}", got:\n${this.configureCliOut}`);
+});
+
+// ===========================================================================
+// 36 — config field setter via --set (planSet)
+// ===========================================================================
+
+// Reuses this.configureRaw (set by feature-35 Given steps) and
+// this.configureResult (checked by feature-35 Then steps).
+
+When(/^a set is planned for (.+)$/, function (assignmentsStr) {
+  const assignments = assignmentsStr.split(',').map((s) => s.trim());
+  this.configureResult = planSet(this.configureRaw, assignments);
+});
+
+// CLI (disk I/O) scenarios — reuse configureCliExit/configureCliOut/configureCliOut from feature 35.
+When('the set CLI runs with args {string}', function (argStr) {
+  const installer = path.join(REPO, 'plugin', 'src', 'install.js');
+  const extraArgs = argStr.trim().split(/\s+/);
+  const res = spawnSync(process.execPath, [installer, ...extraArgs], {
+    env: { ...process.env, HOME: this.home },
+    encoding: 'utf8',
+    timeout: 15000,
+  });
+  this.configureCliExit = res.status;
+  this.configureCliOut = (res.stdout ?? '') + (res.stderr ?? '');
 });

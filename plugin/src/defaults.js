@@ -26,11 +26,11 @@ export const DEFAULTS = {
     // counts down "peak in Nm".
     peak:     { on: true,  row: 2, order: 3, start: 5, end: 11, lead: 60 },
     burn:         { on: true,  row: 2, order: 1.5 },
-    effort:       { on: false, row: 1, order: 6 },
-    thinking:     { on: false, row: 1, order: 7 },
-    api_ratio:    { on: false, row: 1, order: 8 },
-    session_name: { on: false, row: 3, order: 1 },
-    write:        { on: false, row: 1, order: 3.5 },
+    effort:       { on: true, row: 1, order: 6 },
+    thinking:     { on: true, row: 1, order: 7 },
+    api_ratio:    { on: true, row: 1, order: 8 },
+    session_name: { on: true, row: 3, order: 1 },
+    write:        { on: true, row: 1, order: 3.5 },
   },
 };
 

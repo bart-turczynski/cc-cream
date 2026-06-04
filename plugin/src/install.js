@@ -15,7 +15,8 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import { checkConfig } from './config.js';
+import { checkConfig, normalizeConfigField } from './config.js';
+import { DEFAULTS } from './defaults.js';
 import { isSafeToWrite, readSettings as readSettingsFile, writeFileAtomic } from './settings.js';
 import { isEntrypoint } from './utils.js';
 
@@ -165,6 +166,131 @@ export function plan(settings, { entrypoint, consent, nodePath } = {}) {
   messages.push('Setting the cc-cream statusLine.');
   messages.push(TRUST_NOTE);
   return { settings: { ...s, statusLine: desired }, changed: true, messages, needsConsent: hasForeign };
+}
+
+// Decide what to do for --show / --hide segment config. Pure: no I/O.
+// `show` and `hide` are arrays of segment IDs (or ['all']); hide overrides show.
+// Returns { config, changed, messages, problems }.
+export function planConfigure(currentRaw, { show = [], hide = [] } = {}) {
+  const ALL = Object.keys(DEFAULTS.segments);
+  const messages = [];
+  const problems = [];
+
+  const showIds = show.includes('all') ? ALL : show;
+  const hideIds = hide.includes('all') ? ALL : hide;
+
+  for (const id of new Set([...showIds, ...hideIds])) {
+    if (!DEFAULTS.segments[id]) problems.push(`unknown segment: "${id}"`);
+  }
+  if (problems.length) {
+    for (const p of problems) messages.push(p);
+    return { config: null, changed: false, messages, problems };
+  }
+
+  let parsed = {};
+  if (currentRaw != null) {
+    try { parsed = JSON.parse(currentRaw); } catch { /* start fresh */ }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) parsed = {};
+
+  const existingSegs =
+    parsed.segments && typeof parsed.segments === 'object' && !Array.isArray(parsed.segments)
+      ? parsed.segments
+      : {};
+  const segs = { ...existingSegs };
+
+  // hide overrides show: last writer wins in target map
+  const target = {};
+  for (const id of showIds) target[id] = true;
+  for (const id of hideIds) target[id] = false;
+
+  let changed = false;
+  for (const [id, on] of Object.entries(target)) {
+    const existing = segs[id];
+    const currentOn =
+      existing && typeof existing === 'object' && 'on' in existing
+        ? existing.on
+        : DEFAULTS.segments[id].on;
+    if (currentOn !== on) {
+      segs[id] = { ...(existing || {}), on };
+      changed = true;
+      messages.push(`${on ? 'Showing' : 'Hiding'} segment "${id}".`);
+    }
+  }
+
+  if (!changed) {
+    messages.push('Already configured — no changes needed.');
+    return { config: parsed, changed: false, messages, problems: [] };
+  }
+  return { config: { ...parsed, segments: segs }, changed: true, messages, problems: [] };
+}
+
+// Apply one or more "key=value" assignments to ~/.claude/cc-cream.json. Pure: no I/O.
+// assignments: array of strings like ["percentage=remaining", "ctx.ceiling=100000"].
+// Supports top-level keys and "segment.field" dot-paths.
+// Returns { config, changed, messages, problems }.
+export function planSet(currentRaw, assignments) {
+  const messages = [];
+  const problems = [];
+
+  const parsed_pairs = [];
+  for (const a of assignments) {
+    const eq = a.indexOf('=');
+    if (eq === -1) {
+      problems.push(`invalid assignment "${a}" — expected key=value`);
+      continue;
+    }
+    const dotPath = a.slice(0, eq).trim();
+    const rawValue = a.slice(eq + 1).trim();
+    const result = normalizeConfigField(dotPath, rawValue);
+    if (!result.ok) {
+      problems.push(result.error);
+    } else {
+      parsed_pairs.push({ dotPath, value: result.value });
+    }
+  }
+
+  if (problems.length) {
+    for (const p of problems) messages.push(p);
+    return { config: null, changed: false, messages, problems };
+  }
+
+  let cfg = {};
+  if (currentRaw != null) {
+    try { cfg = JSON.parse(currentRaw); } catch { /* start fresh */ }
+  }
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) cfg = {};
+
+  let changed = false;
+  for (const { dotPath, value } of parsed_pairs) {
+    const parts = dotPath.split('.');
+    if (parts.length === 1) {
+      const [key] = parts;
+      if (cfg[key] !== value) {
+        cfg = { ...cfg, [key]: value };
+        changed = true;
+        messages.push(`Set ${key} = ${JSON.stringify(value)}.`);
+      }
+    } else {
+      const [segId, field] = parts;
+      const segs = cfg.segments && typeof cfg.segments === 'object' && !Array.isArray(cfg.segments)
+        ? { ...cfg.segments }
+        : {};
+      const seg = segs[segId] && typeof segs[segId] === 'object' ? { ...segs[segId] } : {};
+      if (seg[field] !== value) {
+        seg[field] = value;
+        segs[segId] = seg;
+        cfg = { ...cfg, segments: segs };
+        changed = true;
+        messages.push(`Set ${segId}.${field} = ${JSON.stringify(value)}.`);
+      }
+    }
+  }
+
+  if (!changed) {
+    messages.push('Already configured — no changes needed.');
+  }
+  return { config: cfg, changed, messages, problems: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -448,6 +574,62 @@ function statusCli() {
   console.log('  then rm -rf ~/.claude/plugins/cache/cc-cream (the host never removes it).');
 }
 
+function allArgVals(args, flag) {
+  const results = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === flag && i + 1 < args.length) {
+      results.push(args[i + 1]);
+      i++;
+    }
+  }
+  return results;
+}
+
+function argVal(args, flag) {
+  const i = args.indexOf(flag);
+  return i !== -1 && i + 1 < args.length ? args[i + 1] : null;
+}
+
+function splitIds(val) {
+  return val ? val.split(',').map((s) => s.trim()).filter(Boolean) : [];
+}
+
+async function setCli(assignments) {
+  const file = path.join(os.homedir(), '.claude', 'cc-cream.json');
+  let raw = null;
+  try { raw = fs.readFileSync(file, 'utf8'); } catch { /* not found is fine */ }
+
+  const result = planSet(raw, assignments);
+  for (const m of result.messages) console.log(m);
+  if (result.problems.length) {
+    process.exit(1);
+    return;
+  }
+  if (result.changed) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    writeFileAtomic(file, `${JSON.stringify(result.config, null, 2)}\n`);
+    console.log(`\nWrote ${file}.`);
+  }
+}
+
+async function configureCli({ show, hide }) {
+  const file = path.join(os.homedir(), '.claude', 'cc-cream.json');
+  let raw = null;
+  try { raw = fs.readFileSync(file, 'utf8'); } catch { /* not found is fine */ }
+
+  const result = planConfigure(raw, { show, hide });
+  for (const m of result.messages) console.log(m);
+  if (result.problems.length) {
+    process.exit(1);
+    return;
+  }
+  if (result.changed) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    writeFileAtomic(file, `${JSON.stringify(result.config, null, 2)}\n`);
+    console.log(`\nWrote ${file}.`);
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--status')) {
@@ -460,6 +642,18 @@ async function main() {
   }
   if (args.includes('--uninstall')) {
     await uninstall({ purge: args.includes('--purge') });
+    return;
+  }
+  const showArg = argVal(args, '--show');
+  const hideArg = argVal(args, '--hide');
+  if (showArg !== null || hideArg !== null) {
+    await configureCli({ show: splitIds(showArg), hide: splitIds(hideArg) });
+    return;
+  }
+  const setArgs = allArgVals(args, '--set');
+  if (setArgs.length > 0) {
+    const assignments = setArgs.flatMap((v) => v.split(',').map((s) => s.trim()).filter(Boolean));
+    await setCli(assignments);
     return;
   }
   const plugin = args.includes('--plugin');

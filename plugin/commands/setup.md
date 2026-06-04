@@ -1,5 +1,5 @@
 ---
-description: Wire cc-cream into your settings.json with a self-updating statusLine command.
+description: "Wire cc-cream into your settings.json. --show/--hide toggle segments (e.g. --hide 5h,7d,peak). --set applies config values (e.g. --set percentage=remaining --set ctx.ceiling=100000 --set ctx.amber=20). Multiple --set flags are allowed."
 allowed-tools: Bash(node:*)
 ---
 

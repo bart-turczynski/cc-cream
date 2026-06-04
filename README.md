@@ -117,9 +117,50 @@ Add `--purge` to either to also remove your `~/.claude/cc-cream.json` config. Se
 
 ## Configuration
 
-Every display decision is driven by `~/.claude/cc-cream.json`. You don't have to edit it by hand — just ask Claude to toggle segments, flip how percentages are counted, or adjust thresholds. The defaults are based on what the data and community experience suggest are reasonable starting points.
+### Toggle segments
 
-If you do edit by hand, run the doctor afterward to catch typos:
+**Plugin users** — pass flags directly to `/cc-cream:setup`:
+```
+/cc-cream:setup --hide 5h,7d,peak
+/cc-cream:setup --show all --hide peak
+/cc-cream:setup --show effort,thinking
+```
+
+**npm / manual users** — same flags via `cc-cream-setup`:
+```bash
+cc-cream-setup --hide 5h,7d,peak
+cc-cream-setup --show all
+```
+
+`--show all` re-enables everything. `--hide` overrides `--show` when both name the same segment. Valid segment names: `ctx` `cache` `write` `ttl` `effort` `thinking` `api_ratio` `cost` `5h` `7d` `burn` `peak` `model` `session_name`.
+
+### Set config values
+
+`--set key=value` sets any config field. Multiple `--set` flags are allowed in one call.
+
+```
+# flip percentage direction
+/cc-cream:setup --set percentage=remaining
+
+# set a fixed-token ceiling for ctx warnings (useful on large-context models)
+/cc-cream:setup --set ctx.basis=ceiling --set ctx.ceiling=100000
+
+# tighten color thresholds
+/cc-cream:setup --set ctx.amber=20 --set ctx.orange=30 --set ctx.red=40
+
+# adjust rate-limit warning bands
+/cc-cream:setup --set 5h.amber=80 --set 5h.red=95
+```
+
+npm / manual users replace `/cc-cream:setup` with `cc-cream-setup`.
+
+Top-level keys: `percentage` (`consumed`|`remaining`), `numbers` (`compact`|`exact`), `ttl` (`auto`|`60`|`5`). Per-segment dot-paths: `segment.field` — e.g. `ctx.ceiling`, `ctx.basis`, `5h.amber`. Full field reference in [CONFIGURATION.md](CONFIGURATION.md).
+
+The flags write to `~/.claude/cc-cream.json`; the bar reflects the change on the next render.
+
+### Fine-tuning
+
+Every display decision is also configurable by hand in `~/.claude/cc-cream.json` — thresholds, row assignments, color bands, TTL mode, and more. Run the doctor after editing to catch typos:
 ```bash
 cc-cream-setup --check-config
 ```

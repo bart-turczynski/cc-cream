@@ -44,6 +44,15 @@ Feature: Ghost-bar self-defense when orphaned in the plugin cache (CREAM-uchemxl
     Then the output is not empty
     And cc-cream exits 0
 
+  Scenario: An orphaned cache renderer removes the stale session state file
+    Given the engine is installed in the plugin cache as version "0.2.0"
+    And the host plugin registry file is absent
+    And a state file with session "abc" having cost 5.0
+    When cc-cream runs
+    Then the output is empty
+    And cc-cream exits 0
+    And no state file is written
+
   Scenario: A manual/dev install (not under the plugin cache) always renders
     Given the host plugin registry file is absent
     When cc-cream runs

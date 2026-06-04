@@ -3,16 +3,16 @@ Feature: API efficiency ratio segment (CREAM-ubhwyadt)
   I want to see what fraction of wall time was spent waiting on API calls
   So that I can distinguish network-bound from compute-bound sessions
 
-  # Off by default — opt-in via config.
+  # On by default — can be disabled via config.
 
   Background:
     Given stdin with no rate_limits
 
-  Scenario: api_ratio segment is off by default
+  Scenario: api_ratio segment renders by default when data is available
     Given default config
     And stdin with total_api_duration_ms 3000 and total_duration_ms 5000
     When cc-cream runs
-    Then the api_ratio segment is not rendered
+    Then the api_ratio segment reads "∿ api:60%"
 
   Scenario: api_ratio shows the percentage of wall time in API calls
     Given config {"segments":{"api_ratio":{"on":true}}}

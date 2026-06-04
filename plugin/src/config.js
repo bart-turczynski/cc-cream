@@ -141,6 +141,47 @@ export function checkConfig(parsed) {
   return problems;
 }
 
+// Coerce a CLI string to the JS value a normalizer expects.
+function coerceValue(str) {
+  if (str === 'true') return true;
+  if (str === 'false') return false;
+  const n = Number(str);
+  return !Number.isNaN(n) && str.trim() !== '' ? n : str;
+}
+
+// Validate and normalize a single dot-path assignment from the CLI.
+// dotPath: "percentage" (top-level) or "ctx.ceiling" (segment.field).
+// rawValue: the string the user passed; coerced before normalization.
+// Returns { ok: true, value } or { ok: false, error }.
+export function normalizeConfigField(dotPath, rawValue) {
+  const INVALID = Symbol('invalid');
+  const coerced = coerceValue(rawValue);
+  const parts = dotPath.split('.');
+
+  if (parts.length === 1) {
+    const [key] = parts;
+    const norm = TOP_LEVEL[key];
+    if (!norm) return { ok: false, error: `unknown config key: "${key}"` };
+    const v = norm(coerced, INVALID);
+    if (v === INVALID) return { ok: false, error: `invalid value for "${key}": ${JSON.stringify(rawValue)}` };
+    return { ok: true, value: v };
+  }
+
+  if (parts.length === 2) {
+    const [segId, field] = parts;
+    if (!DEFAULTS.segments[segId]) return { ok: false, error: `unknown segment: "${segId}"` };
+    const segDef = DEFAULTS.segments[segId];
+    if (!(field in segDef)) return { ok: false, error: `unknown field "${field}" on segment "${segId}"` };
+    const norm = SEGMENT_FIELDS[field];
+    if (!norm) return { ok: false, error: `unsettable field: "${field}"` };
+    const v = norm(coerced, INVALID);
+    if (v === INVALID) return { ok: false, error: `invalid value for "${segId}.${field}": ${JSON.stringify(rawValue)}` };
+    return { ok: true, value: v };
+  }
+
+  return { ok: false, error: `invalid key path "${dotPath}" — use "key" for top-level or "segment.field" for per-segment` };
+}
+
 export function readConfigFile() {
   try {
     return fs.readFileSync(path.join(os.homedir(), '.claude', 'cc-cream.json'), 'utf8');

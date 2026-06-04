@@ -13,7 +13,7 @@ Feature: Golden render snapshot (CREAM-twlrcxdk)
     When the engine runs
     Then the rendered bar exactly matches the golden snapshot:
       """
-      ctx:15% [31k] | cache:38% | ttl:60 | ~$0.10
+      ctx:15% [31k] | cache:38% | write:12% | ttl:60 | ~$0.10
       5h:22% ↺ 1h30m | 7d:36% ↺ 3h20m
       Sonnet 4.6
       """

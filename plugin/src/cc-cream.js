@@ -182,7 +182,12 @@ function isOrphanedPluginRun(selfPath) {
 async function main() {
   // Self-suppress a zombie bar left behind by an uninstalled plugin (before any
   // stdin read — matching the intent of install.js's now-dead `[ -f ]` guard).
-  if (isOrphanedPluginRun(fileURLToPath(import.meta.url))) process.exit(0);
+  // Also clean up the stale session state so it doesn't linger after a
+  // wrong-order `/plugin uninstall` (cache kept, /cc-cream:uninstall skipped).
+  if (isOrphanedPluginRun(fileURLToPath(import.meta.url))) {
+    try { fs.rmSync(path.join(os.homedir(), '.claude', 'cc-cream-state.json'), { force: true }); } catch { /* ignore */ }
+    process.exit(0);
+  }
 
   const raw = await readStdin();
   const data = parseSession(raw);
