@@ -6,6 +6,7 @@ import path from 'node:path';
 import { REPO, ENGINE, colorOf } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown, patchSessionState } from '../../plugin/src/cc-cream.js';
 import { plan, planUninstall, planConfigure, planSet, statusLineCommand, writeFileAtomic } from '../../plugin/src/install.js';
+import { isOrphanedPluginRun } from '../../plugin/src/orphan.js';
 import { nextVersion, rollChangelog, setJsonVersion } from '../../scripts/release.mjs';
 
 // Path to the state file inside a scenario's sandbox HOME.
@@ -2473,4 +2474,42 @@ When('the set CLI runs with args {string}', function (argStr) {
   });
   this.configureCliExit = res.status;
   this.configureCliOut = (res.stdout ?? '') + (res.stderr ?? '');
+});
+
+// ===========================================================================
+// 37 — isOrphanedPluginRun in-process unit tests
+// ===========================================================================
+
+Given('the host plugin registry has a null plugins key', function () {
+  fs.writeFileSync(registryPath(this), JSON.stringify({ version: 2, plugins: null }));
+});
+
+Given('the host plugin registry has a non-array plugins entry', function () {
+  fs.writeFileSync(registryPath(this), JSON.stringify({ version: 2, plugins: { 'cc-cream@cc-cream': 'not-an-array' } }));
+});
+
+Given('the host plugin registry has a non-string installPath entry', function () {
+  fs.writeFileSync(registryPath(this), JSON.stringify({
+    version: 2,
+    plugins: { 'cc-cream@cc-cream': [{ installPath: 42, version: '0.2.0' }] },
+  }));
+});
+
+Given('the host plugin registry has a non-existent installPath entry', function () {
+  fs.writeFileSync(registryPath(this), JSON.stringify({
+    version: 2,
+    plugins: { 'cc-cream@cc-cream': [{ installPath: '/nonexistent/path/that/does/not/exist', version: '0.2.0' }] },
+  }));
+});
+
+When('isOrphanedPluginRun is called with the engine\'s real path', function () {
+  this.orphanResult = isOrphanedPluginRun(ENGINE);
+});
+
+When('isOrphanedPluginRun is called with the cached engine path', function () {
+  this.orphanResult = isOrphanedPluginRun(this.engineOverride);
+});
+
+Then('the orphan result is {word}', function (expected) {
+  assert.equal(this.orphanResult, expected === 'true');
 });
