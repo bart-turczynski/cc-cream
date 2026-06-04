@@ -6,6 +6,13 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+- **`tokens_in` segment.** Shows total input tokens for the current turn (`total_input_tokens`, with per-field sum fallback) formatted via the existing `numbers` setting. Appears on Row 1 after `api_ratio`.
+- **`tokens_out` segment.** Shows output tokens for the current turn (`current_usage.output_tokens`), also on Row 1. Both segments are on by default and independently toggleable via `--hide`/`--show` or `~/.claude/cc-cream.json`.
+
+### Changed
+- **`effort` and `thinking` moved from Row 1 to Row 3** (the model row). Their natural home is alongside model metadata (`model | thinking | effort | session_name`), and moving them frees two Row 1 slots for the new token segments. **Breaking default for users on the default layout** — use `--set effort.row=1 --set thinking.row=1` to pin them back.
+
 ## [0.4.0] — 2026-06-04
 
 ### Added
