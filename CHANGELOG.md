@@ -6,6 +6,16 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+- **`--show` / `--hide` flags on `/cc-cream:setup` and `cc-cream-setup`.** Toggle segments from the command line without editing JSON: `--hide 5h,7d,peak`, `--show all`, `--show effort,thinking`. `--hide` overrides `--show` when both name the same segment. Changes are idempotent and written to `~/.claude/cc-cream.json`.
+- **`--set key=value` flag.** Set any config field via dot-path: `--set percentage=remaining`, `--set ctx.ceiling=100000`, `--set 5h.amber=80`. Multiple `--set` flags are allowed in one call. Invalid keys or out-of-domain values exit non-zero with an error message.
+
+### Changed
+- **All 14 segments are now enabled on first install.** Previously `write`, `effort`, `thinking`, `api_ratio`, and `session_name` defaulted to off; users had to know to turn them on. They are now on by default — use `--hide` to remove any you don't need.
+
+### Fixed
+- **Orphaned renderer removes stale `cc-cream-state.json`.** When `/plugin uninstall cc-cream` is run before `/cc-cream:uninstall` (wrong order, cache kept), the ghost-bar self-defense suppressed the bar but left `cc-cream-state.json` on disk. The orphaned renderer now removes it before exiting.
+
 ## [0.3.6] — 2026-06-04
 
 ### Changed

@@ -23,11 +23,13 @@ ctx:21% [43k] | cache:99% | write:2% | ttl:60 | effort:high | think:on | ∿ api
 Sonnet 4.6 | My project session
 ```
 
-**Row 1 — this session:** context-window fill, cache hit rate, TTL countdown, session cost. Optional: cache write rate, effort level, thinking mode, API time ratio.
+**Row 1 — this session:** context-window fill, cache hit rate, TTL countdown, session cost, cache write rate, effort level, thinking mode, API time ratio.
 
 **Row 2 — rate-limit budgets:** 5h and 7d window usage with reset countdowns and a burn-rate projection. Hidden for API users.
 
 **Row 3 — identity:** model name and session name.
+
+Use `--hide` to remove any segments you don't need: `/cc-cream:setup --hide write,api_ratio,thinking`.
 
 ## Features
 
