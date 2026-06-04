@@ -1320,6 +1320,14 @@ Then(/^it invokes src\/install\.js in plugin mode rather than writing settings\.
     'setup.md must not itself write settings.json');
 });
 
+Then(/^it forwards its arguments to install\.js so flags like --force apply$/, function () {
+  const src = this.setupMd ?? fs.readFileSync(path.join(REPO, 'plugin', 'commands', 'setup.md'), 'utf8');
+  // /cc-cream:setup --force must reach install.js; the command body has to pass
+  // $ARGUMENTS through (matching uninstall.md), or the flag is silently dropped.
+  assert.ok(/install\.js --plugin\b[^\n]*\$ARGUMENTS/.test(src),
+    `setup.md must forward $ARGUMENTS to install.js so /cc-cream:setup --force works, got:\n${src}`);
+});
+
 const instructsToShowOutput = (file) => {
   const src = fs.readFileSync(path.join(REPO, 'plugin', 'commands', file), 'utf8');
   assert.ok(/\b(show|display)\b/i.test(src) && /\boutput\b/i.test(src) && /\bverbatim\b/i.test(src),
