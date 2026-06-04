@@ -1024,6 +1024,28 @@ Then('row 1 includes {string}', function (text) {
   assert.ok(row1.includes(text), `expected "${text}" in row 1: ${row1}`);
 });
 
+Then('row 3 includes {string}', function (text) {
+  // Row 3 is always the last rendered line (rows 1→2→3; empty rows filtered out).
+  const rows = this.plain.split('\n').filter((l) => l.length > 0);
+  const row3 = rows[rows.length - 1];
+  assert.ok(row3 && row3.includes(text), `expected "${text}" in row 3: ${row3}`);
+});
+
+Then('row 1 does not include {string}', function (text) {
+  const row1 = this.plain.split('\n')[0];
+  assert.ok(!row1.includes(text), `expected "${text}" absent from row 1: ${row1}`);
+});
+
+Then('the output does not include {string}', function (text) {
+  assert.ok(!this.plain.includes(text), `expected "${text}" absent from output: ${this.plain}`);
+});
+
+Given('a subscriber stdin fixture', function () {
+  const raw = fs.readFileSync(path.join(REPO, 'fixtures', 'subscriber.golden.json'), 'utf8');
+  this.data = JSON.parse(raw);
+  this.data.transcript_path = this.makeTranscript(0);
+});
+
 Then('the last row reads {string}', function (expected) {
   const rows = this.plain.split('\n').filter((l) => l.length > 0);
   const last = rows[rows.length - 1];
