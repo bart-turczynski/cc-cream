@@ -6,8 +6,6 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
-## [0.3.6] — 2026-06-04
-
 ### Changed
 - **Plugin is now distributed via a lean catalogue repo (`bart-turczynski/claude-plugins`) instead of the full dev repo.** Previously the marketplace pointed at `bart-turczynski/cc-cream`, so every user who registered the marketplace got a full clone of the development repository — `features/`, `fixtures/`, `package-lock.json` (114 KB), `CHANGELOG.md` (31 KB), and the full git history — landing in `~/.claude/plugins/marketplaces/`. The marketplace source is now `bart-turczynski/claude-plugins`, a purpose-built catalogue containing only the plugin payload and `marketplace.json`. The marketplaces clone shrinks from ~1 MB to ~260 KB (irreducible floor: `.git/` + `.claude-plugin/`). Existing installs should remove and re-add the marketplace: `claude plugin marketplace remove bart-turczynski && claude plugin marketplace add bart-turczynski/claude-plugins`.
 
