@@ -4,11 +4,11 @@
 // <=3-row bar. Hard rule: degrade, never crash.
 
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, readConfigFile } from './config.js';
+import { isOrphanedPluginRun } from './orphan.js';
+import { PATHS } from './paths.js';
 import { buildSegments, render } from './render.js';
 import {
   getSessionState,
@@ -82,7 +82,7 @@ const debugEnabled = (env) => {
 };
 
 function writeDebug(env, lines) {
-  const file = env.CC_CREAM_DEBUG_LOG || path.join(os.homedir(), '.claude', 'cc-cream-debug.log');
+  const file = env.CC_CREAM_DEBUG_LOG || PATHS.debugLog();
   try {
     fs.appendFileSync(file, `${lines.join('\n')}\n`);
   } catch {
@@ -107,85 +107,13 @@ function logDebug(env, { data, cfg, now, prevSessionState, sessionId, rawLen, tt
   ]);
 }
 
-// --- Ghost-bar self-defense (CREAM-uchemxln) --------------------------------
-// No Claude Code host removal path deletes our statusLine OR the version cache:
-// `/plugin uninstall` and `/plugin marketplace remove` both leave the cache tree
-// AND the statusLine in settings.json. So a plugin-cache copy of this renderer
-// keeps executing every session after the plugin is gone — a zombie bar the user
-// has no in-product way to stop (`/cc-cream:uninstall` deregisters with the
-// plugin). The shell `[ -f entrypoint ] || exit 0` guard in install.js can't
-// cover this: the cache it checks for is never GC'd, so the file never goes
-// missing. The reliable signal is the host registry, not the filesystem — when we
-// detect we're running FROM the plugin cache, confirm cc-cream is still listed in
-// installed_plugins.json; if it's gone, exit 0 silently.
-
-function realpathOr(p) {
-  try {
-    return fs.realpathSync(p);
-  } catch {
-    return path.resolve(p);
-  }
-}
-
-// If `selfPath` lives under `<root>/plugins/cache/<marketplace>/<plugin>/...`,
-// return { pluginsDir, pluginHome }; otherwise null (a manual/dev install, which
-// is never a cache orphan). Both paths are derived from the running location, so
-// the registry we consult is the one that actually governs THIS install — no
-// os.homedir()/CLAUDE_CONFIG_DIR assumption.
-function pluginCacheLocation(selfPath) {
-  const segs = realpathOr(selfPath).split(path.sep);
-  for (let i = 0; i + 3 < segs.length; i++) {
-    if (segs[i] === 'plugins' && segs[i + 1] === 'cache') {
-      return {
-        pluginsDir: segs.slice(0, i + 1).join(path.sep),
-        pluginHome: segs.slice(0, i + 4).join(path.sep),
-      };
-    }
-  }
-  return null;
-}
-
-function isWithin(parent, child) {
-  const rel = path.relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-}
-
-// True when this renderer is a plugin-cache orphan: running from the cache while
-// cc-cream is absent from the host's installed_plugins.json. Cost is one tiny
-// read, and ONLY on the plugin-cache path — manual/dev installs return early
-// before touching the disk. A missing registry (ENOENT) counts as orphaned; any
-// other read/parse failure is treated as not-orphaned, so a transient glitch can
-// never suppress a legitimately wired bar.
-function isOrphanedPluginRun(selfPath) {
-  const loc = pluginCacheLocation(selfPath);
-  if (!loc) return false;
-  let parsed;
-  try {
-    parsed = JSON.parse(fs.readFileSync(path.join(loc.pluginsDir, 'installed_plugins.json'), 'utf8'));
-  } catch (err) {
-    return err?.code === 'ENOENT';
-  }
-  const plugins = parsed && typeof parsed === 'object' ? parsed.plugins : null;
-  if (!plugins || typeof plugins !== 'object') return true;
-  const home = realpathOr(loc.pluginHome);
-  for (const entries of Object.values(plugins)) {
-    if (!Array.isArray(entries)) continue;
-    for (const entry of entries) {
-      if (entry && typeof entry.installPath === 'string' && isWithin(home, realpathOr(entry.installPath))) {
-        return false; // an installed cc-cream entry lives in our cache subtree
-      }
-    }
-  }
-  return true;
-}
-
 async function main() {
   // Self-suppress a zombie bar left behind by an uninstalled plugin (before any
   // stdin read — matching the intent of install.js's now-dead `[ -f ]` guard).
   // Also clean up the stale session state so it doesn't linger after a
   // wrong-order `/plugin uninstall` (cache kept, /cc-cream:uninstall skipped).
   if (isOrphanedPluginRun(fileURLToPath(import.meta.url))) {
-    try { fs.rmSync(path.join(os.homedir(), '.claude', 'cc-cream-state.json'), { force: true }); } catch { /* ignore */ }
+    try { fs.rmSync(PATHS.stateFile(), { force: true }); } catch { /* ignore */ }
     process.exit(0);
   }
 
@@ -195,7 +123,7 @@ async function main() {
   const now = nowFromEnv(process.env);
 
   const sessionId = typeof data.session_id === 'string' && data.session_id ? data.session_id : null;
-  const stateFile = path.join(os.homedir(), '.claude', 'cc-cream-state.json');
+  const stateFile = PATHS.stateFile();
   const state = sessionId ? readState(stateFile) : {};
   const prevSessionState = getSessionState(state, sessionId);
 

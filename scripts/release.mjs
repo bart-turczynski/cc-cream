@@ -12,7 +12,7 @@
 // Preflight fails fast (must be on a clean main, [Unreleased] must have content),
 // so it never leaves a half-bumped tree. The pure helpers are exported for tests.
 
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -52,11 +52,15 @@ export function setJsonVersion(text, version) {
   return next;
 }
 
-function git(cmd) {
-  return execSync(`git ${cmd}`, { cwd: ROOT, encoding: 'utf8' }).trim();
+function git(...args) {
+  const r = spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed:\n${r.stderr}`);
+  return r.stdout.trim();
 }
-function run(cmd) {
-  execSync(cmd, { cwd: ROOT, stdio: 'inherit' });
+
+function run(cmd, ...args) {
+  const r = spawnSync(cmd, args, { cwd: ROOT, stdio: 'inherit' });
+  if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} exited ${r.status}`);
 }
 
 function main() {
@@ -70,13 +74,13 @@ function main() {
   }
 
   // Preflight — fail before mutating anything.
-  if (git('rev-parse --abbrev-ref HEAD') !== 'main') {
+  if (git('rev-parse', '--abbrev-ref', 'HEAD') !== 'main') {
     console.error('Refusing to release: not on main (releases are cut from main — RELEASING.md).');
     process.exit(1);
   }
   // Tracked changes only — stray untracked files (scratch notes, editor configs)
   // must neither block a release nor get swept into the release commit.
-  if (git('status --porcelain --untracked-files=no')) {
+  if (git('status', '--porcelain', '--untracked-files=no')) {
     console.error('Refusing to release: tracked files have uncommitted changes (the release commit must be just the bump).');
     process.exit(1);
   }
@@ -97,17 +101,17 @@ function main() {
 
   // Gate, then commit + tag — staging ONLY the bump files, never a stray
   // untracked file that happens to be lying around.
-  if (!skipTests) run('pnpm test');
-  run('git add package.json plugin/.claude-plugin/plugin.json CHANGELOG.md');
-  run(`git commit -m "Release ${tag}"`);
+  if (!skipTests) run('pnpm', 'test');
+  run('git', 'add', 'package.json', 'plugin/.claude-plugin/plugin.json', 'CHANGELOG.md');
+  run('git', 'commit', '-m', `Release ${tag}`);
   // Annotated (not lightweight) so `git push --follow-tags` actually pushes it —
   // a lightweight tag is silently skipped, which strands the tag locally and makes
   // `gh release create` fail with "tag not pushed".
-  run(`git tag -a ${tag} -m "Release ${tag}"`);
+  run('git', 'tag', '-a', tag, '-m', `Release ${tag}`);
 
   if (publish) {
-    run('git push --follow-tags');
-    run(`gh release create ${tag} --generate-notes`);
+    run('git', 'push', '--follow-tags');
+    run('gh', 'release', 'create', tag, '--generate-notes');
     console.log(`\nReleased ${tag}. The "Publish to npm" workflow runs on the release event (OIDC).`);
   } else {
     console.log(`\nStaged ${tag} locally. To publish:\n  git push --follow-tags\n  gh release create ${tag} --generate-notes`);

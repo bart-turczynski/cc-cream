@@ -10,13 +10,13 @@
 
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { checkConfig, normalizeConfigField } from './config.js';
 import { DEFAULTS } from './defaults.js';
+import { PATHS } from './paths.js';
 import { isSafeToWrite, readSettings as readSettingsFile, writeFileAtomic } from './settings.js';
 import { isEntrypoint } from './utils.js';
 
@@ -296,14 +296,6 @@ export function planSet(currentRaw, assignments) {
 // ---------------------------------------------------------------------------
 // CLI wrapper.
 // ---------------------------------------------------------------------------
-function settingsPath() {
-  return path.join(os.homedir(), '.claude', 'settings.json');
-}
-
-function destinationPath() {
-  return path.join(os.homedir(), '.claude', 'cc-cream', 'cc-cream.js');
-}
-
 // Read settings.json safely for the CLI. A MISSING or empty file -> {} (fresh
 // start, nothing to lose); a valid object is returned as-is. Any other state
 // (corrupt JSON, a non-object, or an unreadable file) is REFUSED: we exit rather
@@ -378,7 +370,7 @@ function ask(question) {
 // additionally removes the one file worth keeping by default: the user-authored
 // config (~/.claude/cc-cream.json).
 async function uninstall({ purge }) {
-  const file = settingsPath();
+  const file = PATHS.settingsFile();
   const settings = readSettings(file);
   const result = planUninstall(settings);
   for (const m of result.messages) console.log(m);
@@ -387,11 +379,10 @@ async function uninstall({ purge }) {
     console.log(`Updated ${file}.`);
   }
 
-  const home = path.join(os.homedir(), '.claude');
-  const configFile = path.join(home, 'cc-cream.json');
+  const configFile = PATHS.configFile();
 
   // Auto-clean regenerable scratch (not user data — no prompt).
-  const scratch = [path.join(home, 'cc-cream'), path.join(home, 'cc-cream-state.json')]
+  const scratch = [PATHS.runtimeDir(), PATHS.stateFile()]
     .filter((p) => fs.existsSync(p));
   for (const p of scratch) fs.rmSync(p, { recursive: true, force: true });
   if (scratch.length) console.log('Removed the copied runtime and session state.');
@@ -411,7 +402,7 @@ async function uninstall({ purge }) {
 // Shorten an absolute path under $HOME to a `~/…` form for display. The shell
 // still expands `~`, so the result stays copy-pasteable.
 function tildeify(p) {
-  const home = os.homedir();
+  const home = PATHS.homeDir();
   return p === home || p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p;
 }
 
@@ -440,7 +431,7 @@ function printUninstallReceipt() {
 // config schema, reporting unknown keys and out-of-domain values (which the
 // renderer silently ignores). Exits non-zero when problems are found.
 function checkConfigCli() {
-  const file = path.join(os.homedir(), '.claude', 'cc-cream.json');
+  const file = PATHS.configFile();
   if (!fs.existsSync(file)) {
     console.log(`No config at ${file} — cc-cream uses its defaults. Nothing to check.`);
     return;
@@ -492,13 +483,13 @@ function readJsonSafe(file) {
 // can't otherwise tell whether cc-cream fully went away — this command answers
 // "clean slate?" in one shot, and points out what the host left behind.
 function statusCli() {
-  const home = path.join(os.homedir(), '.claude');
+  const home = PATHS.claudeDir();
   const plugins = path.join(home, 'plugins');
   const items = [];
   const add = (label, present, detail) => items.push({ label, present, detail });
 
   // statusLine wiring
-  const { state, value } = readSettingsFile(settingsPath());
+  const { state, value } = readSettingsFile(PATHS.settingsFile());
   if (!isSafeToWrite(state)) {
     add('statusLine wiring', false, `settings.json unreadable (${state}) — not inspected`);
   } else if (isCcCreamStatusLine(value.statusLine)) {
@@ -544,7 +535,7 @@ function statusCli() {
   add('auto-wire marker', !!marker, marker || 'none');
 
   // session state
-  const stateFile = path.join(home, 'cc-cream-state.json');
+  const stateFile = PATHS.stateFile();
   if (fs.existsSync(stateFile)) {
     const obj = readJsonSafe(stateFile);
     const n = obj && typeof obj === 'object' ? Object.keys(obj).length : '?';
@@ -554,11 +545,11 @@ function statusCli() {
   }
 
   // config
-  const configFile = path.join(home, 'cc-cream.json');
+  const configFile = PATHS.configFile();
   add('config', fs.existsSync(configFile), fs.existsSync(configFile) ? configFile : 'none (using defaults)');
 
   // manual runtime copy
-  const runtimeDir = path.join(home, 'cc-cream');
+  const runtimeDir = PATHS.runtimeDir();
   add('manual runtime copy', fs.existsSync(runtimeDir), fs.existsSync(runtimeDir) ? runtimeDir : 'none');
 
   console.log('cc-cream footprint:');
@@ -595,7 +586,7 @@ function splitIds(val) {
 }
 
 async function setCli(assignments) {
-  const file = path.join(os.homedir(), '.claude', 'cc-cream.json');
+  const file = PATHS.configFile();
   let raw = null;
   try { raw = fs.readFileSync(file, 'utf8'); } catch { /* not found is fine */ }
 
@@ -613,7 +604,7 @@ async function setCli(assignments) {
 }
 
 async function configureCli({ show, hide }) {
-  const file = path.join(os.homedir(), '.claude', 'cc-cream.json');
+  const file = PATHS.configFile();
   let raw = null;
   try { raw = fs.readFileSync(file, 'utf8'); } catch { /* not found is fine */ }
 
@@ -661,7 +652,7 @@ async function main() {
   // First non-flag arg is an optional local source path (manual mode only).
   const positional = args.filter((a) => !a.startsWith('--'));
 
-  const file = settingsPath();
+  const file = PATHS.settingsFile();
   const settings = readSettings(file);
 
   // planOpts holds the entrypoint + node path the command bakes in.
@@ -685,7 +676,7 @@ async function main() {
       process.exit(1);
     }
 
-    const dest = destinationPath();
+    const dest = PATHS.runtimeEntry();
     const destDir = path.dirname(dest);
     if (copyRuntimeFiles(sourceFile, destDir)) {
       console.log(`Copied cc-cream runtime files to ${destDir}`);
