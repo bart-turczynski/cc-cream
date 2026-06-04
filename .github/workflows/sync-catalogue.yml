@@ -4,14 +4,19 @@ on:
   release:
     types: [published]
 
+# The push to the catalogue repo uses CATALOGUE_PAT, not the default GITHUB_TOKEN,
+# so this workflow's own token needs only read access to check out this repo.
+permissions:
+  contents: read
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Checkout catalogue repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: bart-turczynski/claude-plugins
           token: ${{ secrets.CATALOGUE_PAT }}

@@ -50,8 +50,22 @@ const TRUST_NOTE =
 // statusLine outlives the deleted cache. Without it, node would crash with
 // MODULE_NOT_FOUND on every render. "Degrade, never crash" (CLAUDE.md). `exec`
 // replaces the shell so stdin/stdout pass straight through to the renderer.
+
+// Escape a path for safe embedding inside a "double-quoted" POSIX shell word.
+// The paths here aren't third-party-controlled — they're the user's own install
+// location (os.homedir() + the resolved node binary) — but a home dir or node
+// path containing `"`, `$`, a backtick, or `\` would otherwise break the command
+// or let the shell expand/execute part of it. These four are the only characters
+// special inside double quotes; backslash-escaping them neutralizes the lot while
+// leaving every ordinary path byte-for-byte unchanged (so no command churn).
+function shDquote(s) {
+  return String(s).replace(/(["$`\\])/g, '\\$1');
+}
+
 export function statusLineCommand(nodePath, entrypoint) {
-  return `[ -f "${entrypoint}" ] || exit 0; exec "${nodePath}" "${entrypoint}"`;
+  const ep = shDquote(entrypoint);
+  const node = shDquote(nodePath);
+  return `[ -f "${ep}" ] || exit 0; exec "${node}" "${ep}"`;
 }
 
 // `desired` is considered already installed if it matches the planned command
@@ -68,16 +82,23 @@ function isInstalled(existing, command) {
 }
 
 // True if an existing statusLine belongs to cc-cream under ANY install strategy
-// (dev repo, copied home runtime, or the plugin cache-glob) — every command
-// references the cc-cream entrypoint. Used by uninstall so we never touch a
-// statusLine the user wired for something else.
+// (dev repo, copied home runtime, or the plugin cache) — every strategy points
+// the command at an entrypoint whose basename is `cc-cream.js`. We match that
+// filename rather than the bare substring `cc-cream`: the loose match would also
+// claim a FOREIGN statusLine that merely mentions the string (a comment, an
+// unrelated arg, a directory called cc-cream), and the whole consent flow exists
+// precisely so we never touch a line the user wired for something else. Matching
+// the entrypoint filename stays strategy-agnostic (it's invariant across dev /
+// home-copy / plugin-cache) without over-fitting to the `[ -f … ] || exit 0`
+// wrapper, so it still recognizes older command shapes. Used by uninstall and by
+// the consent gate in plan().
 export function isCcCreamStatusLine(existing) {
   return (
     !!existing &&
     typeof existing === 'object' &&
     existing.type === 'command' &&
     typeof existing.command === 'string' &&
-    existing.command.includes('cc-cream')
+    existing.command.includes('cc-cream.js')
   );
 }
 

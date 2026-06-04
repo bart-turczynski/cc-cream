@@ -52,6 +52,23 @@ Feature: Consent-based installer for the statusLine command
     When the uninstaller runs
     Then the existing statusLine is left unchanged
 
+  # Ownership is keyed on the cc-cream.js entrypoint filename, not the bare
+  # substring "cc-cream" — a foreign line that merely mentions the string (an
+  # unrelated script, a directory named cc-cream) must NOT be claimed as ours.
+  Scenario: A foreign statusLine that only mentions "cc-cream" is left untouched
+    Given settings.json has a foreign statusLine that mentions cc-cream but not the entrypoint
+    When the uninstaller runs
+    Then the existing statusLine is left unchanged
+
+  # The wired command embeds absolute paths (entrypoint + node) by string
+  # interpolation; a home dir or node path containing shell metacharacters must be
+  # neutralized so the command can't break or expand/execute part of itself.
+  Scenario: The statusLine command neutralizes shell metacharacters in paths
+    Given an entrypoint path containing shell metacharacters
+    When the statusLine command is built for it
+    Then the metacharacters are escaped so the shell cannot expand them
+    And running the command execs the literal entrypoint path
+
   Scenario: Uninstall preserves the user's other settings
     Given settings.json has cc-cream installed alongside other keys
     When the uninstaller runs

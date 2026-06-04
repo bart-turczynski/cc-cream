@@ -533,6 +533,38 @@ Then('the existing statusLine is left unchanged', function () {
   assert.deepEqual(this.result.settings.statusLine, this.before.statusLine);
 });
 
+Given('settings.json has a foreign statusLine that mentions cc-cream but not the entrypoint', function () {
+  // Mentions the string but is NOT a cc-cream entrypoint (no cc-cream.js): a
+  // sibling tool, a themes dir, an unrelated arg. Must be treated as foreign.
+  this.settings = { statusLine: { type: 'command', command: 'bash /opt/cc-cream-themes/run.sh', refreshInterval: 5 } };
+});
+
+Given('an entrypoint path containing shell metacharacters', function () {
+  // A real cc-cream.js under a dir whose name carries `$` and a space — the two
+  // things that would break/expand an unescaped double-quoted shell word.
+  const dir = path.join(this.home, 'we$ird dir', 'src');
+  fs.mkdirSync(dir, { recursive: true });
+  this.metaEntrypoint = path.join(dir, 'cc-cream.js');
+  fs.writeFileSync(this.metaEntrypoint, 'process.stdout.write("METAMARKER");');
+});
+
+When('the statusLine command is built for it', function () {
+  this.metaCommand = statusLineCommand(process.execPath, this.metaEntrypoint);
+});
+
+Then('the metacharacters are escaped so the shell cannot expand them', function () {
+  // Every `$` is backslash-escaped — none survives bare to trigger expansion.
+  assert.ok(!/(^|[^\\])\$/.test(this.metaCommand),
+    `an unescaped $ would expand in the shell: ${this.metaCommand}`);
+});
+
+Then('running the command execs the literal entrypoint path', function () {
+  const res = spawnSync('sh', ['-c', this.metaCommand], { input: '{"session_id":"x"}', encoding: 'utf8' });
+  assert.equal(res.status, 0, `command should exit 0: ${res.stderr}`);
+  assert.ok((res.stdout ?? '').includes('METAMARKER'),
+    `the literal entrypoint must run with escaping intact: stdout=${JSON.stringify(res.stdout)} stderr=${res.stderr}`);
+});
+
 Then('the other settings keys are preserved', function () {
   assert.equal(this.result.settings.model, 'opus');
   assert.deepEqual(this.result.settings.permissions, this.before.permissions);

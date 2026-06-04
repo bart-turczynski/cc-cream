@@ -32,8 +32,10 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       # The Node 22 runner ships npm 10.x; trusted publishing needs >= 11.5.1.
+      # Pin the major (latest 11.x, always >= 11.5.1) rather than `@latest`, so a
+      # future npm major can't silently change publish behavior at release time.
       - name: Upgrade npm to a trusted-publishing-capable version
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

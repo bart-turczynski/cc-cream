@@ -20,6 +20,15 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Prove the gate across the Node versions the dev toolchain supports. The
+    # floor is Node 22.13+ — pnpm@11.3.0 (pinned via packageManager) imports
+    # node:sqlite, which doesn't exist before 22.13 — so 20 can't run the
+    # toolchain at all; 22 is the floor, 24 the current line. A failure on either
+    # leg surfaces a version-specific break here, on the PR, not at publish time.
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["22", "24"]
     steps:
       - uses: actions/checkout@v5
 
@@ -27,7 +36,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          node-version: ${{ matrix.node-version }}
 
       # Make the "no claude CLI" assumption explicit. GitHub runners don't ship
       # `claude`; fail loudly if that ever changes, since it would mask exactly

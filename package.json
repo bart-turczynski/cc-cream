@@ -13,7 +13,7 @@
     "test": "cucumber-js",
     "test:manual": "cucumber-js --profile manual",
     "test:cli": "cucumber-js --profile cli",
-    "coverage": "c8 cucumber-js",
+    "coverage": "c8 --check-coverage --lines 90 cucumber-js",
     "watch": "cucumber-js --watch",
     "hooks": "simple-git-hooks",
     "release": "node scripts/release.mjs",
@@ -49,7 +49,7 @@
   "type": "module",
   "packageManager": "pnpm@11.3.0",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "repository": {
     "type": "git",
