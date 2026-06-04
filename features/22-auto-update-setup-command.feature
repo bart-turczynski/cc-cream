@@ -25,6 +25,7 @@ Feature: Setup command bakes the current version's absolute path (CREAM-kpsjregt
   Scenario: The setup command is a thin wrapper over install.js
     Then commands/setup.md exists and registers as the /cc-cream:setup command
     And it invokes src/install.js in plugin mode rather than writing settings.json itself
+    And it forwards its arguments to install.js so flags like --force apply
     And it shows a brief one-line note, not a verbose body
 
   # A `!` bang's stdout is injected as model CONTEXT, not shown to the user (Claude
