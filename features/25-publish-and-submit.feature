@@ -22,7 +22,7 @@ Feature: Publish and submit to the community catalog (CREAM-vtjzppjr)
     Then .claude-plugin/plugin.json version matches package.json
 
   Scenario: The self-hosted marketplace install path is documented
-    Then the README documents adding the marketplace with "/plugin marketplace add bart-turczynski/cc-cream"
+    Then the README documents adding the marketplace with "/plugin marketplace add bart-turczynski/claude-plugins"
     And then installing with "/plugin install cc-cream"
 
   # --- Release gates (controllable at release time, not automatable in CI) ---

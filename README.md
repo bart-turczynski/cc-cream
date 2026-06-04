@@ -60,7 +60,7 @@ macOS and Linux. Windows is a planned fast-follow.
 ### Option 1 — Claude Code plugin (recommended)
 
 ```bash
-/plugin marketplace add bart-turczynski/cc-cream
+/plugin marketplace add bart-turczynski/claude-plugins
 /plugin install cc-cream
 ```
 
@@ -91,7 +91,7 @@ Download or clone the repository, then run the consent installer:
 
 ```bash
 git clone https://github.com/bart-turczynski/cc-cream.git
-node cc-cream/src/install.js
+node cc-cream/plugin/src/install.js
 ```
 
 The installer detects an existing `statusLine` and asks before replacing it, preserves any `padding` you have set, and is idempotent.

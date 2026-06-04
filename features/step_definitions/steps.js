@@ -1016,14 +1016,10 @@ Then(/^plugin\/src\/cc-cream\.js starts with "([^"]+)"$/, function (shebang) {
 // ===========================================================================
 // 20 — plugin manifest and marketplace metadata
 // ===========================================================================
-// Split layout: marketplace.json lives at the repo-root .claude-plugin/ (so the
-// marketplace is discoverable), while plugin.json lives at the plugin source
-// root plugin/.claude-plugin/ — keeping package.json out of the plugin's cached
-// tree so the installer never runs `npm install` (CREAM plugin-cache-bloat fix).
-const marketplaceDir = path.join(REPO, '.claude-plugin');
+// Plugin payload lives in plugin/.claude-plugin/plugin.json (the only manifest
+// in this repo). The self-hosted marketplace moved to bart-turczynski/claude-plugins.
 const pluginManifestDir = path.join(REPO, 'plugin', '.claude-plugin');
 let _pluginJson = null;
-let _marketplaceJson = null;
 
 function readPluginJson() {
   if (!_pluginJson) {
@@ -1031,14 +1027,6 @@ function readPluginJson() {
     _pluginJson = JSON.parse(raw);
   }
   return _pluginJson;
-}
-
-function readMarketplaceJson() {
-  if (!_marketplaceJson) {
-    const raw = fs.readFileSync(path.join(marketplaceDir, 'marketplace.json'), 'utf8');
-    _marketplaceJson = JSON.parse(raw);
-  }
-  return _marketplaceJson;
 }
 
 Then(/^plugin\/\.claude-plugin\/plugin\.json exists and is valid JSON$/, function () {
@@ -1092,12 +1080,6 @@ Then(/^plugin\.json description references "([^"]+)"$/, function (phrase) {
     `description must include "${phrase}", got: ${desc}`);
 });
 
-Then(/^\.claude-plugin contains exactly marketplace\.json$/, function () {
-  const entries = fs.readdirSync(marketplaceDir).sort();
-  assert.deepEqual(entries, ['marketplace.json'],
-    `repo-root .claude-plugin must contain only marketplace.json, got: ${entries}`);
-});
-
 Then(/^plugin\/\.claude-plugin contains exactly plugin\.json$/, function () {
   const entries = fs.readdirSync(pluginManifestDir).sort();
   assert.deepEqual(entries, ['plugin.json'],
@@ -1113,33 +1095,6 @@ Then(/^the command files live in a top-level commands directory$/, function () {
     `commands/ must contain setup.md and uninstall.md, got: ${entries}`);
 });
 
-Then(/^\.claude-plugin\/marketplace\.json exists and is valid JSON$/, function () {
-  const p = path.join(marketplaceDir, 'marketplace.json');
-  assert.ok(fs.existsSync(p), '.claude-plugin/marketplace.json does not exist');
-  assert.doesNotThrow(() => readMarketplaceJson(), 'marketplace.json is not valid JSON');
-});
-
-Then('it declares an owner with name {string} and email {string}', function (name, email) {
-  const owner = readMarketplaceJson().owner;
-  assert.ok(owner && typeof owner === 'object', 'owner must be an object');
-  assert.equal(owner.name, name);
-  assert.equal(owner.email, email);
-});
-
-Then('it lists a single plugin {string} with source {string}', function (name, source) {
-  const plugins = readMarketplaceJson().plugins;
-  assert.ok(Array.isArray(plugins) && plugins.length === 1,
-    `plugins must be an array with exactly one entry, got length: ${plugins?.length}`);
-  assert.equal(plugins[0].name, name);
-  assert.equal(plugins[0].source, source);
-});
-
-Then('the plugin entry sets category {string}', function (category) {
-  const plugins = readMarketplaceJson().plugins;
-  assert.ok(Array.isArray(plugins) && plugins.length > 0, 'plugins array is empty');
-  assert.equal(plugins[0].category, category);
-});
-
 Then(/^the plugin name does not start with "([^"]+)" or "([^"]+)"$/, function (prefix1, prefix2) {
   const name = readPluginJson().name;
   assert.ok(!name.startsWith(prefix1), `plugin name must not start with "${prefix1}"`);
@@ -1149,32 +1104,6 @@ Then(/^the plugin name does not start with "([^"]+)" or "([^"]+)"$/, function (p
 Then('the plugin name is lowercase kebab-case', function () {
   const name = readPluginJson().name;
   assert.match(name, /^[a-z][a-z0-9-]*$/, `plugin name must be lowercase kebab-case, got: ${name}`);
-});
-
-Then('the marketplace manifest has top-level name {string}', function (name) {
-  assert.equal(readMarketplaceJson().name, name,
-    `marketplace.json top-level name must be "${name}"`);
-});
-
-Then('the marketplace manifest has a non-empty top-level description', function () {
-  const desc = readMarketplaceJson().description;
-  assert.ok(typeof desc === 'string' && desc.length > 0,
-    `marketplace.json must have a non-empty top-level description, got: ${JSON.stringify(desc)}`);
-});
-
-Then('the plugin entry has a non-empty description', function () {
-  const plugins = readMarketplaceJson().plugins;
-  assert.ok(Array.isArray(plugins) && plugins.length > 0, 'plugins array is empty');
-  const desc = plugins[0].description;
-  assert.ok(typeof desc === 'string' && desc.length > 0,
-    `marketplace.json plugin entry must have a non-empty description, got: ${JSON.stringify(desc)}`);
-});
-
-Then('the plugin entry has homepage {string}', function (homepage) {
-  const plugins = readMarketplaceJson().plugins;
-  assert.ok(Array.isArray(plugins) && plugins.length > 0, 'plugins array is empty');
-  assert.equal(plugins[0].homepage, homepage,
-    `marketplace.json plugin entry homepage must be "${homepage}", got: ${plugins[0].homepage}`);
 });
 
 // ===========================================================================
@@ -1478,20 +1407,17 @@ Then('it exits zero with a skip notice and does not block the build', function (
 });
 
 Given('a plugin.json with an invalid field type', function () {
-  // Copy manifests to a sandbox temp dir and corrupt marketplace.json with an invalid
-  // field type. `claude plugin validate` validates the marketplace manifest schema;
-  // setting the top-level `name` to an integer triggers a type error.
+  // Copy plugin.json to a sandbox temp dir and corrupt it with an invalid field type.
+  // `claude plugin validate` validates the plugin manifest schema; setting `name` to
+  // an integer triggers a type error.
   const tmpDir = fs.mkdtempSync(path.join(this.home, 'validate-tmp-'));
   const pluginJsonSrc = path.join(REPO, 'plugin', '.claude-plugin', 'plugin.json');
-  const marketplaceSrc = path.join(REPO, '.claude-plugin', 'marketplace.json');
   const pluginDir2 = path.join(tmpDir, '.claude-plugin');
   fs.mkdirSync(pluginDir2, { recursive: true });
-  // Copy plugin.json unchanged
-  fs.copyFileSync(pluginJsonSrc, path.join(pluginDir2, 'plugin.json'));
-  // Corrupt marketplace.json: set top-level `name` to an integer (must be a string)
-  const marketplace = JSON.parse(fs.readFileSync(marketplaceSrc, 'utf8'));
-  marketplace.name = 12345; // force a type error — `claude plugin validate` catches this
-  fs.writeFileSync(path.join(pluginDir2, 'marketplace.json'), JSON.stringify(marketplace));
+  // Corrupt plugin.json: set top-level `name` to an integer (must be a string)
+  const pluginJson = JSON.parse(fs.readFileSync(pluginJsonSrc, 'utf8'));
+  pluginJson.name = 12345; // force a type error — `claude plugin validate` catches this
+  fs.writeFileSync(path.join(pluginDir2, 'plugin.json'), JSON.stringify(pluginJson));
   this.validateTmpDir = tmpDir;
 });
 
@@ -1519,9 +1445,7 @@ Then('it exits non-zero so the gate blocks the change', function () {
 
 Given('the plugin and marketplace manifests', function () {
   const pluginPath = path.join(REPO, 'plugin', '.claude-plugin', 'plugin.json');
-  const marketplacePath = path.join(REPO, '.claude-plugin', 'marketplace.json');
-  assert.ok(fs.existsSync(pluginPath), '.claude-plugin/plugin.json must exist');
-  assert.ok(fs.existsSync(marketplacePath), '.claude-plugin/marketplace.json must exist');
+  assert.ok(fs.existsSync(pluginPath), 'plugin/.claude-plugin/plugin.json must exist');
   this.pluginManifestsExist = true;
 });
 
