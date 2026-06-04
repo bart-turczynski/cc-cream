@@ -24,6 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v5
         with:
           node-version: "22" # >= 22.14.0, required by trusted publishing
@@ -34,7 +36,7 @@ jobs:
         run: npm install -g npm@latest
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # prepublishOnly runs the full test suite (lint + knip + validate + cucumber)
       # before the package is published. OIDC handles auth — no NODE_AUTH_TOKEN.

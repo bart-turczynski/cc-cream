@@ -19,13 +19,13 @@ GitHub Release.
 
 Day-to-day, write changelog entries under a `## [Unreleased]` heading as you work.
 At release time, **one command** bumps every version location in lockstep
-(`package.json`, `package-lock.json`, `.claude-plugin/plugin.json`), rolls the
-`[Unreleased]` section into a dated `## [x.y.z]` section (leaving a fresh empty
-`[Unreleased]`), gates on the full test suite, then commits + tags:
+(`package.json`, `.claude-plugin/plugin.json`), rolls the `[Unreleased]` section
+into a dated `## [x.y.z]` section (leaving a fresh empty `[Unreleased]`), gates
+on the full test suite, then commits + tags:
 
 ```bash
 git checkout main && git pull
-npm run release minor        # or patch / major / an explicit X.Y.Z
+pnpm run release minor        # or patch / major / an explicit X.Y.Z
 ```
 
 `scripts/release.mjs` fails *before* touching anything unless you're on a clean
@@ -42,14 +42,14 @@ Or, once you trust it, do the whole thing in one shot (the `--` forwards the fla
 through npm):
 
 ```bash
-npm run release minor -- --publish    # bump + test + commit + tag + push + gh release create
+pnpm run release minor -- --publish   # bump + test + commit + tag + push + gh release create
 ```
 
-> Why a script and not bare `npm version`: `npm version` only bumps `package.json`
-> + `package-lock.json`, leaving `plugin.json` and the CHANGELOG to hand-sync — which
-> the CI gate (`features/25`: version == latest CHANGELOG entry, and plugin.json ==
-> package.json) then fails on. The script keeps all four in lockstep so the gate
-> stays green across the bump.
+> Why a script and not bare `pnpm version`: `pnpm version` only bumps `package.json`,
+> leaving `plugin.json` and the CHANGELOG to hand-sync — which the CI gate
+> (`features/25`: version == latest CHANGELOG entry, and plugin.json == package.json)
+> then fails on. The script keeps all three in lockstep so the gate stays green
+> across the bump.
 
 Then **watch it publish:** the **Publish to npm** workflow runs on the release event,
    runs the full `prepublishOnly` suite, then publishes via OIDC. Confirm:
@@ -65,9 +65,9 @@ You can also run the workflow manually from the **Actions** tab (`workflow_dispa
 
 - The status-line engine stays **Node built-ins only, no runtime deps**. The
   published tarball ships `src/`, `LICENSE`, `README.md`, `CHANGELOG.md` only
-  (see the `files` allowlist) — verify with `npm pack --dry-run`.
+  (see the `files` allowlist) — verify with `pnpm pack --dry-run`.
 - `@manual`-tagged scenarios in `features/25-*.feature` are the release runbook,
-  not CI; run them with `npm run test:manual`.
+  not CI; run them with `pnpm run test:manual`.
 - Plugin / marketplace consumers update independently of npm: the `/cc-cream:setup`
   command writes a self-resolving status-line command, so `/plugin update` picks up
   new versions from the plugin cache with no re-run and no network.

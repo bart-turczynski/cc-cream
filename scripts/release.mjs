@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-// One-command release. Every prior release hand-synced four version locations
-// (package.json, package-lock.json, .claude-plugin/plugin.json, and the
-// CHANGELOG's first `## [x.y.z]` heading) and the CI gate punished any drift.
-// `npm version` only touches the first two, so it desynced the rest. This script
-// bumps all four in lockstep, rolls the CHANGELOG's `[Unreleased]` section into a
-// dated version section (leaving a fresh empty `[Unreleased]`), gates on the test
-// suite, then commits + tags. With --publish it also pushes and creates the
-// GitHub Release that triggers the OIDC npm publish.
+// One-command release. Every prior release hand-synced three version locations
+// (package.json, .claude-plugin/plugin.json, and the CHANGELOG's first
+// `## [x.y.z]` heading) and the CI gate punished any drift. This script bumps
+// all three in lockstep, rolls the CHANGELOG's `[Unreleased]` section into a
+// dated version section (leaving a fresh empty `[Unreleased]`), gates on the
+// test suite, then commits + tags. With --publish it also pushes and creates
+// the GitHub Release that triggers the OIDC npm publish.
 //
 //   node scripts/release.mjs <patch|minor|major|X.Y.Z> [--publish] [--skip-tests]
 //
@@ -90,15 +89,16 @@ function main() {
   console.log(`Releasing ${current} → ${version} (${tag}, ${date})`);
 
   // Bump every version location in lockstep.
-  run(`npm version ${version} --no-git-tag-version`); // package.json + package-lock.json
+  const pkgFile = at('package.json');
+  fs.writeFileSync(pkgFile, setJsonVersion(fs.readFileSync(pkgFile, 'utf8'), version));
   const pluginFile = at('plugin', '.claude-plugin', 'plugin.json');
   fs.writeFileSync(pluginFile, setJsonVersion(fs.readFileSync(pluginFile, 'utf8'), version));
   fs.writeFileSync(at('CHANGELOG.md'), rolled);
 
   // Gate, then commit + tag — staging ONLY the bump files, never a stray
   // untracked file that happens to be lying around.
-  if (!skipTests) run('npm test');
-  run('git add package.json package-lock.json plugin/.claude-plugin/plugin.json CHANGELOG.md');
+  if (!skipTests) run('pnpm test');
+  run('git add package.json plugin/.claude-plugin/plugin.json CHANGELOG.md');
   run(`git commit -m "Release ${tag}"`);
   // Annotated (not lightweight) so `git push --follow-tags` actually pushes it —
   // a lightweight tag is silently skipped, which strands the tag locally and makes

@@ -1,0 +1,5 @@
+overrides:
+  yargs: "^18.0.0"
+
+allowBuilds:
+  simple-git-hooks: true

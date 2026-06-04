@@ -1,6 +1,6 @@
 name: CI
 
-# Runs the exact publish gate (`npm test`, which prepublishOnly also runs) on a
+# Runs the exact publish gate (`pnpm test`, which prepublishOnly also runs) on a
 # clean runner WITHOUT the claude CLI, on every PR and push to main. This catches
 # the CREAM-xzhidmjt class of bug — a scenario that shells out to a host CLI
 # absent on CI runners — at review time instead of at `npm publish` time.
@@ -23,6 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
@@ -36,12 +38,12 @@ jobs:
             echo "::error::claude CLI unexpectedly present — this job must mirror the publish runner (no claude)."
             exit 1
           fi
-          echo "claude CLI absent — runner mirrors the npm publish environment."
+          echo "claude CLI absent — runner mirrors the publish environment."
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # Same command prepublishOnly runs. A scenario that shells out to a missing
       # CLI without a graceful skip will fail HERE (on the PR), not at publish.
       - name: Run the publish gate
-        run: npm test
+        run: pnpm test
