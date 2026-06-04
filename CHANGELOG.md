@@ -6,6 +6,8 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.3.5] — 2026-06-04
+
 ### Fixed
 - **`/cc-cream:setup --force` now actually replaces an existing statusLine.** The setup slash command shelled out to `install.js --plugin` but never forwarded `$ARGUMENTS`, so `--force` (and any other flag) was silently dropped — `--force` appeared to do nothing when another tool already owned the statusLine. `commands/setup.md` now passes `$ARGUMENTS` through, matching `uninstall.md`. `install.js` already honored `--force`; only the command wiring was broken.
 - **Plugin install no longer balloons the cache to ~114 MB.** Claude Code's plugin installer runs `npm install` whenever it finds a `package.json` in the cached plugin tree, which pulled the entire devDependency tree (Biome, Cucumber, knip, c8, …) into `~/.claude/plugins/cache/cc-cream/`. The plugin payload now lives in a `plugin/` subdirectory and the marketplace `source` points to `"./plugin"`, so only `plugin/`'s contents (`src/`, `commands/`, `hooks/`, `.claude-plugin/plugin.json`) are copied to the cache — with no `package.json` there, the installer has nothing to install. `package.json`, dev configs, and `marketplace.json` stay at the repo root; npm `bin`/`files` now point at `plugin/src/`. No behavior change to the rendered bar.

@@ -1,6 +1,6 @@
 {
   "name": "cc-cream",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "See cache health, context fill, token burn, rate limits, and peak hours in Claude Code CLI. The status line for tokenminning - cache rules everything around me - dolla, dolla bill, y'all.",
   "directories": {
     "doc": "docs"
