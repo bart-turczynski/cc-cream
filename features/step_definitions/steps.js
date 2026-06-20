@@ -2312,6 +2312,21 @@ Then('the next version is {string}', function (expected) {
   assert.equal(this.nextVersion, expected);
 });
 
+When('I compute the next version for {string} expecting it to fail', function (bump) {
+  try {
+    nextVersion(this.curVersion, bump);
+    this.nextVersionError = null;
+  } catch (err) {
+    this.nextVersionError = err;
+  }
+});
+
+Then('it reports the bump keyword is unknown', function () {
+  assert.ok(this.nextVersionError, 'expected nextVersion to throw on an unknown bump keyword');
+  assert.ok(/unknown bump/i.test(this.nextVersionError.message),
+    `error must mention an unknown bump, got: ${this.nextVersionError.message}`);
+});
+
 Given('a plugin manifest:', function (doc) {
   this.manifest = doc;
 });

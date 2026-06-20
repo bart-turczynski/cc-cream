@@ -21,6 +21,11 @@ Feature: Release tooling keeps every version location in lockstep (CREAM-rkxwsey
       | major | 1.0.0  |
       | 4.5.6 | 4.5.6  |
 
+  Scenario: nextVersion rejects an unrecognized bump keyword
+    Given the current package version is "0.2.0"
+    When I compute the next version for "huge" expecting it to fail
+    Then it reports the bump keyword is unknown
+
   Scenario: rollChangelog promotes Unreleased to a dated version and reopens Unreleased
     Given a CHANGELOG with entries under Unreleased:
       """
