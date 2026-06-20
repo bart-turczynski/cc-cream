@@ -7,7 +7,7 @@ import { REPO, ENGINE, colorOf } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown, patchSessionState } from '../../plugin/src/cc-cream.js';
 import { plan, planUninstall, planConfigure, planSet, statusLineCommand, writeFileAtomic } from '../../plugin/src/install.js';
 import { isOrphanedPluginRun } from '../../plugin/src/orphan.js';
-import { nextVersion, rollChangelog, setJsonVersion } from '../../scripts/release.mjs';
+import { nextVersion, rollChangelog, setJsonVersion, runRelease } from '../../scripts/release.mjs';
 
 // Path to the state file inside a scenario's sandbox HOME.
 const stateFilePath = (world) => path.join(world.home, '.claude', 'cc-cream-state.json');
@@ -2388,6 +2388,106 @@ Then('the entry {string} now sits under the {word} heading', function (entry, ve
 Then('it reports there is nothing to release', function () {
   assert.ok(this.rollError, 'expected rollChangelog to throw on an empty Unreleased section');
   assert.ok(/nothing/i.test(this.rollError.message), `error must mention nothing to release, got: ${this.rollError.message}`);
+});
+
+// --- runRelease orchestration (sandbox git repo) ---------------------------
+// Run git inside the scenario's sandbox repo (separate from the engine's HOME).
+function sgit(world, ...args) {
+  const r = spawnSync('git', args, { cwd: world.sandbox, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')} in sandbox failed:\n${r.stderr}`);
+  return r.stdout.trim();
+}
+
+Given('a sandbox release repo at version {string}', function (v) {
+  this.sandbox = path.join(this.home, 'repo');
+  fs.mkdirSync(path.join(this.sandbox, 'plugin', '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(this.sandbox, 'package.json'), `{\n  "name": "cc-cream",\n  "version": "${v}"\n}\n`);
+  fs.writeFileSync(path.join(this.sandbox, 'plugin', '.claude-plugin', 'plugin.json'), `{\n  "name": "cc-cream",\n  "version": "${v}"\n}\n`);
+  fs.writeFileSync(path.join(this.sandbox, 'CHANGELOG.md'),
+    `# Changelog\n\n## [Unreleased]\n\n### Fixed\n- A real fix.\n\n## [${v}] — 2026-05-30\n\n### Added\n- Older stuff.\n`);
+  sgit(this, 'init', '-q');
+  sgit(this, 'config', 'user.email', 'test@example.com');
+  sgit(this, 'config', 'user.name', 'Test');
+  sgit(this, 'add', '-A');
+  sgit(this, 'commit', '-q', '-m', 'initial');
+  sgit(this, 'branch', '-M', 'main'); // normalize the default branch name across git versions
+});
+
+Given('the sandbox repo is checked out on {string}', function (branch) {
+  sgit(this, 'checkout', '-q', '-b', branch);
+});
+
+Given('the sandbox repo has an uncommitted tracked change', function () {
+  fs.appendFileSync(path.join(this.sandbox, 'CHANGELOG.md'), '\nstray edit\n');
+});
+
+// Real git + real run (local-only commit/tag), unless the variant below records.
+When('I run the release {string} in the sandbox', function (argstr) {
+  this.relLogs = [];
+  this.relErrs = [];
+  this.relExit = runRelease({
+    argv: argstr.split(' ').filter(Boolean),
+    root: this.sandbox,
+    log: (m) => this.relLogs.push(String(m)),
+    errorLog: (m) => this.relErrs.push(String(m)),
+  });
+});
+
+// Real git for preflight, but a recording runner: captures the would-be
+// commands (test gate, commit, tag, push, release) without executing them, so
+// the publish path is exercised with no remote or `gh`.
+When('I run the release {string} in the sandbox recording commands', function (argstr) {
+  this.relLogs = [];
+  this.relErrs = [];
+  this.recorded = [];
+  this.relExit = runRelease({
+    argv: argstr.split(' ').filter(Boolean),
+    root: this.sandbox,
+    run: (cmd, ...args) => this.recorded.push([cmd, ...args].join(' ')),
+    log: (m) => this.relLogs.push(String(m)),
+    errorLog: (m) => this.relErrs.push(String(m)),
+  });
+});
+
+Then('the release exits {int}', function (code) {
+  assert.equal(this.relExit, code, `expected exit ${code}, got ${this.relExit}. errors:\n${this.relErrs.join('\n')}`);
+});
+
+Then('the sandbox package.json version is {string}', function (v) {
+  assert.equal(JSON.parse(fs.readFileSync(path.join(this.sandbox, 'package.json'), 'utf8')).version, v);
+});
+
+Then('the sandbox plugin manifest version is {string}', function (v) {
+  assert.equal(JSON.parse(fs.readFileSync(path.join(this.sandbox, 'plugin', '.claude-plugin', 'plugin.json'), 'utf8')).version, v);
+});
+
+Then('the sandbox CHANGELOG\'s first version heading is {string}', function (v) {
+  const text = fs.readFileSync(path.join(this.sandbox, 'CHANGELOG.md'), 'utf8');
+  const first = text.match(/^##\s*\[(\d+\.\d+\.\d+)\]/m);
+  assert.ok(first, `expected a version heading, got:\n${text}`);
+  assert.equal(first[1], v);
+});
+
+Then('the sandbox HEAD commit subject is {string}', function (subject) {
+  assert.equal(sgit(this, 'log', '-1', '--format=%s'), subject);
+});
+
+Then('the sandbox has an annotated tag {string}', function (tag) {
+  assert.equal(sgit(this, 'cat-file', '-t', tag), 'tag', `expected ${tag} to be an annotated tag object`);
+});
+
+Then('the recorded commands include {string}', function (cmd) {
+  assert.ok(this.recorded.includes(cmd), `expected recorded commands to include "${cmd}", got:\n${this.recorded.join('\n')}`);
+});
+
+Then('the release output mentions {string}', function (text) {
+  const all = this.relLogs.join('\n');
+  assert.ok(all.includes(text), `expected release output to mention "${text}", got:\n${all}`);
+});
+
+Then('the release error mentions {string}', function (text) {
+  const all = this.relErrs.join('\n');
+  assert.ok(all.includes(text), `expected release error to mention "${text}", got:\n${all}`);
 });
 
 // @manual: shells out to a live npx — only run post-publish as part of the release runbook.
