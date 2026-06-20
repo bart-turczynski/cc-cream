@@ -1,6 +1,7 @@
 # cc-cream
 
 [![CI](https://img.shields.io/github/actions/workflow/status/bart-turczynski/cc-cream/ci.yml?branch=main&label=CI)](https://github.com/bart-turczynski/cc-cream/actions/workflows/ci.yml)
+[![Codecov coverage](https://codecov.io/gh/bart-turczynski/cc-cream/branch/main/graph/badge.svg)](https://app.codecov.io/gh/bart-turczynski/cc-cream)
 [![npm version](https://img.shields.io/npm/v/cc-cream)](https://www.npmjs.com/package/cc-cream)
 [![Socket Badge](https://socket.dev/api/badge/npm/package/cc-cream)](https://socket.dev/npm/package/cc-cream)
 [![Snyk security](https://snyk.io/test/npm/cc-cream/badge.svg)](https://security.snyk.io/package/npm/cc-cream)

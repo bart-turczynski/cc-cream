@@ -56,3 +56,34 @@ jobs:
       # CLI without a graceful skip will fail HERE (on the PR), not at publish.
       - name: Run the publish gate
         run: pnpm test
+
+  # Measure line coverage (the same c8 instrumentation the local `coverage`
+  # script uses) once, on the current Node line, and publish it to Codecov.
+  # Reporting-only: it never gates the build — the publish gate above is the
+  # gate. fail_ci_if_error stays false so a Codecov hiccup can't redden CI.
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # lcovonly emits ./coverage/lcov.info. Default profile only — @needs-cli
+      # scenarios stay excluded, so this is CI-safe like the publish gate.
+      - name: Measure coverage
+        run: pnpm exec c8 --reporter=lcovonly cucumber-js
+
+      # cc-cream is public, so this uploads tokenless; adding a CODECOV_TOKEN
+      # secret is optional. v7 takes `files:` (plural) — `file:` silently skips.
+      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          files: ./coverage/lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
