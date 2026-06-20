@@ -19,7 +19,6 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const at = (...segs) => path.join(ROOT, ...segs);
 
 // Compute the next version from a bump keyword or accept an explicit X.Y.Z.
 export function nextVersion(current, bump) {
@@ -52,37 +51,57 @@ export function setJsonVersion(text, version) {
   return next;
 }
 
-function git(...args) {
-  const r = spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
-  if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed:\n${r.stderr}`);
-  return r.stdout.trim();
+// Real collaborators are built from a repo root so the orchestration can be
+// re-pointed at a sandbox repo in tests. `git` captures stdout (it's queried);
+// `run` inherits stdio (it's a side effect — test gate, commit, push, release).
+function makeGit(root) {
+  return (...args) => {
+    const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed:\n${r.stderr}`);
+    return r.stdout.trim();
+  };
 }
 
-function run(cmd, ...args) {
-  const r = spawnSync(cmd, args, { cwd: ROOT, stdio: 'inherit' });
-  if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} exited ${r.status}`);
+function makeRun(root) {
+  return (cmd, ...args) => {
+    const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit' });
+    if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} exited ${r.status}`);
+  };
 }
 
-function main() {
-  const args = process.argv.slice(2);
-  const bump = args.find((a) => !a.startsWith('--'));
-  const publish = args.includes('--publish');
-  const skipTests = args.includes('--skip-tests');
+// The orchestration. Every side-effecting collaborator (git query, command
+// runner, loggers) is injectable so the whole flow — preflight refusals, the
+// three-file bump, the test gate, commit/tag, and the publish path — can be
+// driven against a sandbox repo in tests without shelling out to a real remote.
+// Returns a process exit code (0 = success). Pure helpers still throw; that
+// propagates exactly as before (Node prints the stack and exits non-zero).
+export function runRelease({
+  argv = process.argv.slice(2),
+  root = ROOT,
+  git = makeGit(root),
+  run = makeRun(root),
+  log = console.log,
+  errorLog = console.error,
+} = {}) {
+  const at = (...segs) => path.join(root, ...segs);
+  const bump = argv.find((a) => !a.startsWith('--'));
+  const publish = argv.includes('--publish');
+  const skipTests = argv.includes('--skip-tests');
   if (!bump) {
-    console.error('Usage: node scripts/release.mjs <patch|minor|major|X.Y.Z> [--publish] [--skip-tests]');
-    process.exit(1);
+    errorLog('Usage: node scripts/release.mjs <patch|minor|major|X.Y.Z> [--publish] [--skip-tests]');
+    return 1;
   }
 
   // Preflight — fail before mutating anything.
   if (git('rev-parse', '--abbrev-ref', 'HEAD') !== 'main') {
-    console.error('Refusing to release: not on main (releases are cut from main — RELEASING.md).');
-    process.exit(1);
+    errorLog('Refusing to release: not on main (releases are cut from main — RELEASING.md).');
+    return 1;
   }
   // Tracked changes only — stray untracked files (scratch notes, editor configs)
   // must neither block a release nor get swept into the release commit.
   if (git('status', '--porcelain', '--untracked-files=no')) {
-    console.error('Refusing to release: tracked files have uncommitted changes (the release commit must be just the bump).');
-    process.exit(1);
+    errorLog('Refusing to release: tracked files have uncommitted changes (the release commit must be just the bump).');
+    return 1;
   }
   const current = JSON.parse(fs.readFileSync(at('package.json'), 'utf8')).version;
   const version = nextVersion(current, bump);
@@ -90,7 +109,7 @@ function main() {
   const date = new Date().toISOString().slice(0, 10);
   const rolled = rollChangelog(fs.readFileSync(at('CHANGELOG.md'), 'utf8'), version, date); // throws if [Unreleased] empty
 
-  console.log(`Releasing ${current} → ${version} (${tag}, ${date})`);
+  log(`Releasing ${current} → ${version} (${tag}, ${date})`);
 
   // Bump every version location in lockstep.
   const pkgFile = at('package.json');
@@ -112,11 +131,14 @@ function main() {
   if (publish) {
     run('git', 'push', '--follow-tags');
     run('gh', 'release', 'create', tag, '--generate-notes');
-    console.log(`\nReleased ${tag}. The "Publish to npm" workflow runs on the release event (OIDC).`);
+    log(`\nReleased ${tag}. The "Publish to npm" workflow runs on the release event (OIDC).`);
   } else {
-    console.log(`\nStaged ${tag} locally. To publish:\n  git push --follow-tags\n  gh release create ${tag} --generate-notes`);
+    log(`\nStaged ${tag} locally. To publish:\n  git push --follow-tags\n  gh release create ${tag} --generate-notes`);
   }
+  return 0;
 }
 
 // Run only when invoked directly, so tests can import the pure helpers.
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exit(runRelease());
+}
