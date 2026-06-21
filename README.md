@@ -7,6 +7,7 @@
 [![Snyk security](https://snyk.io/test/npm/cc-cream/badge.svg)](https://security.snyk.io/package/npm/cc-cream)
 [![install size](https://img.shields.io/bundlephobia/minzip/cc-cream)](https://bundlephobia.com/package/cc-cream)
 [![License: MIT](https://img.shields.io/npm/l/cc-cream)](https://github.com/bart-turczynski/cc-cream/blob/main/LICENSE)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbart-turczynski%2Fcc-cream.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbart-turczynski%2Fcc-cream?ref=badge_shield)
 
 **The status bar Claude Code should have shipped with.**
 
@@ -187,3 +188,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). The runtime uses only Node built-ins —
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbart-turczynski%2Fcc-cream.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbart-turczynski%2Fcc-cream?ref=badge_large)
