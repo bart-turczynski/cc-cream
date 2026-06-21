@@ -6,6 +6,10 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+- Bump `@biomejs/biome` 2.4.16 → 2.5.0 and `knip` 6.15.0 → 6.17.1.
+- Add FOSSA security and license badges to README.
+
 ## [0.5.0] — 2026-06-04
 
 ### Added
