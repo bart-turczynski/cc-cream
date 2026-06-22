@@ -1,0 +1,23 @@
+# Socket configuration — https://docs.socket.dev/docs/socket-yml
+version: 2
+
+# NOTE: socket.yml's issueRules are GLOBAL per-rule toggles — Socket does not
+# support per-package ignores in this file (that's dashboard-only, or a PR
+# comment like `@SocketSecurity ignore <pkg>@<version>`). Disabling
+# `obfuscatedFile` below therefore turns the rule off for ALL dependencies,
+# not just the two it was added for. Accepted because:
+#
+#   - Both current hits are false positives:
+#       * @cucumber/html-formatter@23.1.0 — dist/main.js is a ~970 KB webpack
+#         bundle (the React HTML-report UI). Ships a webpack.config.js +
+#         main.js.LICENSE.txt; normal minified build output, not obfuscation.
+#       * formatly@0.3.0 (via knip) — no minified files at all; plain ESM.
+#         Heuristic misfire.
+#   - Both are dev-only, transitive deps. cc-cream publishes built-ins-only
+#     with zero runtime deps and a `files` allowlist (plugin/src/ + docs), so
+#     neither package ever reaches the published tarball or end users.
+#
+# Revisit if cc-cream ever gains runtime deps — at that point prefer
+# per-package ignores in the Socket dashboard over this global toggle.
+issueRules:
+  obfuscatedFile: false
