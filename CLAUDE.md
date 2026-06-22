@@ -18,7 +18,7 @@ pnpm run coverage                                     # same but wrapped in c8 (
 pnpm run watch                                        # re-run specs on file change (TDD)
 pnpm run lint                                         # Biome lint on plugin/src/ + plugin/hooks/
 pnpm run knip                                         # dead-code / unused-export audit
-pnpm run validate                                     # claude plugin validate . (skips if claude CLI absent)
+pnpm run validate                                     # claude plugin validate plugin (skips if claude CLI absent)
 pnpm run test:manual                                  # run @manual scenarios (release runbook, --strict validation)
 pnpm run test:cli                                     # run @needs-cli scenarios (shell out to a live `claude` — needs the CLI)
 pnpm exec cucumber-js features/03-context-segment.feature # run a single feature file
@@ -28,7 +28,7 @@ pnpm pack --dry-run                                   # verify published tarball
 
 ## Source of truth (read before working)
 - `docs/PRD.md` and `docs/PRDv2.md` — full spec (v2 + **§14 decisions, which supersede any conflicting earlier prose**). Kept **locally only** — `docs/` is gitignored (internal working material), so these won't be in a fresh clone.
-- `features/NN-*.feature` — Gherkin user stories, one per slice (00–31). The feature file IS the acceptance spec. Scenarios tagged `@manual` are not run in CI (use `pnpm run test:manual`). Scenarios that shell out to a host CLI (e.g. a live `claude`) **must** be tagged `@needs-cli` — they're excluded from the default profile so they can't break `npm publish` on a CLI-less runner; run them with `pnpm run test:cli`.
+- `features/NN-*.feature` — Gherkin user stories, one per slice (00–38). The feature file IS the acceptance spec. Scenarios tagged `@manual` are not run in CI (use `pnpm run test:manual`). Scenarios that shell out to a host CLI (e.g. a live `claude`) **must** be tagged `@needs-cli` — they're excluded from the default profile so they can't break `npm publish` on a CLI-less runner; run them with `pnpm run test:cli`.
 - FP epic `CREAM-lwiwezhg` — the backlog. `fp tree` for deps / build order.
 
 ## Architecture
@@ -48,6 +48,8 @@ Key source modules (under `plugin/src/`; all Node built-ins only, ESM, no runtim
 - `plugin/src/state.js` — session state: `readState()` / `writeState()` to `~/.claude/cc-cream-state.json`, keyed by `session_id`.
 - `plugin/src/settings.js` — shared `settings.json` I/O: a `readSettings()` classifier (`{ state, value }`), `isSafeToWrite()`, and atomic `writeFileAtomic()`. Used by both the installer and the SessionStart hook so the destructive-write guard lives once.
 - `plugin/src/install.js` — consent-based installer; pure `plan()` function plus thin I/O shell. Writes a `statusLine` block into `~/.claude/settings.json`. Exposed to npm users as the `cc-cream-setup` bin (`cc-cream-setup` / `--uninstall` / `--purge` / `--check-config`); the `cc-cream` bin is the renderer (`plugin/src/cc-cream.js`).
+- `plugin/src/paths.js` — single `PATHS` table: all `~/.claude/*` locations (config, state, debug log, settings, runtime dir/entry) resolved lazily via `os.homedir()`. Import these rather than re-deriving paths in each module.
+- `plugin/src/orphan.js` — `isOrphanedPluginRun()`: detects when the renderer is executing from a stale `plugins/cache/<marketplace>/<plugin>/` location no longer in the registry (the ghost-bar trap). Entrypoint exits 0 silently when true. Backs feature 32 (ghost-bar self-defense).
 
 Diagnostics: `CC_CREAM_DEBUG=1` makes the engine append a per-render diagnostic (which on-by-config segments rendered vs were dropped, ttl window, stdin size) to `~/.claude/cc-cream-debug.log` (override: `CC_CREAM_DEBUG_LOG`). **stdout is never touched** — Claude Code discards status-line stderr, so a file is the only viable channel. Off by default.
 
@@ -64,10 +66,10 @@ Test infrastructure:
 - `features/support/world.js` — custom world: sandbox HOME setup, `run()` helper to spawn the engine, `makeTranscript()`, ANSI color helpers.
 - `fixtures/*.golden.json` — live-captured stdin samples (subscriber 1M + 200k); used as BDD test inputs.
 
-Fourteen segments (all configurable via `~/.claude/cc-cream.json`):
-- Row 1 — `ctx`, `cache`, `write`, `ttl`, `effort`, `thinking`, `api_ratio`, `cost`
+Sixteen segments (all configurable via `~/.claude/cc-cream.json`); `ROW1_ZONES` in `defaults.js` is the canonical row-1 layout:
+- Row 1 — `ctx`, `cache`, `write`, `ttl`, `api_ratio`, `tokens_in`, `tokens_out`, `cost`
 - Row 2 — `5h`, `7d`, `burn`, `peak` (hidden entirely for API users — no `rate_limits` in stdin)
-- Row 3 — `model`, `session_name`
+- Row 3 — `model`, `session_name`, `effort`, `thinking`
 
 ## Per-slice workflow (extends @FP_CLAUDE.md)
 - features ↔ FP issues are **1:1**; pick a slice, implement against its `.feature`.
@@ -77,7 +79,7 @@ Fourteen segments (all configurable via `~/.claude/cc-cream.json`):
 - **pnpm + Node** — the package manager is pnpm, pinned via `packageManager: pnpm@11.3.0`; use `pnpm` (not `npm`) for every dev command. pnpm 11.3 imports `node:sqlite`, so the dev/CI floor is **Node 22.13+**: `engines` declares `>=22` and CI tests Node 22 + 24. (Claude Code's *host* still runs `npm install` on cached plugin trees — that's why the payload under `plugin/` ships no `package.json`; see Repo layout. The published renderer itself is built-ins-only and runs on older Node, but the project is tested only on 22/24.)
 - **Biome** — lints `plugin/src/` and `plugin/hooks/` on every `pnpm test` (pretest hook). Rules: `noCommonJs` + `noUndeclaredDependencies` as errors, recommended rules as warnings.
 - **knip** — dead-code / unused-export audit, also runs in pretest. Config: `knip.json`.
-- **validate** — `claude plugin validate .` runs in pretest; skips gracefully when the `claude` CLI is absent. `--strict` (warnings-as-errors) is reserved for `pnpm run test:manual` pre-submission only.
+- **validate** — `claude plugin validate plugin` runs in pretest; skips gracefully when the `claude` CLI is absent. `--strict` (warnings-as-errors) is reserved for `pnpm run test:manual` pre-submission only.
 - **CI** — `.github/workflows/ci.yml` runs the exact publish gate (`pnpm test`) on every PR + push to `main`, across a Node **22/24** matrix (`fail-fast: false`), on a runner with **no `claude` CLI** (it asserts the CLI is absent, mirroring the publish environment). This is the guard for CREAM-xzhidmjt: any `@needs-cli`-untagged scenario that shells out to a missing CLI fails here, at review time, instead of silently breaking `npm publish`. The default cucumber profile is `not @manual and not @needs-cli`, so the gate is CI-safe by construction.
 - **c8** — V8 coverage via `pnpm run coverage`, which enforces a floor (`--check-coverage --lines 90`; only lines is gated — the other three c8 metrics default to 0). Current baseline: ~95% lines across `src/`, so a regression below 90% fails the pre-push hook and the command.
 - **simple-git-hooks** — pre-push hook runs `pnpm run coverage`; register it once with `pnpm run hooks` (kept off the `prepare` lifecycle so the published package ships no install-time scripts). Skip with `SKIP_SIMPLE_GIT_HOOKS=1 git push`.
