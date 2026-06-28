@@ -60,10 +60,10 @@
   },
   "homepage": "https://github.com/bart-turczynski/cc-cream#readme",
   "devDependencies": {
-    "@biomejs/biome": "^2.5.0",
+    "@biomejs/biome": "^2.5.1",
     "@cucumber/cucumber": "^13.0.0",
     "c8": "^11.0.0",
-    "knip": "^6.17.1",
+    "knip": "^6.21.0",
     "simple-git-hooks": "^2.13.1"
   }
 }
