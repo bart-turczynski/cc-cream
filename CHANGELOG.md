@@ -6,6 +6,8 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-06-28
+
 ### Changed
 - Bump `@biomejs/biome` 2.5.0 → 2.5.1 and `knip` 6.17.1 → 6.21.0.
 - Dedupe `@cucumber/gherkin` to a single current version (41.0.0) via pnpm
