@@ -1,5 +1,11 @@
 overrides:
   yargs: "^18.0.0"
+  # Dedupe @cucumber/gherkin to a single current version. cucumber@13 pins
+  # gherkin-utils@11 (→ gherkin ^38), leaving a stale 38.0.0 alongside its own
+  # gherkin@39. gherkin-utils@12 targets gherkin ^41, so force the compatible
+  # 12.0.1 + 41 pairing. Dev-only, transitive; verified green by `pnpm test`.
+  "@cucumber/gherkin-utils": "12.0.1"
+  "@cucumber/gherkin": "41.0.0"
 
 allowBuilds:
   simple-git-hooks: true
