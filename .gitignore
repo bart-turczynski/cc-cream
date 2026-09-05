@@ -33,3 +33,11 @@ tmp/
 .fp/
 # fp-managed agent guide — regenerated per machine by `fp agent setup standard`
 FP_AGENTS.md
+
+# Project skills. A global excludes file ignores `.claude/` wholesale, and git
+# will not descend into an excluded directory — so re-include the directory,
+# re-exclude its machine-local contents (settings.json, worktrees/, locks),
+# then re-include just the skills that belong to the repo.
+!.claude/
+.claude/*
+!.claude/skills/
