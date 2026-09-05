@@ -6,6 +6,8 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.5.4] — 2026-09-05
+
 ### Changed
 
 - **`engines.node` now declares the real floor, `>=22.13.0`.** It said `>=22`, but
