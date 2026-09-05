@@ -7,6 +7,7 @@ All notable changes to cc-cream are documented here. Format follows
 ## [Unreleased]
 
 ### Changed
+
 - **The plugin marketplace has a GitLab home again.** The catalogue repo moved to
   `gitlab.com/bart-turczynski/claude-plugins`, and `.gitlab-ci.yml` gains a
   `sync-catalogue` job that mirrors `plugin/` into it on each version tag —
@@ -17,7 +18,25 @@ All notable changes to cc-cream are documented here. Format follows
   impossible for everyone but the owner and left `PRIVACY.md`'s "the source is
   fully open" claim false (CREAM-izhjwifs).
 
+- **GitLab is now the only forge.** The `github` remote, the three GitHub Actions
+  workflows, and every `github.com/bart-turczynski/cc-cream` URL are gone;
+  `gitlab.com/bart-turczynski/cc-cream` replaces them in `package.json`
+  (`repository`, `bugs`, `homepage`), `plugin.json`, and all documentation.
+- **CI/CD moved to `.gitlab-ci.yml`.** One pipeline replaces `ci.yml`,
+  `publish.yml`, and `sync-catalogue.yml`. The publish gate keeps its shape — the
+  same `pnpm test` on a Node 22/24 matrix, on a runner asserted to have no `claude`
+  CLI — and coverage is now reported natively to GitLab (merge-request widget and
+  the repository coverage badge) instead of to Codecov.
+- **npm publishing still uses OIDC trusted publishing, now from GitLab CI.** The
+  trigger changes from "publish a GitHub Release" to "push a `vX.Y.Z` tag", so
+  `scripts/release.mjs` no longer shells out to `gh` — `git push --follow-tags` is
+  the whole publish step. **This needs a one-time reconfiguration of the trusted
+  publisher on npmjs.com** (namespace `bart-turczynski`, project `cc-cream`,
+  top-level CI file path `.gitlab-ci.yml`); until that is done, publishing fails.
+  npm accepts OIDC only from GitLab.com shared runners.
+
 ### Fixed
+
 - **Uninstall instructions and `--status` no longer name a plugin cache that
   doesn't exist.** Claude Code caches a plugin at
   `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, and this project's
@@ -36,25 +55,8 @@ All notable changes to cc-cream are documented here. Format follows
   marketplace whose name is deliberately not `cc-cream`, so a future rename cannot
   silently falsify our own removal instructions again (CREAM-axtbxevj).
 
-### Changed
-- **GitLab is now the only forge.** The `github` remote, the three GitHub Actions
-  workflows, and every `github.com/bart-turczynski/cc-cream` URL are gone;
-  `gitlab.com/bart-turczynski/cc-cream` replaces them in `package.json`
-  (`repository`, `bugs`, `homepage`), `plugin.json`, and all documentation.
-- **CI/CD moved to `.gitlab-ci.yml`.** One pipeline replaces `ci.yml`,
-  `publish.yml`, and `sync-catalogue.yml`. The publish gate keeps its shape — the
-  same `pnpm test` on a Node 22/24 matrix, on a runner asserted to have no `claude`
-  CLI — and coverage is now reported natively to GitLab (merge-request widget and
-  the repository coverage badge) instead of to Codecov.
-- **npm publishing still uses OIDC trusted publishing, now from GitLab CI.** The
-  trigger changes from "publish a GitHub Release" to "push a `vX.Y.Z` tag", so
-  `scripts/release.mjs` no longer shells out to `gh` — `git push --follow-tags` is
-  the whole publish step. **This needs a one-time reconfiguration of the trusted
-  publisher on npmjs.com** (namespace `bart-turczynski`, project `cc-cream`,
-  top-level CI file path `.gitlab-ci.yml`); until that is done, publishing fails.
-  npm accepts OIDC only from GitLab.com shared runners.
-
 ### Removed
+
 - Dependabot (`.github/dependabot.yml`), which has no GitLab equivalent. Automated
   dependency updates are unwired until Renovate or GitLab's own dependency scanning
   is set up. The GitHub Actions SHA-pinning it also maintained is moot now that
@@ -62,6 +64,7 @@ All notable changes to cc-cream are documented here. Format follows
 - The FOSSA and Codecov README badges, both keyed to the GitHub remote.
 
 ### Documentation
+
 - `PLUGIN-DISTRIBUTION.md` gains §7, documenting where Claude Code puts a plugin's four
   on-disk locations (noting that the cache path nests marketplace-then-plugin while the
   `$CLAUDE_PLUGIN_DATA` path concatenates plugin-then-marketplace) and a matrix of what each
