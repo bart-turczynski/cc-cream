@@ -33,11 +33,8 @@ root (outside the subdir), the installer finds nothing to install.
 ```
 repo/
   package.json            # dev + npm publish — NOT in the plugin source tree
-  package-lock.json
+  pnpm-lock.yaml
   features/  scripts/      # dev-only, stay at root
-  .claude-plugin/
-    marketplace.json       # at repo root so the marketplace is discoverable
-                           #   plugin entry: "source": "./plugin"
   plugin/                  # <-- the ONLY thing copied into the cache
     .claude-plugin/
       plugin.json
@@ -50,9 +47,18 @@ Why this works: Claude Code copies *only* the `source` subdirectory (confirmed a
 other multi-plugin marketplaces), so `${CLAUDE_PLUGIN_ROOT}` equals that subdir. With no
 `package.json` inside it, no `npm install` runs.
 
+The marketplace entry has to point at that subdirectory — `"source": "./plugin"`. It can
+live in a `.claude-plugin/marketplace.json` at the repo root, but **cc-cream does not do
+that any more**: `dbf9cc1` moved the listing to a separate lean catalogue repo,
+`gitlab.com/bart-turczynski/claude-plugins`, so registering the marketplace clones ~136 KB
+of payload instead of this whole dev repo. That catalogue's `cc-cream/` directory is a
+generated mirror of `plugin/`, written by the `sync-catalogue` CI job on each version tag —
+edit `plugin/` here, never the catalogue. There is no root `marketplace.json` in this repo,
+and reintroducing one would resurrect the clone-size problem.
+
 Notes:
 - `.npmrc` with `omit=dev` is **not** a reliable fix: the installer may ignore it, and a
-  repo-wide `omit=dev` breaks local dev/CI (`npm install`, `npm ci`, coverage).
+  repo-wide `omit=dev` breaks local dev/CI (`pnpm install`, coverage).
 - The npm package and the plugin can share one `src/` only if it lives inside the plugin
   subdir; point `bin`/`files` in `package.json` at `plugin/src/`.
 - Sanity checks after restructuring:

@@ -6,6 +6,25 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **`engines.node` now declares the real floor, `>=22.13.0`.** It said `>=22`, but
+  pnpm 11.3 imports `node:sqlite`, so 22.0–22.12 could never run the dev toolchain.
+  The published renderer is unaffected — it is Node built-ins only.
+- **`CONTRIBUTING.md` uses pnpm.** It instructed `npm install` / `npm test`
+  throughout while the project pins `packageManager: pnpm@11.3.0`, and pointed at a
+  root `src/` that has lived at `plugin/src/` since the plugin split.
+- **`PLUGIN-DISTRIBUTION.md` no longer shows a root `marketplace.json`.** `dbf9cc1`
+  moved the listing to the separate catalogue repo; the layout diagram had kept the
+  pre-split shape.
+
+### Added
+
+- **`AGENTS.md` and `ARCHITECTURE.md`.** Agent instructions consolidate into a
+  short root `AGENTS.md`, with `CLAUDE.md` reduced to a single `@AGENTS.md` import
+  and the architecture reference — module map, data flow, plugin surface,
+  diagnostics — promoted out of it into a tracked `ARCHITECTURE.md`.
+
 ## [0.5.3] — 2026-09-05
 
 ### Changed
