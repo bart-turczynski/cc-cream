@@ -14,6 +14,18 @@ All notable changes to cc-cream are documented here. Format follows
   version` reports the *previous* release right after a publish — during the
   0.5.4 cut it answered `0.5.2` while `0.5.4` was live, making a green pipeline
   read as a failed publish.
+- **`pnpm run test:manual` is gone; the release checklist is prose again.** The
+  script could only ever exit 1 — 5 of its 6 scenarios had no step definitions,
+  and three of them never can: they end in a web form, npm's indexing and
+  Anthropic's review. `RELEASING.md`, `ARCHITECTURE.md` and the release skill now
+  say to read `features/25-publish-and-submit.feature` instead of naming a
+  command. Two stale lines in that file are fixed: a hardcoded `version 0.1.1`
+  from two major cycles ago, and a `.claude-plugin/plugin.json` path missing the
+  `plugin/` prefix it has had since the plugin split.
+- **The `--strict` pre-submission validation runs in `pnpm run test:cli`.** It was
+  the only `@manual` scenario that was merely CLI-gated rather than
+  human-judgment, so it is `@needs-cli` now — and it validates `plugin`, not `.`,
+  which made the CLI check loose components and never open the plugin manifest.
 
 ## [0.5.4] — 2026-09-05
 

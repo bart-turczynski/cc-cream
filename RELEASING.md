@@ -59,8 +59,11 @@ why it has to be exactly that, and what to check when CI fails.
 - The status-line engine stays **Node built-ins only, no runtime deps**. The
   published tarball ships `src/`, `LICENSE`, `README.md`, `CHANGELOG.md` only
   (see the `files` allowlist) — verify with `pnpm pack --dry-run`.
-- `@manual`-tagged scenarios in `features/25-*.feature` are hand-run publish
-  checks, not CI; run them with `pnpm run test:manual`.
+- `@manual`-tagged scenarios in `features/25-*.feature` are a hand-walked
+  publish checklist, not CI and not a runnable command — read
+  `features/25-publish-and-submit.feature` and work down the list. They have no
+  step definitions on purpose: they end in a web form, npm's indexing and
+  Anthropic's review, none of which a test process can assert.
 - Plugin / marketplace consumers update independently of npm: the `/cc-cream:setup`
   command writes a self-resolving status-line command, so `/plugin update` picks up
   new versions from the plugin cache with no re-run and no network.

@@ -117,5 +117,6 @@ already exists on npm. Prefer cutting a new patch over fighting a half-published
 ## Optional, after the tag
 
 - Release notes are separate from publishing: `glab release create vX.Y.Z --notes-file <file>`.
-- The `@manual` scenarios in `features/25-publish-and-submit.feature` are the human release runbook,
-  not CI: `pnpm run test:manual`.
+- The `@manual` scenarios in `features/25-publish-and-submit.feature` are the human release runbook.
+  Read the file and walk it by hand — there is no command, and no step definitions, because those
+  steps end in a web form, npm's indexing and Anthropic's review.
