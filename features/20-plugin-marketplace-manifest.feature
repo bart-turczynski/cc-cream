@@ -5,8 +5,9 @@ Feature: Plugin manifest and marketplace metadata (CREAM-qjhgdpnk)
 
   # Plugin payload lives in plugin/ subdirectory; plugin/.claude-plugin/plugin.json
   # is the only manifest in this repo. The self-hosted marketplace has moved to the
-  # lean catalogue repo bart-turczynski/claude-plugins (install:
-  # /plugin marketplace add bart-turczynski/claude-plugins). Keeping package.json
+  # lean catalogue repo gitlab.com/bart-turczynski/claude-plugins (install:
+  # /plugin marketplace add https://gitlab.com/bart-turczynski/claude-plugins.git).
+  # Keeping package.json
   # OUT of plugin/ stops Claude Code's installer from running `npm install` (which
   # pulled ~114 MB of devDependencies into the cache). Command files live in
   # plugin/commands/ and are auto-discovered — plugin.json does NOT declare a

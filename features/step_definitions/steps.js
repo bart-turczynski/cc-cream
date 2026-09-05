@@ -1072,7 +1072,7 @@ Then(/^plugin\/src\/cc-cream\.js starts with "([^"]+)"$/, function (shebang) {
 // 20 — plugin manifest and marketplace metadata
 // ===========================================================================
 // Plugin payload lives in plugin/.claude-plugin/plugin.json (the only manifest
-// in this repo). The self-hosted marketplace moved to bart-turczynski/claude-plugins.
+// in this repo). The self-hosted marketplace moved to gitlab.com/bart-turczynski/claude-plugins.
 const pluginManifestDir = path.join(REPO, 'plugin', '.claude-plugin');
 let _pluginJson = null;
 

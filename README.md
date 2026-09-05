@@ -63,7 +63,7 @@ macOS and Linux. Windows is a planned fast-follow.
 ### Option 1 — Claude Code plugin (recommended)
 
 ```bash
-/plugin marketplace add bart-turczynski/claude-plugins
+/plugin marketplace add https://gitlab.com/bart-turczynski/claude-plugins.git
 /plugin install cc-cream
 ```
 

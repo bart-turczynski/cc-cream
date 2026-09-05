@@ -10,6 +10,7 @@
 stages:
   - test
   - publish
+  - sync
 
 variables:
   # Silences corepack's download prompt on non-interactive runners.
@@ -118,5 +119,59 @@ publish:
     # prepublishOnly runs the full test suite (lint + knip + validate + cucumber)
     # before the package is published. OIDC handles auth — no npm token.
     - npm publish
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+
+# Mirrors plugin/ into the marketplace catalogue repo, restoring the job that
+# `.github/workflows/sync-catalogue.yml` used to do. The catalogue
+# (gitlab.com/bart-turczynski/claude-plugins) exists so that registering the
+# marketplace clones ~136 KB of plugin payload instead of this whole development
+# repo (features/, fixtures, lockfile, full history). Its cc-cream/ directory is
+# a GENERATED MIRROR — edit plugin/ here, never the catalogue.
+#
+# Runs after publish, on the same version-tag trigger, so the catalogue only ever
+# advertises a version that actually reached npm.
+#
+# Auth: CI_JOB_TOKEN cannot push across projects, so this needs CATALOGUE_TOKEN —
+# a masked, protected CI/CD variable holding a token with `write_repository` on
+# the catalogue project. The job no-ops with a clear message if it is unset, so a
+# missing token can never fail a release that already published.
+sync-catalogue:
+  stage: sync
+  image: node:24
+  variables:
+    GIT_STRATEGY: clone
+    CATALOGUE_URL: gitlab.com/bart-turczynski/claude-plugins.git
+  script:
+    - |
+      if [ -z "${CATALOGUE_TOKEN:-}" ]; then
+        echo "CATALOGUE_TOKEN is not set — skipping catalogue sync."
+        echo "Set it (masked + protected, scope write_repository on the catalogue project) to enable this."
+        exit 0
+      fi
+    - git clone "https://oauth2:${CATALOGUE_TOKEN}@${CATALOGUE_URL}" catalogue
+    # Same operation the GitHub job performed: replace wholesale, so a file
+    # deleted from plugin/ also disappears from the mirror.
+    - rm -rf catalogue/cc-cream
+    - cp -r plugin/. catalogue/cc-cream
+    # The payload must stay free of package.json: Claude Code's installer runs
+    # `npm install` on any it finds in a cached plugin tree, which is what once
+    # ballooned the cache to ~114 MB.
+    - |
+      if find catalogue/cc-cream -name package.json | grep -q .; then
+        echo "ERROR: package.json in the plugin payload — the installer would npm install it."
+        exit 1
+      fi
+    - |
+      cd catalogue
+      git config user.name "cc-cream CI"
+      git config user.email "support@spoonkeyworks.com"
+      git add -A
+      if git diff --cached --quiet; then
+        echo "Catalogue already up to date — nothing to sync."
+        exit 0
+      fi
+      git commit -m "Sync cc-cream ${CI_COMMIT_TAG}"
+      git push origin HEAD:main
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
