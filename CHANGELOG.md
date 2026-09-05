@@ -6,6 +6,8 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-09-05
+
 ### Changed
 
 - **The plugin marketplace has a GitLab home again.** The catalogue repo moved to
