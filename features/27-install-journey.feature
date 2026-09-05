@@ -52,6 +52,19 @@ Feature: Installation and uninstallation journey (CREAM-fxsusmgd)
     Then the uninstall receipt points at the cached install.js for version "0.1.16"
     And the uninstall receipt has no angle-bracket placeholder
 
+  # CREAM-axtbxevj: the marketplace segment of every cache path is the host's to
+  # name, not ours — it was renamed once (cc-cream -> bart-turczynski) and the
+  # receipt went on telling users to `rm -rf` a directory that no longer existed,
+  # so the real cache survived while they believed it was gone. The removal lines
+  # must be read off the cache the uninstaller is actually running from.
+  Scenario: The uninstall receipt derives the cache path from the real marketplace
+    Given a fresh Claude config dir
+    And the cc-cream plugin freshly installed in the cache at version "0.1.16"
+    And the auto-setup hook has wired the bar
+    When the user runs /cc-cream:uninstall
+    Then the uninstall receipt names the cache under the real marketplace
+    And the uninstall receipt has no angle-bracket placeholder
+
   Scenario: Uninstall in the WRONG order degrades silently (v0.1.15 regression)
     Given a fresh Claude config dir
     And the cc-cream plugin freshly installed in the cache at version "0.1.16"

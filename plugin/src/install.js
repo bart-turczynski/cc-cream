@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { checkConfig, normalizeConfigField } from './config.js';
 import { DEFAULTS } from './defaults.js';
 import { PATHS } from './paths.js';
+import { findPluginDataDirs, findPluginInstalls, pluginCacheLocation } from './plugin-cache.js';
 import { isSafeToWrite, readSettings as readSettingsFile, writeFileAtomic } from './settings.js';
 import { isEntrypoint } from './utils.js';
 
@@ -399,6 +400,15 @@ async function uninstall({ purge }) {
   printUninstallReceipt();
 }
 
+// The host's `plugins/` directory for THIS run: taken from our own location when
+// we are the cached copy (so the escape hatch reports the install it was launched
+// from), and from the config dir otherwise (npm/manual). Same reasoning as
+// orphan.js — never assume os.homedir() when the running path already answers.
+function hostPluginsDir() {
+  const self = pluginCacheLocation(SELF_PATH);
+  return self ? self.pluginsDir : path.join(PATHS.claudeDir(), 'plugins');
+}
+
 // Shorten an absolute path under $HOME to a `~/…` form for display. The shell
 // still expands `~`, so the result stays copy-pasteable.
 function tildeify(p) {
@@ -418,10 +428,18 @@ function tildeify(p) {
 // exactly when it's needed (CREAM-rhtrzwss). Via the slash command SELF_PATH IS
 // the versioned cache copy, so the path is both accurate and markdown-safe.
 function printUninstallReceipt() {
+  const installs = findPluginInstalls(hostPluginsDir(), SELF_PATH);
   console.log('\nDone — the bar disappears on your next message (restart an already-open session to drop it now).');
   console.log('The host leaves the rest behind; to fully remove cc-cream:');
-  console.log('  • Plugin: /plugin uninstall cc-cream  then  /plugin marketplace remove cc-cream');
-  console.log('  • Version cache (never auto-removed): rm -rf ~/.claude/plugins/cache/cc-cream');
+  if (installs.length === 0) {
+    console.log('  • Plugin: /plugin uninstall cc-cream  then  /plugin marketplace remove (its marketplace)');
+    console.log('  • Version cache (never auto-removed): none found on disk.');
+  } else {
+    for (const { marketplace, home } of installs) {
+      console.log(`  • Plugin: /plugin uninstall cc-cream  then  /plugin marketplace remove ${marketplace}`);
+      console.log(`  • Version cache (never auto-removed): rm -rf ${tildeify(home)}`);
+    }
+  }
   console.log('  • The /cc-cream:* slash commands linger in this session until you restart Claude Code.');
   console.log('Re-run this uninstall later (e.g. the plugin is gone but the bar lingers) — it lives at:');
   console.log(`  node ${tildeify(SELF_PATH)} --uninstall [--purge]`);
@@ -456,17 +474,6 @@ function checkConfigCli() {
   console.error(`${file}: ${problems.length} problem(s) — each falls back to the default:`);
   for (const p of problems) console.error(`  - ${p}`);
   process.exit(1);
-}
-
-function listDirs(dir) {
-  try {
-    return fs.readdirSync(dir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
-      .sort();
-  } catch {
-    return [];
-  }
 }
 
 function readJsonSafe(file) {
@@ -504,15 +511,23 @@ function statusCli() {
     add('statusLine wiring', false, 'none');
   }
 
+  // Every marketplace cc-cream is installed under, discovered from the cache
+  // tree + registry rather than assumed — the marketplace name has been renamed
+  // before, and a report keyed to the old one calls a full cache a clean slate
+  // (CREAM-axtbxevj).
+  const installs = findPluginInstalls(plugins, SELF_PATH);
+
   // plugin cache versions (the host never GCs these)
-  const versions = listDirs(path.join(plugins, 'cache', 'cc-cream', 'cc-cream'));
-  add('plugin cache', versions.length > 0, versions.length
-    ? `${versions.length} version(s) [${versions.join(', ')}] — host never GCs these; rm to reclaim`
+  const cached = installs.filter((i) => i.versions.length > 0);
+  add('plugin cache', cached.length > 0, cached.length
+    ? cached.map((i) => `${i.versions.length} version(s) [${i.versions.join(', ')}] at ${i.home} — host never GCs these; rm to reclaim`).join('; ')
     : 'none');
 
   // marketplace clone
-  const clone = path.join(plugins, 'marketplaces', 'cc-cream');
-  add('marketplace clone', fs.existsSync(clone), fs.existsSync(clone) ? clone : 'none');
+  const clones = installs
+    .map((i) => path.join(plugins, 'marketplaces', i.marketplace))
+    .filter((dir) => fs.existsSync(dir));
+  add('marketplace clone', clones.length > 0, clones.length ? clones.join(', ') : 'none');
 
   // registrations
   const installed = readJsonSafe(path.join(plugins, 'installed_plugins.json'));
@@ -523,15 +538,22 @@ function statusCli() {
     : 'not listed in installed_plugins.json');
 
   const known = readJsonSafe(path.join(plugins, 'known_marketplaces.json'));
-  const knownMkt = !!known && typeof known === 'object' && Object.hasOwn(known, 'cc-cream');
-  add('marketplace registration', knownMkt, knownMkt
-    ? 'listed in known_marketplaces.json'
+  const knownMkts = known && typeof known === 'object'
+    ? installs.map((i) => i.marketplace).filter((m) => Object.hasOwn(known, m))
+    : [];
+  add('marketplace registration', knownMkts.length > 0, knownMkts.length
+    ? `${knownMkts.join(', ')} listed in known_marketplaces.json`
     : 'not listed in known_marketplaces.json');
 
-  // auto-wire marker (plugin data dir, falling back to the config dir)
-  const markerDir = process.env.CLAUDE_PLUGIN_DATA || path.join(plugins, 'data', 'cc-cream-cc-cream');
-  const marker = [path.join(markerDir, 'cc-cream-autowire-done'), path.join(home, 'cc-cream-autowire-done')]
-    .find((p) => fs.existsSync(p));
+  // Auto-wire marker. Searched across every cc-cream data dir the host has (they
+  // are named `<plugin>-<marketplace>`, so a rename leaves the old one behind),
+  // plus the config-dir fallback and an explicit CLAUDE_PLUGIN_DATA.
+  const markerDirs = [
+    ...(process.env.CLAUDE_PLUGIN_DATA ? [process.env.CLAUDE_PLUGIN_DATA] : []),
+    ...findPluginDataDirs(plugins),
+  ];
+  const marker = [...markerDirs.map((d) => path.join(d, 'cc-cream-autowire-done')), path.join(home, 'cc-cream-autowire-done')]
+    .find((file) => fs.existsSync(file));
   add('auto-wire marker', !!marker, marker || 'none');
 
   // session state
@@ -561,8 +583,10 @@ function statusCli() {
   }
   console.log(`\n${items.filter((i) => i.present).length} component(s) present. To remove everything:`);
   console.log('  /cc-cream:uninstall (or the cache-path install.js --uninstall) clears the statusLine + scratch;');
-  console.log('  then /plugin uninstall cc-cream + /plugin marketplace remove cc-cream;');
-  console.log('  then rm -rf ~/.claude/plugins/cache/cc-cream (the host never removes it).');
+  for (const { marketplace, home: pluginHome } of installs) {
+    console.log(`  then /plugin uninstall cc-cream + /plugin marketplace remove ${marketplace};`);
+    console.log(`  then rm -rf ${tildeify(pluginHome)} (the host never removes it).`);
+  }
 }
 
 function allArgVals(args, flag) {

@@ -23,6 +23,19 @@ Feature: Footprint status report (CREAM-zgdcbmfj)
     And the report lists the session state, config, and manual runtime copy
     And the report does not say it is a clean slate
 
+  # CREAM-axtbxevj: every host-side path carries a `<marketplace>` segment the
+  # host owns, and ours was renamed (cc-cream -> bart-turczynski). A report that
+  # spells the old name out reports "none" for a cache, clone, registration and
+  # marker that are all present — the exact opposite of what this command is for.
+  # The fixture stages a marketplace that is not the plugin name, so only a
+  # derived path can find any of it.
+  Scenario: The footprint is found under a renamed marketplace
+    Given a full cc-cream footprint on disk
+    When cc-cream-setup --status runs
+    Then the status report exits zero
+    And the report locates the cache, clone, registration and marker under the real marketplace
+    And the removal instructions name the real marketplace
+
   Scenario: A stale statusLine pinned to a missing entrypoint is flagged
     Given a cc-cream statusLine pinned to a missing entrypoint
     When cc-cream-setup --status runs

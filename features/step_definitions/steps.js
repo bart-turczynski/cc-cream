@@ -1676,19 +1676,35 @@ When('install.js --uninstall --purge runs without a TTY', function () {
   this.installerOut = (res.stdout ?? '') + (res.stderr ?? '');
 });
 
+// CREAM-axtbxevj: stage a real cache so the receipt's leftover lines have
+// something to derive FROM. Before this, the receipt printed a fixed
+// `~/.claude/plugins/cache/cc-cream` whether or not anything was there, so the
+// assertions below passed against a sandbox with an empty plugins dir — the very
+// blindness that let the marketplace rename go unnoticed. The name is not the
+// plugin's, so only derivation can produce it.
+Given('a plugin cache staged under marketplace {string}', function (mkt) {
+  const dir = path.join(this.home, '.claude', 'plugins', 'cache', mkt, 'cc-cream', '0.4.0', 'src');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'install.js'), '// installer');
+  this.stagedMarketplace = mkt;
+});
+
 Then('it removes the user config', function () {
   assert.ok(!fs.existsSync(configFilePath(this)),
     `--purge must remove the user config, but it remains: ${configFilePath(this)}`);
 });
 
 Then('the output names the cache-path uninstall escape hatch', function () {
-  assert.ok(/plugins\/cache\/cc-cream\b[\s\S]*install\.js --uninstall/.test(this.installerOut),
-    `output must name the cache-path install.js --uninstall escape hatch, got:\n${this.installerOut}`);
+  assert.ok(/install\.js --uninstall/.test(this.installerOut),
+    `output must name the install.js --uninstall escape hatch, got:\n${this.installerOut}`);
 });
 
 Then('the output mentions removing the marketplace and the version cache', function () {
-  assert.ok(/marketplace remove/.test(this.installerOut), `output must mention /plugin marketplace remove, got:\n${this.installerOut}`);
-  assert.ok(/plugins\/cache\/cc-cream/.test(this.installerOut), `output must name the version cache path, got:\n${this.installerOut}`);
+  const mkt = this.stagedMarketplace;
+  assert.ok(this.installerOut.includes(`/plugin marketplace remove ${mkt}`),
+    `output must name the staged marketplace to remove, got:\n${this.installerOut}`);
+  assert.ok(this.installerOut.includes(`plugins/cache/${mkt}/cc-cream`),
+    `output must name the staged version cache path, got:\n${this.installerOut}`);
 });
 
 Then('the output says the slash commands linger until restart', function () {
@@ -2229,29 +2245,37 @@ Given('the host plugin registry lists cc-cream', function () {
 // ===========================================================================
 // 33 — footprint status report (cc-cream-setup --status)
 // ===========================================================================
+// The staged marketplace is deliberately NOT 'cc-cream' (CREAM-axtbxevj). The
+// host names that segment and it has been renamed once already; while the
+// fixture reused the plugin name, a report that hardcoded `cache/cc-cream/
+// cc-cream` passed here and still called a full cache a clean slate in the
+// field. Every path below therefore carries a marketplace segment that only
+// derivation can produce.
+const FOOTPRINT_MKT = 'test-marketplace';
+
 Given('a full cc-cream footprint on disk', function () {
   const claude = path.join(this.home, '.claude');
   const plugins = path.join(claude, 'plugins');
-  const versionDir = path.join(plugins, 'cache', 'cc-cream', 'cc-cream', '0.2.0');
+  const versionDir = path.join(plugins, 'cache', FOOTPRINT_MKT, 'cc-cream', '0.2.0');
   fs.mkdirSync(path.join(versionDir, 'src'), { recursive: true });
-  fs.mkdirSync(path.join(plugins, 'marketplaces', 'cc-cream'), { recursive: true });
-  fs.mkdirSync(path.join(plugins, 'data', 'cc-cream-cc-cream'), { recursive: true });
+  fs.mkdirSync(path.join(plugins, 'marketplaces', FOOTPRINT_MKT), { recursive: true });
+  fs.mkdirSync(path.join(plugins, 'data', `cc-cream-${FOOTPRINT_MKT}`), { recursive: true });
   fs.mkdirSync(path.join(claude, 'cc-cream'), { recursive: true });
 
   const ep = path.join(versionDir, 'src', 'cc-cream.js');
   fs.writeFileSync(ep, '// engine');
   writeSandboxSettings(this, { statusLine: { type: 'command', command: statusLineCommand(process.execPath, ep), refreshInterval: 60 } });
   fs.writeFileSync(path.join(plugins, 'installed_plugins.json'),
-    JSON.stringify({ version: 2, plugins: { 'cc-cream@cc-cream': [{ installPath: versionDir, version: '0.2.0' }] } }, null, 2));
+    JSON.stringify({ version: 2, plugins: { [`cc-cream@${FOOTPRINT_MKT}`]: [{ installPath: versionDir, version: '0.2.0' }] } }, null, 2));
   fs.writeFileSync(path.join(plugins, 'known_marketplaces.json'),
-    JSON.stringify({ 'cc-cream': { source: { source: 'url', url: 'https://gitlab.com/bart-turczynski/cc-cream.git' } } }, null, 2));
-  fs.writeFileSync(path.join(plugins, 'data', 'cc-cream-cc-cream', 'cc-cream-autowire-done'), '');
+    JSON.stringify({ [FOOTPRINT_MKT]: { source: { source: 'url', url: 'https://gitlab.com/bart-turczynski/cc-cream.git' } } }, null, 2));
+  fs.writeFileSync(path.join(plugins, 'data', `cc-cream-${FOOTPRINT_MKT}`, 'cc-cream-autowire-done'), '');
   fs.writeFileSync(stateFilePath(this), JSON.stringify({ sessA: { x: 1 }, sessB: { y: 2 } }));
   fs.writeFileSync(configFilePath(this), JSON.stringify({ segments: {} }));
 });
 
 Given('a cc-cream statusLine pinned to a missing entrypoint', function () {
-  const ep = path.join(this.home, '.claude', 'plugins', 'cache', 'cc-cream', 'cc-cream', '0.0.9', 'src', 'cc-cream.js');
+  const ep = path.join(this.home, '.claude', 'plugins', 'cache', FOOTPRINT_MKT, 'cc-cream', '0.0.9', 'src', 'cc-cream.js');
   writeSandboxSettings(this, { statusLine: { type: 'command', command: statusLineCommand(process.execPath, ep), refreshInterval: 60 } });
 });
 
@@ -2291,6 +2315,27 @@ Then('the report lists the session state, config, and manual runtime copy', func
   assert.ok(/session state: \d+ session/.test(this.statusOut), `expected session state listed, got:\n${this.statusOut}`);
   assert.ok(/config: .*cc-cream\.json/.test(this.statusOut), `expected config listed, got:\n${this.statusOut}`);
   assert.ok(/manual runtime copy: .*cc-cream/.test(this.statusOut), `expected manual runtime listed, got:\n${this.statusOut}`);
+});
+
+Then('the report locates the cache, clone, registration and marker under the real marketplace', function () {
+  for (const [label, want] of [
+    ['plugin cache', `cache/${FOOTPRINT_MKT}/cc-cream`],
+    ['marketplace clone', `marketplaces/${FOOTPRINT_MKT}`],
+    ['marketplace registration', `${FOOTPRINT_MKT} listed in known_marketplaces.json`],
+    ['auto-wire marker', `data/cc-cream-${FOOTPRINT_MKT}/cc-cream-autowire-done`],
+  ]) {
+    assert.ok(this.statusOut.includes(want),
+      `the ${label} must be reported at "${want}" (derived, not assumed), got:\n${this.statusOut}`);
+  }
+  assert.ok(!/\[ \] (plugin cache|marketplace clone|marketplace registration|auto-wire marker)/.test(this.statusOut),
+    `no host-side component may be reported absent when it exists on disk, got:\n${this.statusOut}`);
+});
+
+Then('the removal instructions name the real marketplace', function () {
+  assert.ok(this.statusOut.includes(`/plugin marketplace remove ${FOOTPRINT_MKT}`),
+    `expected the marketplace-remove hint to name ${FOOTPRINT_MKT}, got:\n${this.statusOut}`);
+  assert.ok(this.statusOut.includes(`rm -rf ~/.claude/plugins/cache/${FOOTPRINT_MKT}/cc-cream`),
+    `expected the rm hint to name the real cache dir, got:\n${this.statusOut}`);
 });
 
 Then('the report flags the statusLine entrypoint as missing', function () {

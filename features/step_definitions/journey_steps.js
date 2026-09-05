@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { REPO } from '../support/world.js';
 import {
+  MARKETPLACE,
   MODEL_NAME,
   bakedEntrypoint,
   configDirOf,
@@ -143,9 +144,24 @@ Then('the uninstall receipt points at the cached install.js for version {string}
   // Match the version-specific suffix so the assertion holds whether the path is
   // shown `~/…`-relative or absolute — the point is the REAL version (not an empty
   // `<version>` segment) followed by a runnable `--uninstall`.
-  const want = `cache/cc-cream/cc-cream/${version}/src/install.js --uninstall`;
+  const want = `cache/${MARKETPLACE}/cc-cream/${version}/src/install.js --uninstall`;
   assert.ok(this.installResult.stdout.includes(want),
     `receipt must advertise the resolved cache path "…/${want}", got:\n${this.installResult.stdout}`);
+});
+
+// CREAM-axtbxevj: the receipt's removal lines are DERIVED from the cache the
+// uninstaller is running out of, so a marketplace rename cannot leave the user
+// deleting a directory that no longer exists. The sandbox marketplace is not
+// 'cc-cream', so a hardcoded path cannot satisfy this.
+Then('the uninstall receipt names the cache under the real marketplace', function () {
+  // Suffix match, like the version assertion above: the sandbox HOME is a
+  // symlinked temp dir, so the receipt may show the path absolute rather than
+  // `~/…`-shortened. The marketplace segment is what's under test.
+  const want = new RegExp(`rm -rf \\S*plugins/cache/${MARKETPLACE}/cc-cream(\\s|$)`, 'm');
+  assert.ok(want.test(this.installResult.stdout),
+    `receipt must tell the user to remove ".../plugins/cache/${MARKETPLACE}/cc-cream", got:\n${this.installResult.stdout}`);
+  assert.ok(this.installResult.stdout.includes(`/plugin marketplace remove ${MARKETPLACE}`),
+    `receipt must name the real marketplace to remove, got:\n${this.installResult.stdout}`);
 });
 
 Then('the uninstall receipt has no angle-bracket placeholder', function () {

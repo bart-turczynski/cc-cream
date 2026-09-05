@@ -113,6 +113,7 @@ Feature: Consent-based installer for the statusLine command
   # lingering slash commands, and the cache-path escape hatch.
   Scenario: Uninstall enumerates the host leftovers and the cache escape hatch
     Given settings.json on disk has cc-cream's statusLine and a state file
+    And a plugin cache staged under marketplace "test-marketplace"
     When install.js --uninstall runs without a TTY
     Then the output names the cache-path uninstall escape hatch
     And the output mentions removing the marketplace and the version cache

@@ -13,7 +13,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { REPO } from './world.js';
 
-const MARKETPLACE = 'cc-cream';
+// Deliberately NOT 'cc-cream'. The real marketplace has been renamed once
+// already, and while the sandbox name matched the plugin name any code that
+// hardcoded `cache/cc-cream/cc-cream` passed these tests anyway. Keeping the two
+// segments distinct is what makes the journey specs able to catch the drift
+// (CREAM-axtbxevj) — the value itself is arbitrary, which is the point.
+export const MARKETPLACE = 'test-marketplace';
 const PLUGIN = 'cc-cream';
 
 export const configDirOf = (home) => path.join(home, '.claude');
