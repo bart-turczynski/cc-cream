@@ -14,13 +14,18 @@ Run in this order:
 
 `/cc-cream:uninstall` lives inside the plugin, so once you run `/plugin uninstall` it's gone. Neither host command clears the `statusLine` block or the version cache. The renderer notices when it's running from a cache the host no longer lists as installed and self-suppresses, so the bar stops on the next session even though the inert `statusLine` line still lingers in `settings.json`.
 
-To clear that leftover line once the plugin is gone, use the copy of the uninstaller still in the cache — npm-free and always present. `VERSION` is the single directory under that path (run the `ls` first to read it off); `/cc-cream:uninstall` also prints the fully-resolved command:
+To clear that leftover line once the plugin is gone, use the copy of the uninstaller still in the cache — npm-free and always present. Its path contains both the marketplace you installed from and the version, so let the shell resolve them rather than typing them out:
 
 ```bash
-ls ~/.claude/plugins/cache/cc-cream/cc-cream/        # e.g. 0.3.3
-node ~/.claude/plugins/cache/cc-cream/cc-cream/VERSION/src/install.js --uninstall
+# 1. see what's cached (one line per installed version)
+ls -d ~/.claude/plugins/cache/*/cc-cream/*/src/install.js
+
+# 2. run the newest one
+node "$(ls -d ~/.claude/plugins/cache/*/cc-cream/*/src/install.js | tail -1)" --uninstall
 # add --purge to also remove your config
 ```
+
+If step 1 prints nothing the cache is already gone — skip to the npm bin below. `/cc-cream:uninstall` and `cc-cream-setup --status` both print the fully-resolved path too, so you can copy it from either.
 
 The npm bin does the same job, but **not always**: a freshly published version is blocked by npm's min-package-age safe-chain guard (reports "No versions available") until it ages in, so prefer the cache route:
 

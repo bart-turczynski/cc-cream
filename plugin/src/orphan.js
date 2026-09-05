@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { pluginCacheLocation } from './plugin-cache.js';
 
 function realpathOr(p) {
   try {
@@ -7,23 +8,6 @@ function realpathOr(p) {
   } catch {
     return path.resolve(p);
   }
-}
-
-// If `selfPath` lives under `<root>/plugins/cache/<marketplace>/<plugin>/...`,
-// return { pluginsDir, pluginHome }; otherwise null (manual/dev install, never
-// a cache orphan). Both paths derive from the running location so the registry
-// we consult is the one governing THIS install — no os.homedir() assumption.
-function pluginCacheLocation(selfPath) {
-  const segs = realpathOr(selfPath).split(path.sep);
-  for (let i = 0; i + 3 < segs.length; i++) {
-    if (segs[i] === 'plugins' && segs[i + 1] === 'cache') {
-      return {
-        pluginsDir: segs.slice(0, i + 1).join(path.sep),
-        pluginHome: segs.slice(0, i + 4).join(path.sep),
-      };
-    }
-  }
-  return null;
 }
 
 function isWithin(parent, child) {

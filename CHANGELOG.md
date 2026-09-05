@@ -6,6 +6,25 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+- **Uninstall instructions and `--status` no longer name a plugin cache that
+  doesn't exist.** Claude Code caches a plugin at
+  `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, and this project's
+  marketplace was renamed (`cc-cream` → `bart-turczynski`). Everything that spelled
+  the old name out went quietly wrong: `UNINSTALL.md`'s npm-free escape hatch told
+  users to `ls` a directory that returns "No such file or directory", so the
+  fallback uninstall could not be run at all; the uninstall receipt told them to
+  `rm -rf` a path that was never there, leaving the real cache behind while they
+  believed it was gone; and `cc-cream-setup --status` reported the plugin cache,
+  the marketplace clone, the marketplace registration and the auto-wire marker as
+  absent on an install where all four were present — the exact opposite of what
+  that command exists to answer. The marketplace segment is now **derived** from
+  the cache tree, the host registry, and the uninstaller's own location (new
+  `plugin/src/plugin-cache.js`) rather than hardcoded anywhere, and `UNINSTALL.md`
+  lets the shell glob resolve it. Regression scenarios at all three layers stage a
+  marketplace whose name is deliberately not `cc-cream`, so a future rename cannot
+  silently falsify our own removal instructions again (CREAM-axtbxevj).
+
 ### Changed
 - **GitLab is now the only forge.** The `github` remote, the three GitHub Actions
   workflows, and every `github.com/bart-turczynski/cc-cream` URL are gone;
