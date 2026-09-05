@@ -3,7 +3,7 @@ Feature: Publish and submit to the community catalog (CREAM-vtjzppjr)
   I want a repeatable publish-and-submit checklist
   So that cc-cream lands on every channel in the right order, ending at the catalog
 
-  # docs/RELEASE_PLAN.md Phase 5. Priority order: GitHub (source of record) ->
+  # docs/RELEASE_PLAN.md Phase 5. Priority order: GitLab (source of record) ->
   # npm -> self-hosted marketplace (free from the manifests) -> community catalog
   # submission (the goal). This is an operational checklist, not engine BDD: the
   # release GATES below are maintainer-controllable and verifiable at release time;
@@ -29,7 +29,7 @@ Feature: Publish and submit to the community catalog (CREAM-vtjzppjr)
 
   @manual
   Scenario: The repository is publish-ready, tagged, and noted
-    Then the GitHub repository is public
+    Then the GitLab repository is public
     And the release commit is tagged with the published version
     And the release has written release notes
 

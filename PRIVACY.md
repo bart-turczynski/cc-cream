@@ -33,7 +33,7 @@ The installer (`cc-cream install`) also edits `~/.claude/settings.json` to add t
 
 ## No telemetry, no analytics, no external servers
 
-cc-cream contains no analytics code, makes no HTTP requests, and does not phone home. You can verify this: the source is fully open at <https://github.com/bart-turczynski/cc-cream> and has no runtime dependencies outside Node.js built-ins.
+cc-cream contains no analytics code, makes no HTTP requests, and does not phone home. You can verify this: the source is fully open at <https://gitlab.com/bart-turczynski/cc-cream> and has no runtime dependencies outside Node.js built-ins.
 
 ## Third-party services
 

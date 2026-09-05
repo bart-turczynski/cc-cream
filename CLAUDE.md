@@ -80,13 +80,13 @@ Sixteen segments (all configurable via `~/.claude/cc-cream.json`); `ROW1_ZONES` 
 - **Biome** — lints `plugin/src/` and `plugin/hooks/` on every `pnpm test` (pretest hook). Rules: `noCommonJs` + `noUndeclaredDependencies` as errors, recommended rules as warnings.
 - **knip** — dead-code / unused-export audit, also runs in pretest. Config: `knip.json`.
 - **validate** — `claude plugin validate plugin` runs in pretest; skips gracefully when the `claude` CLI is absent. `--strict` (warnings-as-errors) is reserved for `pnpm run test:manual` pre-submission only.
-- **CI** — `.github/workflows/ci.yml` runs the exact publish gate (`pnpm test`) on every PR + push to `main`, across a Node **22/24** matrix (`fail-fast: false`), on a runner with **no `claude` CLI** (it asserts the CLI is absent, mirroring the publish environment). This is the guard for CREAM-xzhidmjt: any `@needs-cli`-untagged scenario that shells out to a missing CLI fails here, at review time, instead of silently breaking `npm publish`. The default cucumber profile is `not @manual and not @needs-cli`, so the gate is CI-safe by construction.
+- **CI** — `.gitlab-ci.yml` runs the exact publish gate (`pnpm test`) on every MR + push to `main`, across a Node **22/24** matrix (`parallel: matrix`), on a runner with **no `claude` CLI** (it asserts the CLI is absent, mirroring the publish environment). This is the guard for CREAM-xzhidmjt: any `@needs-cli`-untagged scenario that shells out to a missing CLI fails here, at review time, instead of silently breaking `npm publish`. The default cucumber profile is `not @manual and not @needs-cli`, so the gate is CI-safe by construction.
 - **c8** — V8 coverage via `pnpm run coverage`, which enforces a floor (`--check-coverage --lines 90`; only lines is gated — the other three c8 metrics default to 0). Current baseline: ~95% lines across `src/`, so a regression below 90% fails the pre-push hook and the command.
 - **simple-git-hooks** — pre-push hook runs `pnpm run coverage`; register it once with `pnpm run hooks` (kept off the `prepare` lifecycle so the published package ships no install-time scripts). Skip with `SKIP_SIMPLE_GIT_HOOKS=1 git push`.
 
 ## Releasing
 
-See `RELEASING.md` for the full runbook. npm publishes via **OIDC trusted publishing** (no tokens) triggered by a GitHub Release on `main`. Key steps: update `CHANGELOG.md` → `pnpm run release patch|minor|major` → `git push --follow-tags` → `gh release create vX.Y.Z`. The `prepublishOnly` hook runs the full test suite before publish.
+See `RELEASING.md` for the full runbook. **GitLab is the only forge** — `gitlab.com/bart-turczynski/cc-cream`. npm publishes via **OIDC trusted publishing** (no tokens) triggered by pushing a `vX.Y.Z` tag; the trusted publisher is bound to the path `.gitlab-ci.yml`, so moving that file breaks publishing. Key steps: update `CHANGELOG.md` → `pnpm run release patch|minor|major` → `git push --follow-tags`. The `prepublishOnly` hook runs the full test suite before publish.
 
 ## Hard constraints
 - **No runtime deps, ESM** — Cucumber is dev-only. Node built-ins only across all `src/` modules.

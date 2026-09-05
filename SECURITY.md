@@ -37,4 +37,4 @@ line `cc-cream security`. Please include:
 You will receive an acknowledgement within 7 days. Fixes are made on a
 best-effort basis. cc-cream does not run a formal bug-bounty program.
 
-For general bugs or questions, open a GitHub issue instead.
+For general bugs or questions, open a GitLab issue instead.

@@ -1,14 +1,12 @@
 # cc-cream
 
-[![CI](https://img.shields.io/github/actions/workflow/status/bart-turczynski/cc-cream/ci.yml?branch=main&label=CI)](https://github.com/bart-turczynski/cc-cream/actions/workflows/ci.yml)
-[![Codecov coverage](https://codecov.io/gh/bart-turczynski/cc-cream/branch/main/graph/badge.svg)](https://app.codecov.io/gh/bart-turczynski/cc-cream)
+[![CI](https://gitlab.com/bart-turczynski/cc-cream/badges/main/pipeline.svg)](https://gitlab.com/bart-turczynski/cc-cream/-/pipelines)
+[![coverage](https://gitlab.com/bart-turczynski/cc-cream/badges/main/coverage.svg)](https://gitlab.com/bart-turczynski/cc-cream/-/pipelines)
 [![npm version](https://img.shields.io/npm/v/cc-cream)](https://www.npmjs.com/package/cc-cream)
 [![Socket Badge](https://socket.dev/api/badge/npm/package/cc-cream)](https://socket.dev/npm/package/cc-cream)
 [![Snyk security](https://snyk.io/test/npm/cc-cream/badge.svg)](https://security.snyk.io/package/npm/cc-cream)
 [![install size](https://img.shields.io/bundlephobia/minzip/cc-cream)](https://bundlephobia.com/package/cc-cream)
-[![License: MIT](https://img.shields.io/npm/l/cc-cream)](https://github.com/bart-turczynski/cc-cream/blob/main/LICENSE)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbart-turczynski%2Fcc-cream.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbart-turczynski%2Fcc-cream?ref=badge_shield&issueType=security)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbart-turczynski%2Fcc-cream.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbart-turczynski%2Fcc-cream?ref=badge_shield&issueType=license)
+[![License: MIT](https://img.shields.io/npm/l/cc-cream)](https://gitlab.com/bart-turczynski/cc-cream/-/blob/main/LICENSE)
 
 **The status bar Claude Code should have shipped with.**
 
@@ -95,7 +93,7 @@ npx -y -p cc-cream cc-cream-setup
 Download or clone the repository, then run the consent installer:
 
 ```bash
-git clone https://github.com/bart-turczynski/cc-cream.git
+git clone https://gitlab.com/bart-turczynski/cc-cream.git
 node cc-cream/plugin/src/install.js
 ```
 

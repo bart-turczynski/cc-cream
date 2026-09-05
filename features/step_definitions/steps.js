@@ -1527,14 +1527,15 @@ Then('it reports no errors and no warnings', function () {
 });
 
 // --- CREAM-xzhidmjt: the publish gate is verified on a CI runner without claude ---
-Then('a CI workflow runs {string} on pull requests', function (command) {
-  const wf = path.join(REPO, '.github', 'workflows', 'ci.yml');
-  assert.ok(fs.existsSync(wf), '.github/workflows/ci.yml must exist');
+Then('a CI pipeline runs {string} on merge requests', function (command) {
+  const wf = path.join(REPO, '.gitlab-ci.yml');
+  assert.ok(fs.existsSync(wf), '.gitlab-ci.yml must exist');
   const src = fs.readFileSync(wf, 'utf8');
-  assert.match(src, /^on:|\non:/, 'ci.yml must declare a trigger');
-  assert.ok(/pull_request/.test(src), 'ci.yml must trigger on pull_request');
+  assert.ok(/^\s*rules:/m.test(src), '.gitlab-ci.yml must declare job rules');
+  assert.ok(src.includes('merge_request_event'),
+    '.gitlab-ci.yml must run on merge_request_event');
   assert.ok(src.includes(command),
-    `ci.yml must run "${command}" (the same command prepublishOnly runs), got:\n${src}`);
+    `.gitlab-ci.yml must run "${command}" (the same command prepublishOnly runs), got:\n${src}`);
 });
 
 Then('the default cucumber profile excludes both @manual and @needs-cli', function () {
@@ -1863,10 +1864,10 @@ Then('it documents installing via npm or npx', function () {
     'README must document both npx and npm install');
 });
 
-Then('it documents the manual GitHub clone path', function () {
+Then('it documents the manual git clone path', function () {
   const readme = readmeText().toLowerCase();
-  assert.ok(readme.includes('git clone') || readme.includes('github'),
-    'README must document the manual GitHub clone path');
+  assert.ok(readme.includes('git clone') || readme.includes('gitlab'),
+    'README must document the manual git clone path');
   assert.ok(readme.includes('git clone'), 'README must include git clone command');
 });
 
@@ -2243,7 +2244,7 @@ Given('a full cc-cream footprint on disk', function () {
   fs.writeFileSync(path.join(plugins, 'installed_plugins.json'),
     JSON.stringify({ version: 2, plugins: { 'cc-cream@cc-cream': [{ installPath: versionDir, version: '0.2.0' }] } }, null, 2));
   fs.writeFileSync(path.join(plugins, 'known_marketplaces.json'),
-    JSON.stringify({ 'cc-cream': { source: { source: 'github', repo: 'bart-turczynski/cc-cream' } } }, null, 2));
+    JSON.stringify({ 'cc-cream': { source: { source: 'url', url: 'https://gitlab.com/bart-turczynski/cc-cream.git' } } }, null, 2));
   fs.writeFileSync(path.join(plugins, 'data', 'cc-cream-cc-cream', 'cc-cream-autowire-done'), '');
   fs.writeFileSync(stateFilePath(this), JSON.stringify({ sessA: { x: 1 }, sessB: { y: 2 } }));
   fs.writeFileSync(configFilePath(this), JSON.stringify({ segments: {} }));

@@ -39,12 +39,12 @@ Feature: Plugin validation gate (CREAM-ldigvksg)
 
   # CREAM-xzhidmjt. prepublishOnly runs `npm test` at publish time. The class of
   # bug: any scenario that shells out to a host CLI absent on CI runners can break
-  # `npm publish`, and only at release time. The durable guard is a CI workflow
+  # `npm publish`, and only at release time. The durable guard is a CI pipeline
   # that runs the exact publish gate on a clean runner (no claude CLI) on every
-  # PR, so the failure surfaces in review instead of at publish. CLI-shelling
+  # MR, so the failure surfaces in review instead of at publish. CLI-shelling
   # scenarios are tagged @needs-cli and excluded from the default profile, so the
   # publish gate is CI-safe by construction.
   Scenario: The publish gate is verified on a CI runner without the claude CLI
-    Then a CI workflow runs "npm test" on pull requests
+    Then a CI pipeline runs "npm test" on merge requests
     And the default cucumber profile excludes both @manual and @needs-cli
     And prepublishOnly runs the default profile, never @needs-cli scenarios

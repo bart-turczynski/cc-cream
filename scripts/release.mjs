@@ -4,8 +4,8 @@
 // `## [x.y.z]` heading) and the CI gate punished any drift. This script bumps
 // all three in lockstep, rolls the CHANGELOG's `[Unreleased]` section into a
 // dated version section (leaving a fresh empty `[Unreleased]`), gates on the
-// test suite, then commits + tags. With --publish it also pushes and creates
-// the GitHub Release that triggers the OIDC npm publish.
+// test suite, then commits + tags. With --publish it also pushes the tag, which
+// is what triggers the OIDC npm publish on GitLab CI.
 //
 //   node scripts/release.mjs <patch|minor|major|X.Y.Z> [--publish] [--skip-tests]
 //
@@ -124,16 +124,15 @@ export function runRelease({
   run('git', 'add', 'package.json', 'plugin/.claude-plugin/plugin.json', 'CHANGELOG.md');
   run('git', 'commit', '-m', `Release ${tag}`);
   // Annotated (not lightweight) so `git push --follow-tags` actually pushes it —
-  // a lightweight tag is silently skipped, which strands the tag locally and makes
-  // `gh release create` fail with "tag not pushed".
+  // a lightweight tag is silently skipped, which strands the tag locally and means
+  // the publish pipeline never fires.
   run('git', 'tag', '-a', tag, '-m', `Release ${tag}`);
 
   if (publish) {
     run('git', 'push', '--follow-tags');
-    run('gh', 'release', 'create', tag, '--generate-notes');
-    log(`\nReleased ${tag}. The "Publish to npm" workflow runs on the release event (OIDC).`);
+    log(`\nReleased ${tag}. Pushing the tag starts the publish pipeline (OIDC).`);
   } else {
-    log(`\nStaged ${tag} locally. To publish:\n  git push --follow-tags\n  gh release create ${tag} --generate-notes`);
+    log(`\nStaged ${tag} locally. To publish:\n  git push --follow-tags`);
   }
   return 0;
 }

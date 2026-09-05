@@ -7,8 +7,8 @@
     "name": "Bart Turczynski",
     "email": "support@spoonkeyworks.com"
   },
-  "homepage": "https://github.com/bart-turczynski/cc-cream",
-  "repository": "https://github.com/bart-turczynski/cc-cream",
+  "homepage": "https://gitlab.com/bart-turczynski/cc-cream",
+  "repository": "https://gitlab.com/bart-turczynski/cc-cream",
   "license": "MIT",
   "keywords": ["claude", "claude-code", "status-line", "cache", "tokens", "context", "engineering", "monitoring", "costs", "tokenmaxxing"]
 }

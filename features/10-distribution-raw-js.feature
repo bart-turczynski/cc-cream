@@ -1,9 +1,9 @@
-Feature: Distribution as raw JavaScript on GitHub
+Feature: Distribution as raw JavaScript from the git repository
   As a prospective user
-  I want to install cc-cream from JavaScript files on GitHub
+  I want to install cc-cream from JavaScript files in the git repository
   So that I can adopt it with minimal friction and no package manager
 
-  # PRD §7, §14.1. Raw JavaScript on GitHub is the original v1 install channel.
+  # PRD §7, §14.1. Raw JavaScript from the repo is the original v1 install channel.
   # npm bin packaging ships in v3 (CREAM-cvmhzchg); see
   # features/18-distribution-npm.feature. Runtime code may use local modules but
   # must not require external runtime dependencies.

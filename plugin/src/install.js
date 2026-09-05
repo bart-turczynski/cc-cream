@@ -665,7 +665,7 @@ async function main() {
     const entrypoint = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'cc-cream.js');
     planOpts = { entrypoint, nodePath: resolveNodePath() };
   } else {
-    // Manual / GitHub mode: copy the runtime into ~/.claude/cc-cream and point
+    // Manual / clone mode: copy the runtime into ~/.claude/cc-cream and point
     // the statusLine at that copied (stable) entrypoint.
     const sourceFile = positional[0]
       ? path.resolve(positional[0])

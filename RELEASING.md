@@ -1,19 +1,24 @@
 # Releasing cc-cream
 
 cc-cream publishes to npm from CI via **OIDC trusted publishing** — no tokens,
-automatic provenance. Releases are cut from `main` and triggered by publishing a
-GitHub Release.
+automatic provenance. Releases are cut from `main` and triggered by **pushing a
+version tag**; on GitLab the tag itself starts the pipeline, so there is no
+separate "create a release" step to forget.
 
-## One-time setup (already done)
+## One-time setup
 
-- **npm trusted publisher** configured for `cc-cream`: owner `bart-turczynski`,
-  repo `cc-cream`, workflow filename `publish.yml`. (Fields are case-sensitive.)
-- **Workflow** `.github/workflows/publish.yml` with `id-token: write`.
-- `package.json` `repository.url` matches the GitHub repo exactly (required by npm).
+- **npm trusted publisher** configured for `cc-cream`: namespace `bart-turczynski`,
+  project `cc-cream`, top-level CI file path `.gitlab-ci.yml`. (Fields are
+  case-sensitive.) npm only accepts OIDC from **GitLab.com shared runners** —
+  a self-hosted runner cannot publish.
+- **Pipeline** `.gitlab-ci.yml`, `publish` job, with the `id_tokens` block
+  (`NPM_ID_TOKEN` audience `npm:registry.npmjs.org`, plus `SIGSTORE_ID_TOKEN`).
+- `package.json` `repository.url` matches the GitLab project exactly (required by npm).
 
 > npm OIDC cannot publish the *first* version of a brand-new package — that one
 > was bootstrapped with a short-lived token. Every release from here is token-free.
-> If the workflow is ever renamed, update the trusted-publisher config on npmjs.com.
+> If `.gitlab-ci.yml` is ever renamed or moved, update the trusted-publisher config
+> on npmjs.com to match, or publishing fails.
 
 ## Cutting a release
 
@@ -30,19 +35,18 @@ pnpm run release minor        # or patch / major / an explicit X.Y.Z
 
 `scripts/release.mjs` fails *before* touching anything unless you're on a clean
 `main` with content under `## [Unreleased]`, so it never leaves a half-bumped tree.
-It leaves the tagged release commit staged locally. Review it, then publish — the
-GitHub Release event is what triggers the OIDC npm workflow:
+It leaves the tagged release commit staged locally. Review it, then publish —
+pushing the tag is what triggers the OIDC npm pipeline:
 
 ```bash
 git push --follow-tags
-gh release create vX.Y.Z --generate-notes
 ```
 
 Or, once you trust it, do the whole thing in one shot (the `--` forwards the flag
 through npm):
 
 ```bash
-pnpm run release minor -- --publish   # bump + test + commit + tag + push + gh release create
+pnpm run release minor -- --publish   # bump + test + commit + tag + push
 ```
 
 > Why a script and not bare `pnpm version`: `pnpm version` only bumps `package.json`,
@@ -51,15 +55,21 @@ pnpm run release minor -- --publish   # bump + test + commit + tag + push + gh r
 > then fails on. The script keeps all three in lockstep so the gate stays green
 > across the bump.
 
-Then **watch it publish:** the **Publish to npm** workflow runs on the release event,
-   runs the full `prepublishOnly` suite, then publishes via OIDC. Confirm:
-   ```bash
-   npm view cc-cream version            # new version is latest
-   npm view cc-cream dist.attestations  # provenance present (OIDC releases only)
-   ```
+Then **watch it publish:** the `publish` job runs on any `vX.Y.Z` tag, runs the full
+`prepublishOnly` suite, then publishes via OIDC. Follow it with `glab ci status`, or
+in the project's **Build → Pipelines** view. Confirm:
 
-You can also run the workflow manually from the **Actions** tab (`workflow_dispatch`)
-— but it will fail if that version already exists on npm, so prefer the release flow.
+```bash
+npm view cc-cream version            # new version is latest
+npm view cc-cream dist.attestations  # provenance present (OIDC releases only)
+```
+
+If a publish needs re-running, retry the job from the pipeline view — but it will
+fail if that version already exists on npm, so prefer cutting a new patch.
+
+Release notes are optional and separate from publishing: `glab release create vX.Y.Z
+--notes-file <file>` after the tag is pushed, if you want them on the project's
+Releases page.
 
 ## Notes
 

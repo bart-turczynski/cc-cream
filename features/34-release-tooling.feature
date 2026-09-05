@@ -89,7 +89,9 @@ Feature: Release tooling keeps every version location in lockstep (CREAM-rkxwsey
     And the sandbox HEAD commit subject is "Release v0.2.1"
     And the sandbox has an annotated tag "v0.2.1"
 
-  Scenario: the publish path runs the test gate, commits, tags, pushes, and cuts a release
+  # Pushing the tag IS the publish trigger on GitLab CI, so there is no separate
+  # release-creation command to record — one fewer step to forget at release time.
+  Scenario: the publish path runs the test gate, commits, tags, and pushes
     Given a sandbox release repo at version "0.2.0"
     When I run the release "patch --publish" in the sandbox recording commands
     Then the release exits 0
@@ -98,7 +100,6 @@ Feature: Release tooling keeps every version location in lockstep (CREAM-rkxwsey
     And the recorded commands include "git commit -m Release v0.2.1"
     And the recorded commands include "git tag -a v0.2.1 -m Release v0.2.1"
     And the recorded commands include "git push --follow-tags"
-    And the recorded commands include "gh release create v0.2.1 --generate-notes"
     And the release output mentions "Released v0.2.1"
 
   Scenario: it refuses to release from a branch other than main
