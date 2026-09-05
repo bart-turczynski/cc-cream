@@ -31,5 +31,5 @@ tmp/
 
 # Fiberplane local issue tracking
 .fp/
-# fp-managed agent guide — regenerated per machine by `fp init --agent claude`
-FP_CLAUDE.md
+# fp-managed agent guide — regenerated per machine by `fp agent setup standard`
+FP_AGENTS.md
