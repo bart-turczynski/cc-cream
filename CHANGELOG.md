@@ -24,6 +24,10 @@ All notable changes to cc-cream are documented here. Format follows
   short root `AGENTS.md`, with `CLAUDE.md` reduced to a single `@AGENTS.md` import
   and the architecture reference — module map, data flow, plugin surface,
   diagnostics — promoted out of it into a tracked `ARCHITECTURE.md`.
+- **`CONTRIBUTING.md` explains the `FP_AGENTS.md` import.** `AGENTS.md` imports a
+  file that is gitignored and regenerated per machine, so a fresh clone resolves it
+  to nothing. A new "Agent instructions" section says that is expected and gives
+  the restore command (`fp agent setup standard`).
 
 ## [0.5.3] — 2026-09-05
 

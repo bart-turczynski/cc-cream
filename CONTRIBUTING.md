@@ -39,6 +39,20 @@ Biome enforces the linting rules on `plugin/src/` and `plugin/hooks/`. The rules
 `noCommonJs` and `noUndeclaredDependencies` are errors. Run `pnpm run lint` to
 check before pushing.
 
+## Agent instructions
+
+`AGENTS.md` — imported by `CLAUDE.md` — is the entry point for AI coding agents.
+It in turn imports `FP_AGENTS.md`, which is gitignored and regenerated per
+machine, so a fresh clone has no copy and that import resolves to nothing. This
+is expected, not a broken file. If you use fp for issue tracking, restore it
+with:
+
+```bash
+fp agent setup standard
+```
+
+Otherwise leave it missing; nothing in the build, tests, or plugin depends on it.
+
 ## Submitting a change
 
 1. Open a GitLab issue to discuss non-trivial changes before investing time.
