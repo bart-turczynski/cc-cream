@@ -236,5 +236,5 @@ at the time of writing. Re-check before relying on the matrix.
 - [ ] `npm test` green; `npm pack --dry-run` ships `plugin/src/` only; `claude plugin validate plugin` passes.
 - [ ] `find plugin -name 'package*.json'` is empty (no cache bloat).
 - [ ] Merge to `main` (this does **not** publish).
-- [ ] Publish to npm: `gh release create vX.Y.Z` (the GitHub Release is the only publish trigger).
+- [ ] Publish to npm: `git push --follow-tags` (pushing the `vX.Y.Z` tag is the only publish trigger).
 - [ ] To verify the plugin channel: `/plugin marketplace update <mkt>` → `/plugin update <plugin>` → `du -sh` the cache.

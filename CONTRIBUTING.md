@@ -41,7 +41,7 @@ check before pushing.
 
 ## Submitting a change
 
-1. Open a GitHub issue to discuss non-trivial changes before investing time.
+1. Open a GitLab issue to discuss non-trivial changes before investing time.
 2. Branch from `main` with a `feature/`, `fix/`, or `chore/` prefix.
 3. Keep commits small and focused; use imperative mood in commit messages.
 4. Ensure `npm test` is green before opening a PR.

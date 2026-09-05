@@ -1,0 +1,122 @@
+# cc-cream CI/CD.
+#
+# Replaces the three GitHub Actions workflows this project used to carry
+# (ci.yml, publish.yml, sync-catalogue.yml). GitLab is now the only forge.
+#
+# This file's path is load-bearing: npm's trusted publisher for `cc-cream` is
+# configured against the "top-level CI file path" `.gitlab-ci.yml`. Renaming or
+# moving it breaks publishing until the publisher config is updated to match.
+
+stages:
+  - test
+  - publish
+
+variables:
+  # Silences corepack's download prompt on non-interactive runners.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+# pnpm is pinned via package.json `packageManager`; corepack activates that exact
+# version, so the pipeline can never drift from the local toolchain.
+.pnpm: &pnpm
+  before_script:
+    - corepack enable
+    - corepack prepare --activate
+    - pnpm config set store-dir .pnpm-store
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+
+# Runs the exact publish gate (`pnpm test`, which prepublishOnly also runs) on a
+# clean runner WITHOUT the claude CLI, on every MR and push to main. This catches
+# the CREAM-xzhidmjt class of bug — a scenario that shells out to a host CLI
+# absent on CI runners — at review time instead of at `npm publish` time.
+#
+# CLI-shelling scenarios are tagged @needs-cli and excluded from the default
+# (publish-gating) cucumber profile, so the gate is CI-safe by construction; this
+# job is the guard that keeps it that way.
+test:
+  stage: test
+  image: node:${NODE_VERSION}
+  <<: *pnpm
+  # Prove the gate across the Node versions the dev toolchain supports. The floor
+  # is Node 22.13+ — pnpm@11.3.0 (pinned via packageManager) imports node:sqlite,
+  # which doesn't exist before 22.13 — so 20 can't run the toolchain at all; 22 is
+  # the floor, 24 the current line. A failure on either leg surfaces a
+  # version-specific break here, on the MR, not at publish time.
+  parallel:
+    matrix:
+      - NODE_VERSION: ["22", "24"]
+  script:
+    # Make the "no claude CLI" assumption explicit. GitLab shared runners don't
+    # ship `claude`; fail loudly if that ever changes, since it would mask exactly
+    # the breakage this job exists to catch.
+    - |
+      if command -v claude >/dev/null 2>&1; then
+        echo "ERROR: claude CLI unexpectedly present — this job must mirror the publish runner (no claude)."
+        exit 1
+      fi
+      echo "claude CLI absent — runner mirrors the publish environment."
+    - pnpm install --frozen-lockfile
+    # Same command prepublishOnly runs. A scenario that shells out to a missing
+    # CLI without a graceful skip will fail HERE (on the MR), not at publish.
+    - pnpm test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+# Measure line coverage (the same c8 instrumentation the local `coverage` script
+# uses) once, on the current Node line. Reporting-only: it never gates the build —
+# the `test` job above is the gate. Reported natively to GitLab (merge-request
+# widget + the repository coverage badge) rather than to a third-party service.
+coverage:
+  stage: test
+  image: node:24
+  <<: *pnpm
+  script:
+    - pnpm install --frozen-lockfile
+    # Default profile only — @needs-cli scenarios stay excluded, so this is
+    # CI-safe like the publish gate.
+    - pnpm exec c8 --reporter=text --reporter=cobertura cucumber-js
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Publishes cc-cream to npm via OIDC "trusted publishing" — no long-lived tokens,
+# and npm generates a provenance attestation automatically. Triggered by pushing a
+# version tag (`git push --follow-tags`); on GitLab the tag itself is the trigger,
+# so there is no separate "create a release" step to forget.
+#
+# Prerequisite (one-time, on npmjs.com): configure a trusted publisher for the
+# `cc-cream` package with namespace `bart-turczynski`, project `cc-cream`, and
+# top-level CI file path `.gitlab-ci.yml`. Requires GitLab.com shared runners —
+# npm does not accept OIDC from self-hosted runners.
+publish:
+  stage: publish
+  image: node:24
+  <<: *pnpm
+  id_tokens:
+    NPM_ID_TOKEN:
+      aud: "npm:registry.npmjs.org"
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+  script:
+    # The node:24 image ships an npm older than trusted publishing requires. Pin
+    # the major (latest 11.x, always >= 11.5.1) rather than `@latest`, so a future
+    # npm major can't silently change publish behavior at release time.
+    - npm install -g npm@11
+    - pnpm install --frozen-lockfile
+    # prepublishOnly runs the full test suite (lint + knip + validate + cucumber)
+    # before the package is published. OIDC handles auth — no npm token.
+    - npm publish
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/

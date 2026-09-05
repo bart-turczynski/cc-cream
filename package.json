@@ -53,12 +53,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bart-turczynski/cc-cream.git"
+    "url": "git+https://gitlab.com/bart-turczynski/cc-cream.git"
   },
   "bugs": {
-    "url": "https://github.com/bart-turczynski/cc-cream/issues"
+    "url": "https://gitlab.com/bart-turczynski/cc-cream/-/issues"
   },
-  "homepage": "https://github.com/bart-turczynski/cc-cream#readme",
+  "homepage": "https://gitlab.com/bart-turczynski/cc-cream#readme",
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",
     "@cucumber/cucumber": "^13.0.0",

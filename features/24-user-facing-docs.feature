@@ -11,7 +11,7 @@ Feature: User-facing documentation and trust disclosure (CREAM-wgmhqfls)
   Scenario: The README documents all three v1 install paths
     Then the README documents installing from the community catalog or self-hosted marketplace
     And it documents installing via npm or npx
-    And it documents the manual GitHub clone path
+    And it documents the manual git clone path
 
   Scenario: The README states the trust and version requirements
     Then the README states the minimum Claude Code version of 2.1.132
