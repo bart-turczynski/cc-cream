@@ -100,10 +100,16 @@ glab ci status
 ## 5. Verify it landed
 
 ```bash
-npm view cc-cream version            # equals the tag
-npm view cc-cream dist.attestations  # provenance present
-pnpm pack --dry-run                  # src/, LICENSE, README.md, CHANGELOG.md only
+npm view cc-cream version --safe-chain-skip-minimum-package-age              # equals the tag
+npm view cc-cream@X.Y.Z dist.attestations --safe-chain-skip-minimum-package-age  # provenance present
+pnpm pack --dry-run                  # plugin/src/, LICENSE, README.md, CHANGELOG.md only
 ```
+
+`--safe-chain-skip-minimum-package-age` is required, not optional. A Safe-chain wrapper sits in front
+of `npm` on this machine and suppresses versions below a minimum age — which is exactly the version
+just published. Without the flag `npm view` reports the *previous* release, so a green pipeline reads
+as a failed publish. It says so in a trailing `ℹ Safe-chain:` line that is easy to miss under the
+version number (CREAM-gwiwsbtm).
 
 A failed `publish` job can be retried from the pipeline view, but the retry fails if that version
 already exists on npm. Prefer cutting a new patch over fighting a half-published version.

@@ -6,6 +6,15 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The release skill's verification step passes
+  `--safe-chain-skip-minimum-package-age`.** A Safe-chain wrapper in front of
+  `npm` suppresses versions below a minimum age, so a bare `npm view cc-cream
+  version` reports the *previous* release right after a publish — during the
+  0.5.4 cut it answered `0.5.2` while `0.5.4` was live, making a green pipeline
+  read as a failed publish.
+
 ## [0.5.4] — 2026-09-05
 
 ### Changed
