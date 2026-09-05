@@ -30,5 +30,5 @@ absent from a fresh clone.
 For module layout, data flow and diagnostics, see ARCHITECTURE.md.
 For config keys and the segment catalog, see CONFIGURATION.md.
 For plugin host, install and update mechanics, see PLUGIN-DISTRIBUTION.md.
-For the release runbook, see RELEASING.md.
+For release setup and CI publishing, see RELEASING.md.
 For dev commands and the contribution flow, see CONTRIBUTING.md.

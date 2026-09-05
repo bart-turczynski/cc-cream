@@ -17,6 +17,11 @@ All notable changes to cc-cream are documented here. Format follows
 - **`PLUGIN-DISTRIBUTION.md` no longer shows a root `marketplace.json`.** `dbf9cc1`
   moved the listing to the separate catalogue repo; the layout diagram had kept the
   pre-split shape.
+- **`RELEASING.md` is setup and rationale, not a runbook.** The step-by-step cut
+  moved into the tracked `release` skill, which fixes the order and puts an
+  approval stop in front of the tag push. What stays is the part the skill does
+  not repeat: the one-time npm trusted-publisher and CI configuration, why the
+  release goes through a script, and what to check when a publish fails.
 
 ### Added
 
@@ -28,6 +33,10 @@ All notable changes to cc-cream are documented here. Format follows
   file that is gitignored and regenerated per machine, so a fresh clone resolves it
   to nothing. A new "Agent instructions" section says that is expected and gives
   the restore command (`fp agent setup standard`).
+- **`.claude/skills/release/` ships with the repo.** A global excludes file hides
+  `.claude/` on every machine, so a project skill would not survive a fresh clone.
+  `.gitignore` now re-includes that one directory and nothing else — `settings.json`,
+  `worktrees/` and the local lock files stay ignored.
 
 ## [0.5.3] — 2026-09-05
 
