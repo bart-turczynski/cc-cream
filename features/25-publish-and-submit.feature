@@ -19,13 +19,19 @@ Feature: Publish and submit to the community catalog (CREAM-vtjzppjr)
   # could silently drift (CREAM-rkxwseym v5). `npm run release` keeps them in
   # lockstep; this gate makes drift a CI failure instead of a stale manifest.
   Scenario: The plugin manifest version matches package.json
-    Then .claude-plugin/plugin.json version matches package.json
+    Then plugin/.claude-plugin/plugin.json version matches package.json
 
   Scenario: The self-hosted marketplace install path is documented
     Then the README documents adding the marketplace with "/plugin marketplace add https://gitlab.com/bart-turczynski/claude-plugins.git"
     And then installing with "/plugin install cc-cream"
 
-  # --- Release gates (controllable at release time, not automatable in CI) ---
+  # --- Release gates (hand-walked at release time; no runner) ---
+
+  # Everything below is @manual: read it, do it, tick it off. Three of these end
+  # in a human action nobody can assert from a test process — filling in a web
+  # form, npm's indexing, Anthropic's review — so there is deliberately no
+  # `test:manual` script and no step definitions. The default cucumber profile
+  # excludes @manual; `pnpm test` is the whole automated gate (CREAM-wipgwoua).
 
   @manual
   Scenario: The repository is publish-ready, tagged, and noted
@@ -35,8 +41,8 @@ Feature: Publish and submit to the community catalog (CREAM-vtjzppjr)
 
   @manual
   Scenario: The npm package is published at the planned version
-    When "npm publish" runs for cc-cream
-    Then the npm registry accepts cc-cream at version 0.1.1
+    When the tagged pipeline's publish job runs for cc-cream
+    Then the npm registry accepts cc-cream at the version in package.json
 
   @manual
   Scenario: The plugin is submitted to the community catalog

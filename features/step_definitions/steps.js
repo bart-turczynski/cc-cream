@@ -1504,13 +1504,13 @@ Given('the plugin and marketplace manifests', function () {
   this.pluginManifestsExist = true;
 });
 
-When('"claude plugin validate . --strict" runs before submission', function () {
-  // If the claude CLI is absent, skip; this is a pre-submission manual step.
+When('"claude plugin validate plugin --strict" runs before submission', function () {
+  // If the claude CLI is absent, skip; this is a pre-submission readiness pass.
   const which = spawnSync('sh', ['-c', 'command -v claude'], { encoding: 'utf8' });
   if (which.status !== 0) {
     return 'pending';
   }
-  const res = spawnSync('claude', ['plugin', 'validate', '.', '--strict'], {
+  const res = spawnSync('claude', ['plugin', 'validate', 'plugin', '--strict'], {
     cwd: REPO,
     encoding: 'utf8',
   });
@@ -1987,7 +1987,7 @@ Then('package.json version matches the latest CHANGELOG entry', function () {
     `package.json version (${pkg.version}) must match the latest CHANGELOG entry ([${match[1]}])`);
 });
 
-Then('.claude-plugin\\/plugin.json version matches package.json', function () {
+Then('plugin\\/.claude-plugin\\/plugin.json version matches package.json', function () {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
   const plugin = JSON.parse(fs.readFileSync(path.join(REPO, 'plugin', '.claude-plugin', 'plugin.json'), 'utf8'));
   assert.equal(plugin.version, pkg.version,

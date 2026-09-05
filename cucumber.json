@@ -3,10 +3,6 @@
     "import": ["features/step_definitions/**/*.js", "features/support/**/*.js"],
     "tags": "not @manual and not @needs-cli"
   },
-  "manual": {
-    "import": ["features/step_definitions/**/*.js", "features/support/**/*.js"],
-    "tags": "@manual"
-  },
   "cli": {
     "import": ["features/step_definitions/**/*.js", "features/support/**/*.js"],
     "tags": "@needs-cli"

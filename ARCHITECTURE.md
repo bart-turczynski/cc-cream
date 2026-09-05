@@ -144,9 +144,11 @@ a `url` git source; the `owner/repo` shorthand is GitHub-only.
 
 Profiles are declared in `cucumber.json`. The default is
 `not @manual and not @needs-cli`, so the gate is CI-safe by construction.
-`@manual` covers the release runbook and `--strict` validation
-(`pnpm run test:manual`); `@needs-cli` covers anything shelling out to a live
-`claude` (`pnpm run test:cli`). An untagged scenario that shells out to a
+`@manual` covers the release runbook in `features/25-*.feature` — a checklist a
+human walks by hand, with no runner and no step definitions, because its steps
+end in a web form, npm's indexing and Anthropic's review. `@needs-cli` covers
+anything shelling out to a live `claude`, including the `--strict` pre-submission
+pass (`pnpm run test:cli`). An untagged scenario that shells out to a
 missing CLI would silently break `npm publish` — CREAM-xzhidmjt.
 
 Beyond the `package.json` scripts:
@@ -169,8 +171,8 @@ is gated, the other three c8 metrics default to 0. The pre-push hook
 (simple-git-hooks, registered once with `pnpm run hooks`) runs it. Skip with
 `SKIP_SIMPLE_GIT_HOOKS=1 git push`.
 
-`--strict` plugin validation is reserved for `pnpm run test:manual`
-pre-submission, not the default gate.
+`--strict` plugin validation is reserved for the pre-submission pass in
+`pnpm run test:cli`, not the default gate.
 
 ## Spec
 
