@@ -11,8 +11,18 @@ separate "create a release" step to forget.
   project `cc-cream`, top-level CI file path `.gitlab-ci.yml`. (Fields are
   case-sensitive.) npm only accepts OIDC from **GitLab.com shared runners** —
   a self-hosted runner cannot publish.
+- **Environment name must be left EMPTY**, and **"Allow `npm publish`" must be
+  ticked**. The `publish` job declares no `environment:`, so GitLab sends no
+  environment claim and a value here makes npm demand one that never arrives; and
+  the job runs a bare `npm publish`, not `npm stage publish`, so the unticked
+  default rejects it. Both are in npm's "cannot be changed later" set — getting
+  either wrong means deleting the connection and recreating it.
 - **Pipeline** `.gitlab-ci.yml`, `publish` job, with the `id_tokens` block
   (`NPM_ID_TOKEN` audience `npm:registry.npmjs.org`, plus `SIGSTORE_ID_TOKEN`).
+- **`CATALOGUE_TOKEN`** CI/CD variable (masked + protected) holding a token with
+  `write_repository` on `bart-turczynski/claude-plugins`, for the `sync-catalogue`
+  job. `CI_JOB_TOKEN` cannot push across projects. Without it the sync job no-ops
+  with a message rather than failing the release.
 - `package.json` `repository.url` matches the GitLab project exactly (required by npm).
 
 > npm OIDC cannot publish the *first* version of a brand-new package — that one

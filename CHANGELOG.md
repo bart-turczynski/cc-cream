@@ -6,6 +6,17 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+- **The plugin marketplace has a GitLab home again.** The catalogue repo moved to
+  `gitlab.com/bart-turczynski/claude-plugins`, and `.gitlab-ci.yml` gains a
+  `sync-catalogue` job that mirrors `plugin/` into it on each version tag —
+  restoring what `.github/workflows/sync-catalogue.yml` used to do. Install is now
+  `/plugin marketplace add https://gitlab.com/bart-turczynski/claude-plugins.git`;
+  the old `owner/repo` shorthand is GitHub-only. The repo itself is public again —
+  it had been private since the migration, which silently made plugin installation
+  impossible for everyone but the owner and left `PRIVACY.md`'s "the source is
+  fully open" claim false (CREAM-izhjwifs).
+
 ### Fixed
 - **Uninstall instructions and `--status` no longer name a plugin cache that
   doesn't exist.** Claude Code caches a plugin at
