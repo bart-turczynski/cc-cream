@@ -6,6 +6,15 @@ All notable changes to cc-cream are documented here. Format follows
 
 ## [Unreleased]
 
+### Documentation
+- `PLUGIN-DISTRIBUTION.md` gains §7, documenting where Claude Code puts a plugin's four
+  on-disk locations (noting that the cache path nests marketplace-then-plugin while the
+  `$CLAUDE_PLUGIN_DATA` path concatenates plugin-then-marketplace) and a matrix of what each
+  host removal path actually leaves behind. No host removal drops a plugin's `settings.json`
+  block or garbage-collects the version cache, so a `[ -f "<entrypoint>" ] || exit 0` guard
+  never fires — the two mitigations that do work (orphan self-suppression and a cache-resident
+  uninstaller) are written up alongside it.
+
 ## [0.5.2] — 2026-06-28
 
 ### Changed

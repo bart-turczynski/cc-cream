@@ -180,6 +180,55 @@ auto-migration; detect and clean *before* installing:
    the setup command for a `SessionStart`-wired bar. With the `statusLine` slot now empty,
    cc-cream's hook auto-wires the bar on the next session start.
 
+## 7. Where the host puts things, and what removal leaves behind
+
+Four locations, all under `~/.claude/plugins/` (or `$CLAUDE_CONFIG_DIR`). Note the
+**inverted order** between the cache and data paths — the cache nests
+marketplace-then-plugin, the data dir concatenates plugin-then-marketplace:
+
+| What | Path |
+|---|---|
+| The install (one dir per version) | `cache/<marketplace>/<plugin>/<version>/` |
+| `$CLAUDE_PLUGIN_DATA` | `data/<plugin>-<marketplace>/` |
+| Marketplace clone | `marketplaces/<marketplace>/` |
+| Registries | `installed_plugins.json`, `known_marketplaces.json` |
+
+`${CLAUDE_PLUGIN_ROOT}` is the version dir. Anything you want to survive a plugin
+*update* must not live under it — each version gets a fresh directory, and the old ones
+are never collected (below). `$CLAUDE_PLUGIN_DATA` survives updates but is wiped on
+uninstall, which makes it the right home for a one-shot marker and the wrong home for
+anything the user would miss.
+
+**No host removal path is complete.** If your plugin writes anything into
+`settings.json`, this is the trap that produces a zombie — the wiring keeps running
+against a cache that also never goes away:
+
+| | Version cache | Marketplace clone | Registries | `$CLAUDE_PLUGIN_DATA` | Your `settings.json` block |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `/plugin update` | kept (**all** old versions) | kept | updated | kept | kept |
+| `/plugin uninstall` | **kept** | kept | removed | removed | **kept** |
+| `/plugin marketplace remove` | **kept** | removed | removed | removed | **kept** |
+
+So after any host removal the user still has your cached code *and* a `settings.json`
+entry pointing at it. A `[ -f "<entrypoint>" ] || exit 0` guard does **not** save you:
+the entrypoint is still there, because the cache is never deleted.
+
+Two things make this survivable, and a plugin in this position wants both:
+
+1. **Self-suppress when orphaned.** Detect at runtime that you are executing from under
+   `plugins/cache/` while your plugin is absent from `installed_plugins.json`, and exit 0
+   silently. The stale `settings.json` entry becomes inert rather than a ghost.
+   (cc-cream: `plugin/src/orphan.js`.)
+2. **Ship an uninstaller reachable after the plugin is gone.** Slash commands deregister
+   with the plugin, so `/<plugin>:uninstall` disappears exactly when it is needed. The
+   never-collected cache is the one thing guaranteed still present — point users at the
+   copy of your uninstaller inside it.
+
+Observed against Claude Code 2.1.158; the paths above re-verified against a live install
+at the time of writing. Re-check before relying on the matrix.
+
+---
+
 ## Release checklist (cc-cream)
 
 - [ ] Update `CHANGELOG.md` (roll `[Unreleased]` → the new version).
