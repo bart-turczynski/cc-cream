@@ -27,6 +27,10 @@ publish runner has none.
 `docs/` is gitignored, so `docs/PRD.md` and `docs/PRDv2.md` — the spec — are
 absent from a fresh clone.
 
+GitLab is the source of truth. GitHub carries a read-only push mirror with
+Actions off: add no `.github/workflows/`, and never push there. Setup: seor
+`design/github-mirror.md`.
+
 For module layout, data flow and diagnostics, see ARCHITECTURE.md.
 For config keys and the segment catalog, see CONFIGURATION.md.
 For plugin host, install and update mechanics, see PLUGIN-DISTRIBUTION.md.
