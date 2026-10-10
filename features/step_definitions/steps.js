@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { REPO, ENGINE, colorOf } from '../support/world.js';
+import { REPO, ENGINE, colorOf, stripAnsi } from '../support/world.js';
 import { loadConfig, resolveTtl, countdown, patchSessionState } from '../../plugin/src/cc-cream.js';
 import { plan, planUninstall, planConfigure, planSet, statusLineCommand, writeFileAtomic } from '../../plugin/src/install.js';
 import { isOrphanedPluginRun } from '../../plugin/src/orphan.js';
@@ -2496,11 +2496,10 @@ When('I run the release {string} in the sandbox recording commands', function (a
 });
 
 // --- GIT_DIR isolation (CREAM-zdyjsqks) -------------------------------------
-// Reruns the sandbox scenarios above in a child cucumber process with GIT_DIR
+// Reruns the @sandbox-git scenarios in a child cucumber process with GIT_DIR
 // set, as a pre-push hook in a linked worktree does, and checks that the repo
 // it names comes through unchanged.
 const CUCUMBER_BIN = path.join(REPO, 'node_modules', '@cucumber', 'cucumber', 'bin', 'cucumber.js');
-const SANDBOX_SCENARIOS = '^(a dry run|the publish path|it refuses|it prints usage)';
 
 function decoySnapshot(dir) {
   const git = path.join(dir, '.git');
@@ -2519,17 +2518,21 @@ Given('a decoy git repo', function () {
   this.decoyBefore = decoySnapshot(this.decoy);
 });
 
-When('the sandbox release scenarios run with GIT_DIR pointing at the decoy', { timeout: 120_000 }, function () {
-  this.nested = spawnSync(process.execPath, [CUCUMBER_BIN, 'features/34-release-tooling.feature', '--name', SANDBOX_SCENARIOS], {
+// spawnSync blocks the event loop, so cucumber's step timeout can't fire: the
+// child gets its own, or a hung git (a lock, a gpg prompt) hangs the push.
+When('the sandbox release scenarios run with GIT_DIR pointing at the decoy', { timeout: 130_000 }, function () {
+  this.nested = spawnSync(process.execPath, [CUCUMBER_BIN, 'features/34-release-tooling.feature', '--tags', '@sandbox-git'], {
     cwd: REPO,
     env: { ...process.env, GIT_DIR: path.join(this.decoy, '.git') },
     encoding: 'utf8',
+    timeout: 120_000,
   });
 });
 
 Then('the nested run passes', function () {
   assert.equal(this.nested.status, 0, `nested cucumber run failed:\n${this.nested.stdout}\n${this.nested.stderr}`);
-  assert.match(this.nested.stdout, /5 scenarios \(5 passed\)/, `expected the 5 sandbox scenarios to run:\n${this.nested.stdout}`);
+  const summary = stripAnsi(this.nested.stdout).match(/^(\d+) scenarios? \((\d+) passed\)$/m);
+  assert.ok(summary && summary[1] === summary[2] && Number(summary[1]) > 0, `expected every @sandbox-git scenario to run and pass:\n${this.nested.stdout}`);
 });
 
 Then("the decoy repo's refs, HEAD and config are unchanged", function () {

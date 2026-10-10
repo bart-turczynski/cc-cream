@@ -8,5 +8,7 @@
 
 import { spawnSync } from 'node:child_process';
 
-const localEnvVars = spawnSync('git', ['rev-parse', '--local-env-vars'], { encoding: 'utf8' }).stdout ?? '';
-for (const name of localEnvVars.split('\n').filter(Boolean)) delete process.env[name];
+const res = spawnSync('git', ['rev-parse', '--local-env-vars'], { encoding: 'utf8' });
+// Fail loudly: carrying on with GIT_DIR set would rewrite the real repository.
+if (res.status !== 0) throw new Error(`git rev-parse --local-env-vars failed; refusing to run the suite:\n${res.error ?? res.stderr}`);
+for (const name of res.stdout.split(/\r?\n/).filter(Boolean)) delete process.env[name];
