@@ -27,6 +27,16 @@ All notable changes to cc-cream are documented here. Format follows
   human-judgment, so it is `@needs-cli` now — and it validates `plugin`, not `.`,
   which made the CLI check loose components and never open the plugin manifest.
 
+### Fixed
+
+- **The test suite no longer rewrites the real repository when you push from a
+  worktree.** A pre-push hook in a linked worktree runs with `GIT_DIR` set, and
+  the release scenarios' sandbox `git init`, `commit`, `branch -M main` and `tag`
+  inherited it. That set `core.bare`, renamed the checked-out branch to `main`
+  and added a stray `v0.2.1` tag, twice. A support file now drops the variables
+  `git rev-parse --local-env-vars` lists before any scenario runs, and a scenario
+  reruns the sandbox scenarios with `GIT_DIR` aimed at a decoy repo to pin it.
+
 ## [0.5.4] — 2026-09-05
 
 ### Changed

@@ -79,6 +79,7 @@ Feature: Release tooling keeps every version location in lockstep (CREAM-rkxwsey
   # real git locally; the publish path swaps in a recording runner that captures
   # the would-be commands instead of executing them.
 
+  @sandbox-git
   Scenario: a dry run bumps all three version locations in lockstep and tags locally
     Given a sandbox release repo at version "0.2.0"
     When I run the release "patch --skip-tests" in the sandbox
@@ -91,6 +92,7 @@ Feature: Release tooling keeps every version location in lockstep (CREAM-rkxwsey
 
   # Pushing the tag IS the publish trigger on GitLab CI, so there is no separate
   # release-creation command to record — one fewer step to forget at release time.
+  @sandbox-git
   Scenario: the publish path runs the test gate, commits, tags, and pushes
     Given a sandbox release repo at version "0.2.0"
     When I run the release "patch --publish" in the sandbox recording commands
@@ -102,6 +104,7 @@ Feature: Release tooling keeps every version location in lockstep (CREAM-rkxwsey
     And the recorded commands include "git push --follow-tags"
     And the release output mentions "Released v0.2.1"
 
+  @sandbox-git
   Scenario: it refuses to release from a branch other than main
     Given a sandbox release repo at version "0.2.0"
     And the sandbox repo is checked out on "feature/wip"
@@ -110,6 +113,7 @@ Feature: Release tooling keeps every version location in lockstep (CREAM-rkxwsey
     And the release error mentions "not on main"
     And the sandbox package.json version is "0.2.0"
 
+  @sandbox-git
   Scenario: it refuses to release with uncommitted tracked changes
     Given a sandbox release repo at version "0.2.0"
     And the sandbox repo has an uncommitted tracked change
@@ -118,8 +122,19 @@ Feature: Release tooling keeps every version location in lockstep (CREAM-rkxwsey
     And the release error mentions "uncommitted changes"
     And the sandbox package.json version is "0.2.0"
 
+  @sandbox-git
   Scenario: it prints usage when no bump is given
     Given a sandbox release repo at version "0.2.0"
     When I run the release "--skip-tests" in the sandbox
     Then the release exits 1
     And the release error mentions "Usage"
+
+  # A pre-push hook in a linked worktree runs with GIT_DIR pointing at that
+  # worktree's git dir, and every git call above inherits the environment. If
+  # the suite kept it, the sandbox's `git init`, `commit`, `branch -M main` and
+  # `tag` would rewrite the real repository instead (CREAM-zdyjsqks).
+  Scenario: the sandbox release scenarios leave the repository GIT_DIR names untouched
+    Given a decoy git repo
+    When the sandbox release scenarios run with GIT_DIR pointing at the decoy
+    Then the nested run passes
+    And the decoy repo's refs, HEAD and config are unchanged
