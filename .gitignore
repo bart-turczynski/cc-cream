@@ -31,7 +31,8 @@ tmp/
 
 # Fiberplane local issue tracking
 .fp/
-# fp-managed agent guide — regenerated per machine by `fp agent setup standard`
+# fp's generated agent guide: deliberately not imported (the fp skills replace
+# it); ignored so a stray copy from `fp agent setup` is never committed
 FP_AGENTS.md
 
 # Project skills. A global excludes file ignores `.claude/` wholesale, and git
