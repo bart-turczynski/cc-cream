@@ -2495,6 +2495,47 @@ When('I run the release {string} in the sandbox recording commands', function (a
   });
 });
 
+// --- GIT_DIR isolation (CREAM-zdyjsqks) -------------------------------------
+// Reruns the sandbox scenarios above in a child cucumber process with GIT_DIR
+// set, as a pre-push hook in a linked worktree does, and checks that the repo
+// it names comes through unchanged.
+const CUCUMBER_BIN = path.join(REPO, 'node_modules', '@cucumber', 'cucumber', 'bin', 'cucumber.js');
+const SANDBOX_SCENARIOS = '^(a dry run|the publish path|it refuses|it prints usage)';
+
+function decoySnapshot(dir) {
+  const git = path.join(dir, '.git');
+  const refs = spawnSync('git', ['--git-dir', git, 'for-each-ref', '--format=%(refname) %(objectname)'], { encoding: 'utf8' }).stdout;
+  return [refs, fs.readFileSync(path.join(git, 'HEAD'), 'utf8'), fs.readFileSync(path.join(git, 'config'), 'utf8')].join('\n---\n');
+}
+
+Given('a decoy git repo', function () {
+  this.decoy = path.join(this.home, 'decoy');
+  fs.mkdirSync(this.decoy);
+  fs.writeFileSync(path.join(this.decoy, 'README'), 'decoy\n');
+  for (const args of [['init', '-q'], ['add', 'README'], ['-c', 'user.name=Decoy', '-c', 'user.email=decoy@example.com', 'commit', '-q', '-m', 'decoy']]) {
+    const r = spawnSync('git', args, { cwd: this.decoy, encoding: 'utf8' });
+    assert.equal(r.status, 0, `git ${args.join(' ')} in decoy failed:\n${r.stderr}`);
+  }
+  this.decoyBefore = decoySnapshot(this.decoy);
+});
+
+When('the sandbox release scenarios run with GIT_DIR pointing at the decoy', { timeout: 120_000 }, function () {
+  this.nested = spawnSync(process.execPath, [CUCUMBER_BIN, 'features/34-release-tooling.feature', '--name', SANDBOX_SCENARIOS], {
+    cwd: REPO,
+    env: { ...process.env, GIT_DIR: path.join(this.decoy, '.git') },
+    encoding: 'utf8',
+  });
+});
+
+Then('the nested run passes', function () {
+  assert.equal(this.nested.status, 0, `nested cucumber run failed:\n${this.nested.stdout}\n${this.nested.stderr}`);
+  assert.match(this.nested.stdout, /5 scenarios \(5 passed\)/, `expected the 5 sandbox scenarios to run:\n${this.nested.stdout}`);
+});
+
+Then("the decoy repo's refs, HEAD and config are unchanged", function () {
+  assert.equal(decoySnapshot(this.decoy), this.decoyBefore);
+});
+
 Then('the release exits {int}', function (code) {
   assert.equal(this.relExit, code, `expected exit ${code}, got ${this.relExit}. errors:\n${this.relErrs.join('\n')}`);
 });

@@ -123,3 +123,13 @@ Feature: Release tooling keeps every version location in lockstep (CREAM-rkxwsey
     When I run the release "--skip-tests" in the sandbox
     Then the release exits 1
     And the release error mentions "Usage"
+
+  # A pre-push hook in a linked worktree runs with GIT_DIR pointing at that
+  # worktree's git dir, and every git call above inherits the environment. If
+  # the suite kept it, the sandbox's `git init`, `commit`, `branch -M main` and
+  # `tag` would rewrite the real repository instead (CREAM-zdyjsqks).
+  Scenario: the sandbox release scenarios leave the repository GIT_DIR names untouched
+    Given a decoy git repo
+    When the sandbox release scenarios run with GIT_DIR pointing at the decoy
+    Then the nested run passes
+    And the decoy repo's refs, HEAD and config are unchanged
