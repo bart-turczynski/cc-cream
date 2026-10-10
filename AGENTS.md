@@ -1,13 +1,12 @@
 # cc-cream
 
-@FP_AGENTS.md
-
 Node status-line tool for Claude Code: reads Claude Code's stdin JSON, prints a
 colored ≤3-row bar. Zero tokens — the model never sees the output.
 
 A *segment* is one field on the bar. A *slice* is one `features/NN-*.feature`
-and its 1:1 fp issue; the feature file is the acceptance spec. Gate done on
-`pnpm test`.
+and its 1:1 fp issue; the feature file is the acceptance spec.
+
+Gate done on `pnpm test`.
 
 No runtime dependencies. Node built-ins only, ESM.
 
