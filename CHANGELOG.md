@@ -8,6 +8,10 @@ All notable changes to cc-cream are documented here. Format follows
 
 ### Changed
 
+- **`AGENTS.md` no longer imports fp's generated `FP_AGENTS.md`.** That file
+  sized issues by elapsed time and nested sub-issues, guidance the maintainer's
+  fp skills now replace, and it loaded on every agent request. `CONTRIBUTING.md`
+  drops the section on restoring it with `fp agent setup`.
 - **The release skill's verification step passes
   `--safe-chain-skip-minimum-package-age`.** A Safe-chain wrapper in front of
   `npm` suppresses versions below a minimum age, so a bare `npm view cc-cream
