@@ -46,9 +46,10 @@ test:
   image: node:${NODE_VERSION}
   <<: *pnpm
   # Prove the gate across the Node versions the dev toolchain supports. The floor
-  # is Node 22.13+ — pnpm@11.3.0 (pinned via packageManager) imports node:sqlite,
-  # which doesn't exist before 22.13 — so 20 can't run the toolchain at all; 22 is
-  # the floor (the published `engines.node`), 26 the current line. A failure on
+  # is the published `engines.node`, >=22.13.0: it was set when pnpm 11.3 imported
+  # node:sqlite (absent before 22.13). pnpm 12 runs as a native binary, but the
+  # published floor stays until it is lowered or raised on purpose. 22 is the
+  # floor, 26 the current line. A failure on
   # either leg surfaces a version-specific break here, on the MR, not at publish
   # time.
   parallel:
