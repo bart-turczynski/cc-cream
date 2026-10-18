@@ -11,7 +11,7 @@ All notable changes to cc-cream are documented here. Format follows
 - **CI runs on Node 26.** The `test` matrix is Node 22/26 (22 stays as the
   `engines.node` floor), and the `coverage`, `publish` and `sync-catalogue`
   jobs use `node:26`. Node 26 images no longer bundle corepack, so the shared
-  pnpm setup installs `corepack@latest` before `corepack enable`.
+  pnpm setup installs a pinned `corepack@0.36.0` before `corepack enable`.
 - **The project pins pnpm 12.14.0.** The lockfile now opens with the document
   pnpm 12 writes to lock pnpm itself, and the dev dependencies moved to the
   newest releases inside their ranges: Biome 2.5.15, Cucumber 13.3.0, knip
