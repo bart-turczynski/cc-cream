@@ -8,6 +8,10 @@ All notable changes to cc-cream are documented here. Format follows
 
 ### Changed
 
+- **CI runs on Node 26.** The `test` matrix is Node 22/26 (22 stays as the
+  `engines.node` floor), and the `coverage`, `publish` and `sync-catalogue`
+  jobs use `node:26`. Node 26 images no longer bundle corepack, so the shared
+  pnpm setup installs `corepack@latest` before `corepack enable`.
 - **`AGENTS.md` no longer imports fp's generated `FP_AGENTS.md`.** That file
   sized issues by elapsed time and nested sub-issues, guidance the maintainer's
   fp skills now replace, and it loaded on every agent request. `CONTRIBUTING.md`
