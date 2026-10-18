@@ -162,7 +162,7 @@ pnpm pack --dry-run                                        # verify tarball cont
 ## CI
 
 `.gitlab-ci.yml` runs the exact publish gate — `pnpm test` — on every MR and
-push to `main`, across a Node 22/24 matrix (`parallel: matrix`), on a runner
+push to `main`, across a Node 22/26 matrix (`parallel: matrix`), on a runner
 with no `claude` CLI. The job asserts the CLI is absent, mirroring the publish
 environment.
 

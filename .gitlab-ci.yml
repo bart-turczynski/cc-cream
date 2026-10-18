@@ -17,9 +17,12 @@ variables:
   COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
 
 # pnpm is pinned via package.json `packageManager`; corepack activates that exact
-# version, so the pipeline can never drift from the local toolchain.
+# version, so the pipeline can never drift from the local toolchain. Node 26
+# images no longer bundle corepack, so install it first; corepack 0.36 accepts
+# Node ^22.22.2, ^24.15.0 and >=26, which covers every image below.
 .pnpm: &pnpm
   before_script:
+    - npm install -g corepack@0.36.0
     - corepack enable
     - corepack prepare --activate
     - pnpm config set store-dir .pnpm-store
@@ -43,13 +46,15 @@ test:
   image: node:${NODE_VERSION}
   <<: *pnpm
   # Prove the gate across the Node versions the dev toolchain supports. The floor
-  # is Node 22.13+ — pnpm@11.3.0 (pinned via packageManager) imports node:sqlite,
-  # which doesn't exist before 22.13 — so 20 can't run the toolchain at all; 22 is
-  # the floor, 24 the current line. A failure on either leg surfaces a
-  # version-specific break here, on the MR, not at publish time.
+  # is the published `engines.node`, >=22.13.0: it was set when pnpm 11.3 imported
+  # node:sqlite (absent before 22.13). pnpm 12 runs as a native binary, but the
+  # published floor stays until it is lowered or raised on purpose. 22 is the
+  # floor, 26 the current line. A failure on
+  # either leg surfaces a version-specific break here, on the MR, not at publish
+  # time.
   parallel:
     matrix:
-      - NODE_VERSION: ["22", "24"]
+      - NODE_VERSION: ["22", "26"]
   script:
     # Make the "no claude CLI" assumption explicit. GitLab shared runners don't
     # ship `claude`; fail loudly if that ever changes, since it would mask exactly
@@ -75,7 +80,7 @@ test:
 # widget + the repository coverage badge) rather than to a third-party service.
 coverage:
   stage: test
-  image: node:24
+  image: node:26
   <<: *pnpm
   script:
     - pnpm install --frozen-lockfile
@@ -103,7 +108,7 @@ coverage:
 # npm does not accept OIDC from self-hosted runners.
 publish:
   stage: publish
-  image: node:24
+  image: node:26
   <<: *pnpm
   id_tokens:
     NPM_ID_TOKEN:
@@ -138,7 +143,7 @@ publish:
 # missing token can never fail a release that already published.
 sync-catalogue:
   stage: sync
-  image: node:24
+  image: node:26
   variables:
     GIT_STRATEGY: clone
     CATALOGUE_URL: gitlab.com/bart-turczynski/claude-plugins.git

@@ -8,6 +8,21 @@ All notable changes to cc-cream are documented here. Format follows
 
 ### Changed
 
+- **CI runs on Node 26.** The `test` matrix is Node 22/26 (22 stays as the
+  `engines.node` floor), and the `coverage`, `publish` and `sync-catalogue`
+  jobs use `node:26`. Node 26 images no longer bundle corepack, so the shared
+  pnpm setup installs a pinned `corepack@0.36.0` before `corepack enable`.
+- **The project pins pnpm 12.14.0.** The lockfile now opens with the document
+  pnpm 12 writes to lock pnpm itself, and the dev dependencies moved to the
+  newest releases inside their ranges: Biome 2.5.15, Cucumber 13.3.0, knip
+  6.41.0, simple-git-hooks 2.14.0. `engines.node` stays `>=22.13.0`; pnpm 12
+  runs as a native binary and no longer needs `node:sqlite`, but the published
+  floor is not lowered here.
+- **The `@cucumber/gherkin` and `@cucumber/gherkin-utils` overrides are gone.**
+  They forced gherkin 41.0.0 to dedupe the copies Cucumber 13.0 pulled in.
+  Cucumber 13.3 pins gherkin 42.0.1 and gherkin-utils 12.0.2, which already
+  resolve to one gherkin, so the overrides only held it a major back. The
+  `yargs` override stays: `c8@11` still needs it on Node 26.
 - **`AGENTS.md` no longer imports fp's generated `FP_AGENTS.md`.** That file
   sized issues by elapsed time and nested sub-issues, guidance the maintainer's
   fp skills now replace, and it loaded on every agent request. `CONTRIBUTING.md`
