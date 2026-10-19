@@ -30,8 +30,7 @@ docs/
 tmp/
 
 # Fiberplane local issue tracking
-.fp/*
-!.fp/remote.toml
+.fp/
 # fp's generated agent guide: deliberately not imported (the fp skills replace
 # it); ignored so a stray copy from `fp agent setup` is never committed
 FP_AGENTS.md
@@ -43,4 +42,3 @@ FP_AGENTS.md
 !.claude/
 .claude/*
 !.claude/skills/
-
